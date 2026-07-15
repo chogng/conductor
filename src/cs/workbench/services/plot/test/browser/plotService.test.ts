@@ -5,12 +5,22 @@
 import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
+import type {
+  IWebWorkerClient,
+  WebWorkerMessage,
+  WebWorkerReplyMessage,
+  WebWorkerRequestMessage,
+} from "src/cs/base/common/worker/webWorker";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
+  type IStorageService,
   StorageScope,
   StorageTarget,
 } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
+import { WebWorkerDescriptor } from "src/cs/platform/webWorker/browser/webWorkerDescriptor";
+import type { IWebWorkerService } from "src/cs/platform/webWorker/browser/webWorkerService";
+import { WebWorkerService } from "src/cs/platform/webWorker/browser/webWorkerServiceImpl";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
@@ -24,9 +34,10 @@ import type {
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  PlotService,
+  PlotService as BrowserPlotService,
   shouldInvalidatePlotModelsForSessionChange,
 } from "src/cs/workbench/services/plot/browser/plotService";
+import { PlotCalculatedDataWorkerClient } from "src/cs/workbench/services/plot/browser/plotCalculatedDataWorkerClient";
 import type {
   ConductorSettings,
   ISettingsService,
@@ -40,6 +51,120 @@ type ResourceSheetIdentity = {
   readonly resource: URI;
   readonly sheetId?: string | null;
 };
+
+const testPlotWorkerDescriptor = new WebWorkerDescriptor({
+  esmModuleLocationBundler: "plot-calculated-data-worker.js",
+  label: "Plot Calculated Data",
+});
+
+class PlotService extends BrowserPlotService {
+  public constructor(
+    sessionService: ISessionService,
+    settingsService: ISettingsService,
+    storageService: IStorageService,
+    sliceService?: ISliceService,
+  ) {
+    super(
+      new PlotCalculatedDataWorkerClient(
+        testPlotWebWorkerService,
+        testPlotWorkerDescriptor,
+      ),
+      sessionService,
+      settingsService,
+      storageService,
+      sliceService,
+    );
+  }
+}
+
+class LegacyMessagePlotWebWorkerService implements IWebWorkerService {
+  public declare readonly _serviceBrand: undefined;
+
+  public createWorkerClient<TProxy extends object>(
+    descriptor: WebWorkerDescriptor,
+  ): IWebWorkerClient<TProxy> {
+    const WorkerCtor = globalThis.Worker;
+    if (typeof WorkerCtor !== "function") {
+      throw new Error("Web workers are unavailable for the plot test.");
+    }
+    return new WebWorkerService((url, options) => new LegacyMessagePlotWorkerAdapter(
+      new WorkerCtor(url, options),
+    ) as unknown as Worker).createWorkerClient<TProxy>(descriptor);
+  }
+
+  public isSupported(): boolean {
+    return typeof globalThis.Worker === "function";
+  }
+}
+
+class LegacyMessagePlotWorkerAdapter {
+  public onerror: ((event: ErrorEvent) => void) | null = null;
+  public onmessage: ((event: MessageEvent) => void) | null = null;
+  public onmessageerror: ((event: MessageEvent) => void) | null = null;
+  private activeRequest: WebWorkerRequestMessage | null = null;
+
+  public constructor(private readonly worker: Worker) {
+    worker.onmessage = event => this.handleLegacyMessage(event);
+    worker.onerror = event => this.onerror?.(event);
+    worker.onmessageerror = event => this.onmessageerror?.(event);
+  }
+
+  public postMessage(message: WebWorkerMessage): void {
+    if (message.type !== "request") {
+      return;
+    }
+    this.activeRequest = message;
+    this.worker.postMessage({
+      payload: message.args[0],
+      type: message.method === "$calculateData"
+        ? "calculateData"
+        : "calculateDisplayModel",
+    });
+  }
+
+  public terminate(): void {
+    this.activeRequest = null;
+    this.worker.onmessage = null;
+    this.worker.onerror = null;
+    this.worker.onmessageerror = null;
+    this.worker.terminate();
+  }
+
+  private handleLegacyMessage(event: MessageEvent): void {
+    const request = this.activeRequest;
+    if (!request) {
+      return;
+    }
+    const message = event.data as {
+      readonly payload?: { readonly message?: string };
+      readonly type?: string;
+    };
+    if (message.type === "workerError") {
+      this.onerror?.({
+        message: message.payload?.message ?? "Plot worker failed.",
+      } as ErrorEvent);
+      return;
+    }
+    const expectedType = request.method === "$calculateData"
+      ? "calculateDataResult"
+      : "calculateDisplayModelResult";
+    if (message.type !== expectedType) {
+      return;
+    }
+
+    this.activeRequest = null;
+    this.onmessage?.({
+      data: {
+        requestId: request.requestId,
+        result: message.payload,
+        type: "reply",
+        workerId: request.workerId,
+      } satisfies WebWorkerReplyMessage,
+    } as MessageEvent<WebWorkerReplyMessage>);
+  }
+}
+
+const testPlotWebWorkerService = new LegacyMessagePlotWebWorkerService();
 
 suite("workbench/services/plot/test/browser/plotService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -631,8 +756,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
       service.prefetchCalculatedData(["file-a"], "visible", "iv");
 	      runScheduledFrame(scheduledFrame);
-      await Promise.resolve();
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
 
       assert.ok(workerFile);
       assert.notEqual(workerFile, file);
@@ -740,7 +864,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.equal(workerRecords[0]?.message.payload?.file?.id, "file-a");
 
       completeWorker(workerRecords[0]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
 
       service.prefetchCalculatedData(["file-b"], "visible", "iv");
       scheduledFrames.shift()?.(0);
@@ -750,7 +874,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.equal(workerRecords[1]?.worker, workerRecords[0]?.worker);
 
       completeWorker(workerRecords[1]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
       globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
@@ -1293,7 +1417,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       );
 
       completeDisplayWorker(workerRecords[0]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
       assert.equal(service.getCachedPlotDisplayModel({
         fileId: "file-b",
         plotType: "iv",
@@ -1608,14 +1732,14 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       );
 
       completeDisplayWorker(workerRecords[1]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
       assert.ok(service.getCachedPlotDisplayModel({
         fileId: "file-active",
         plotType: "iv",
       })?.inspector);
 
       completeDisplayWorker(workerRecords[0]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
       globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
@@ -1911,14 +2035,14 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.equal(workerRecords.length, 2);
 
       completeCalculatedWorker(workerRecords[0]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
 
       service.prefetchCalculatedData(["file-a"], "active", "iv");
       scheduledFrames.shift()?.(0);
       assert.equal(workerRecords.length, 2);
 
       completeCalculatedWorker(workerRecords[1]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
       assert.equal(
         service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv" })?.signature,
         "worker-result:file-a:2",
@@ -2034,7 +2158,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       );
 
       completeDisplayWorker(workerRecords[0]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
       scheduledFrames.shift()?.(0);
       assert.deepEqual(
         workerRecords.map(record => `${record.message.type}:${record.message.payload?.sessionVersion}`),
@@ -2052,7 +2176,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.equal(workerRecords.length, 2);
 
       completeDisplayWorker(workerRecords[1]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
       assert.ok(service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
@@ -2156,7 +2280,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       );
 
       completeCalculatedWorkerWithEmptyResult(workerRecords[0]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
       scheduledFrames.shift()?.(0);
 
       assert.deepEqual(
@@ -2168,7 +2292,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       );
 
       completeDisplayWorkerWithEmptyResult(workerRecords[1]);
-      await Promise.resolve();
+      await waitForPlotWorkerResult();
 
       assert.ok(service.getCachedPlotDisplayModel({
         fileId: "file-a",
@@ -2987,6 +3111,12 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 const runScheduledFrame = (callback: FrameRequestCallback | null): void => {
   assert.ok(callback);
   callback(0);
+};
+
+const waitForPlotWorkerResult = async (): Promise<void> => {
+  for (let index = 0; index < 8; index += 1) {
+    await Promise.resolve();
+  }
 };
 
 class TestStorageService extends AbstractStorageService {

@@ -2,179 +2,117 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { bootstrapWebWorker } from 'src/cs/base/common/worker/webWorker';
+import { hasFileRecordBaseCurves } from 'src/cs/workbench/services/calculation/common/canonicalFileProjection';
 import {
-  createCalculatedDataForFile,
-  type CalculatedData,
-} from "src/cs/workbench/services/calculation/common/calculationReadModel";
-import {
-  type PlotDisplayModel,
-  type PlotFileAxisSettings,
-  type PlotType,
-} from "src/cs/workbench/services/plot/common/plot";
-import { createPlotDisplayModelFromCalculatedData } from "src/cs/workbench/services/plot/browser/plotDisplayModel";
+	createCalculatedDataForFile,
+	type CalculatedData,
+} from 'src/cs/workbench/services/calculation/common/calculationReadModel';
+import { createPlotDisplayModelFromCalculatedData } from 'src/cs/workbench/services/plot/browser/plotDisplayModel';
 import type {
-  FileId,
-  FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
-import { hasFileRecordBaseCurves } from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
+	PlotDisplayModel,
+	PlotFileAxisSettings,
+	PlotType,
+} from 'src/cs/workbench/services/plot/common/plot';
+import type {
+	FileId,
+	FileRecord,
+} from 'src/cs/workbench/services/session/common/sessionModel';
 
 export type PlotCalculatedDataWorkerRequest = {
-  readonly payload?: {
-    readonly file?: FileRecord;
-    readonly fileId?: FileId;
-    readonly plotType?: PlotType;
-    readonly requestId?: number;
-    readonly sessionVersion?: number;
-  };
-  readonly type: "calculateData";
+	readonly file: FileRecord;
+	readonly fileId: FileId;
+	readonly plotType: PlotType;
+	readonly requestId: number;
+	readonly sessionVersion: number;
+};
+
+export type PlotCalculatedDataWorkerOutput = {
+	readonly calculatedData: CalculatedData | null;
+	readonly fileId: FileId;
+	readonly plotType: PlotType;
+	readonly requestId: number;
+	readonly sessionVersion: number;
 };
 
 export type PlotDisplayModelWorkerRequest = {
-  readonly payload?: {
-    readonly axisSettings?: PlotFileAxisSettings;
-    readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
-    readonly calculatedData?: CalculatedData | null;
-    readonly fileId?: FileId;
-    readonly hiddenLegendKeys?: readonly string[];
-    readonly includeInspector?: boolean;
-    readonly legendLabels?: Readonly<Record<string, string>>;
-    readonly plotType?: PlotType;
-    readonly requestId?: number;
-    readonly sessionVersion?: number;
-  };
-  readonly type: "calculateDisplayModel";
+	readonly axisSettings?: PlotFileAxisSettings;
+	readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
+	readonly calculatedData: CalculatedData;
+	readonly fileId: FileId;
+	readonly hiddenLegendKeys?: readonly string[];
+	readonly includeInspector?: boolean;
+	readonly legendLabels?: Readonly<Record<string, string>>;
+	readonly plotType: PlotType;
+	readonly requestId: number;
+	readonly sessionVersion: number;
 };
 
-export type PlotWorkerRequest =
-  | PlotCalculatedDataWorkerRequest
-  | PlotDisplayModelWorkerRequest;
-
-export type PlotCalculatedDataWorkerResult = {
-  readonly payload: {
-    readonly calculatedData: CalculatedData | null;
-    readonly fileId: FileId;
-    readonly plotType: PlotType;
-    readonly requestId: number;
-    readonly sessionVersion: number;
-  };
-  readonly type: "calculateDataResult";
+export type PlotDisplayModelWorkerOutput = {
+	readonly displayModel: PlotDisplayModel | null;
+	readonly fileId: FileId;
+	readonly plotType: PlotType;
+	readonly requestId: number;
+	readonly sessionVersion: number;
 };
 
-export type PlotDisplayModelWorkerResult = {
-  readonly payload: {
-    readonly displayModel: PlotDisplayModel | null;
-    readonly fileId: FileId;
-    readonly plotType: PlotType;
-    readonly requestId: number;
-    readonly sessionVersion: number;
-  };
-  readonly type: "calculateDisplayModelResult";
-};
+export interface IPlotCalculatedDataWorker {
+	$calculateData(input: PlotCalculatedDataWorkerRequest): PlotCalculatedDataWorkerOutput;
+	$calculateDisplayModel(input: PlotDisplayModelWorkerRequest): PlotDisplayModelWorkerOutput;
+}
 
-export type PlotCalculatedDataWorkerError = {
-  readonly payload: {
-    readonly fileId: FileId | null;
-    readonly message: string;
-    readonly plotType: PlotType | null;
-    readonly requestId: number;
-    readonly sessionVersion: number;
-  };
-  readonly type: "workerError";
-};
+class PlotCalculatedDataWorker implements IPlotCalculatedDataWorker {
+	public $calculateData(
+		input: PlotCalculatedDataWorkerRequest,
+	): PlotCalculatedDataWorkerOutput {
+		const file = input.file;
+		const fileId = String(input.fileId ?? file?.id ?? '').trim();
+		const plotType = input.plotType;
+		if (!file || !fileId || !plotType) {
+			throw new Error('Plot worker request is missing file or plot type.');
+		}
 
-export type PlotCalculatedDataWorkerMessage =
-  | PlotCalculatedDataWorkerResult
-  | PlotDisplayModelWorkerResult
-  | PlotCalculatedDataWorkerError;
+		return {
+			calculatedData: hasFileRecordBaseCurves(file)
+				? createCalculatedDataForFile({ file, plotType })
+				: null,
+			fileId,
+			plotType,
+			requestId: normalizeInteger(input.requestId),
+			sessionVersion: normalizeInteger(input.sessionVersion),
+		};
+	}
 
-const toInteger = (value: unknown, fallback: number): number => {
-  const numberValue = Math.floor(Number(value));
-  return Number.isFinite(numberValue) ? numberValue : fallback;
-};
+	public $calculateDisplayModel(
+		input: PlotDisplayModelWorkerRequest,
+	): PlotDisplayModelWorkerOutput {
+		const calculatedData = input.calculatedData;
+		const fileId = String(input.fileId ?? calculatedData?.source.fileId ?? '').trim();
+		const plotType = input.plotType ?? calculatedData?.kind;
+		if (!calculatedData || !fileId || !plotType) {
+			throw new Error('Plot worker display request is missing file or plot type.');
+		}
 
-const postError = (
-  payload: PlotWorkerRequest["payload"],
-  error: unknown,
-): void => {
-  const message = error instanceof Error && error.message.trim()
-    ? error.message
-    : "Failed to calculate plot data.";
+		return {
+			displayModel: createPlotDisplayModelFromCalculatedData({
+				axisSettings: input.axisSettings,
+				axisTitleOverridesByKey: input.axisTitleOverridesByKey,
+				calculatedData,
+				hiddenLegendKeys: input.hiddenLegendKeys,
+				includeInspector: input.includeInspector,
+				legendLabels: input.legendLabels,
+			}),
+			fileId,
+			plotType,
+			requestId: normalizeInteger(input.requestId),
+			sessionVersion: normalizeInteger(input.sessionVersion),
+		};
+	}
+}
 
-  self.postMessage({
-    payload: {
-      fileId: String(payload?.fileId ?? "").trim() || null,
-      message,
-      plotType: payload?.plotType ?? null,
-      requestId: toInteger(payload?.requestId, 0),
-      sessionVersion: toInteger(payload?.sessionVersion, 0),
-    },
-    type: "workerError",
-  } satisfies PlotCalculatedDataWorkerError);
-};
+bootstrapWebWorker(() => new PlotCalculatedDataWorker());
 
-self.onmessage = (event: MessageEvent<PlotWorkerRequest>): void => {
-  const message = event.data;
-  if (message?.type !== "calculateData" && message?.type !== "calculateDisplayModel") {
-    return;
-  }
-
-  const payload = message.payload;
-  try {
-    if (message.type === "calculateDisplayModel") {
-      const displayPayload: PlotDisplayModelWorkerRequest["payload"] = message.payload;
-      const calculatedData = displayPayload?.calculatedData ?? null;
-      const fileId = String(displayPayload?.fileId ?? calculatedData?.source.fileId ?? "").trim();
-      const plotType = displayPayload?.plotType ?? calculatedData?.kind;
-      if (!fileId || !plotType) {
-        throw new Error("Plot worker display request is missing file or plot type.");
-      }
-
-      self.postMessage({
-        payload: {
-          displayModel: createPlotDisplayModelFromCalculatedData({
-            axisSettings: displayPayload?.axisSettings,
-            axisTitleOverridesByKey: displayPayload?.axisTitleOverridesByKey,
-            calculatedData,
-            hiddenLegendKeys: displayPayload?.hiddenLegendKeys,
-            includeInspector: displayPayload?.includeInspector,
-            legendLabels: displayPayload?.legendLabels,
-          }),
-          fileId,
-          plotType: plotType as PlotType,
-          requestId: toInteger(displayPayload?.requestId, 0),
-          sessionVersion: toInteger(displayPayload?.sessionVersion, 0),
-        },
-        type: "calculateDisplayModelResult",
-      } satisfies PlotDisplayModelWorkerResult);
-      return;
-    }
-
-    const calculatedPayload: PlotCalculatedDataWorkerRequest["payload"] = message.payload;
-    const file = calculatedPayload?.file;
-    const fileId = String(calculatedPayload?.fileId ?? file?.id ?? "").trim();
-    const plotType = calculatedPayload?.plotType;
-    if (!file || !fileId || !plotType) {
-      throw new Error("Plot worker request is missing file or plot type.");
-    }
-
-    const calculatedData = hasFileRecordBaseCurves(file)
-      ? createCalculatedDataForFile({ file, plotType })
-      : null;
-
-    self.postMessage({
-      payload: {
-        calculatedData,
-        fileId,
-        plotType,
-        requestId: toInteger(calculatedPayload?.requestId, 0),
-        sessionVersion: toInteger(calculatedPayload?.sessionVersion, 0),
-      },
-      type: "calculateDataResult",
-    } satisfies PlotCalculatedDataWorkerResult);
-  } catch (error) {
-    postError(payload, error);
-  }
-};
-
-const hasPlotWorkerBaseCurves = (file: FileRecord): boolean =>
-  Object.values(file.curvesByKey).some(curve => curve.curveGeneration === "base");
+function normalizeInteger(value: number): number {
+	const normalized = Math.floor(Number(value));
+	return Number.isFinite(normalized) ? normalized : 0;
+}

@@ -10,6 +10,7 @@ import "src/cs/platform/hover/browser/hoverService";
 import "src/cs/platform/languagePacks/browser/languagePacks";
 import "src/cs/platform/quickinput/browser/media/quickInput.css";
 import "src/cs/platform/quickinput/browser/quickInputService";
+import "src/cs/platform/webWorker/browser/webWorkerServiceImpl";
 
 //#endregion
 
@@ -24,7 +25,6 @@ import "src/cs/workbench/workbench.common.main";
 import "src/cs/workbench/services/appearance/browser/appearanceService";
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
 import "src/cs/workbench/services/chart/browser/chartService";
-import "src/cs/workbench/services/dataResource/browser/structuredContentEvidenceService";
 import "src/cs/workbench/services/dataResource/browser/dataResource.contribution";
 import "src/cs/workbench/services/export/browser/exportService";
 import "src/cs/workbench/services/layout/browser/layoutService";
@@ -32,7 +32,7 @@ import "src/cs/workbench/services/localization/browser/localeService";
 import "src/cs/workbench/services/keybinding/browser/keybindingService";
 import "src/cs/workbench/services/origin/browser/originService";
 import "src/cs/workbench/services/parameters/browser/parametersService";
-import "src/cs/workbench/services/plot/browser/plotService";
+import "src/cs/workbench/services/plot/browser/plot.contribution";
 import "src/cs/workbench/services/settings/browser/settingsService";
 import "src/cs/workbench/services/search/browser/searchService";
 import "src/cs/workbench/services/session/browser/sessionService";
@@ -50,7 +50,7 @@ import "src/cs/workbench/services/views/browser/viewDescriptorService";
 import "src/cs/workbench/services/views/browser/viewsService";
 import "src/cs/workbench/services/table/common/tableModelResolverService";
 import "src/cs/workbench/services/table/browser/tableService";
-import "src/cs/workbench/services/table/browser/tableStructureParserService";
+import "src/cs/workbench/services/table/browser/tableStructureParser.contribution";
 
 //#endregion
 

@@ -2,33 +2,31 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from "src/cs/base/common/lifecycle";
-import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { getPerfNow, logPerf } from "src/cs/workbench/common/perf";
-import type {
-	StructuredContentEvidenceWorkerMessage,
-	StructuredContentEvidenceWorkerRequest,
-} from "src/cs/workbench/services/dataResource/browser/structuredContentEvidenceWorker";
-import { IStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/common/structuredContentEvidenceService";
-import type { StructuredContentEvidence } from "src/cs/workbench/services/dataResource/common/structuredContent";
-import type { TemplateSemanticPatches } from "src/cs/workbench/services/settings/common/settings";
-import type { TableModelContentSnapshot } from "src/cs/workbench/services/table/common/model";
+import { Disposable } from 'src/cs/base/common/lifecycle';
+import type { IWebWorkerClient } from 'src/cs/base/common/worker/webWorker';
+import { getPerfNow, logPerf } from 'src/cs/workbench/common/perf';
+import type { IStructuredContentEvidenceWorker } from 'src/cs/workbench/services/dataResource/browser/structuredContentEvidenceWorker';
+import { IStructuredContentEvidenceService } from 'src/cs/workbench/services/dataResource/common/structuredContentEvidenceService';
+import type { StructuredContentEvidence } from 'src/cs/workbench/services/dataResource/common/structuredContent';
+import type { TemplateSemanticPatches } from 'src/cs/workbench/services/settings/common/settings';
+import type { TableModelContentSnapshot } from 'src/cs/workbench/services/table/common/model';
 
 const STRUCTURED_CONTENT_EVIDENCE_WORKER_DEFAULT_CONCURRENCY = 4;
 const STRUCTURED_CONTENT_EVIDENCE_WORKER_MAX_CONCURRENCY = 8;
 const STRUCTURED_CONTENT_EVIDENCE_WORKER_TIMEOUT_MS = 60_000;
 
+export type StructuredContentEvidenceWorkerClientFactory = () => IWebWorkerClient<IStructuredContentEvidenceWorker>;
+
 type QueuedEvidenceRequest = {
 	readonly content: TableModelContentSnapshot;
 	readonly patches: TemplateSemanticPatches;
 	readonly reject: (error: Error) => void;
-	readonly requestId: number;
 	readonly resolve: (evidence: StructuredContentEvidence) => void;
 };
 
 type EvidenceWorkerSlot = {
 	activeRequest: QueuedEvidenceRequest | null;
-	worker: Worker;
+	readonly worker: IWebWorkerClient<IStructuredContentEvidenceWorker>;
 };
 
 export function getStructuredContentEvidenceWorkerConcurrency(
@@ -50,24 +48,23 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 	private readonly queuedRequests: QueuedEvidenceRequest[] = [];
 	private readonly slots: EvidenceWorkerSlot[] = [];
 	private disposed = false;
-	private requestIdPool = 0;
+
+	public constructor(
+		private readonly workerFactory: StructuredContentEvidenceWorkerClientFactory,
+	) {
+		super();
+	}
 
 	public create(
 		content: TableModelContentSnapshot,
 		patches: TemplateSemanticPatches,
 	): Promise<StructuredContentEvidence> {
 		if (this.disposed) {
-			return Promise.reject(new Error("The DataResource evidence service is disposed."));
+			return Promise.reject(new Error('The DataResource evidence service is disposed.'));
 		}
 		return new Promise<StructuredContentEvidence>((resolve, reject) => {
-			this.queuedRequests.push({
-				content,
-				patches,
-				reject,
-				requestId: ++this.requestIdPool,
-				resolve,
-			});
-			logPerf("dataResource.evidenceWorker.enqueue", {
+			this.queuedRequests.push({ content, patches, reject, resolve });
+			logPerf('dataResource.evidenceWorker.enqueue', {
 				concurrency: this.concurrency,
 				queueLength: this.queuedRequests.length,
 			}, { silent: true });
@@ -80,14 +77,14 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 			return;
 		}
 		this.disposed = true;
-		const error = new Error("The DataResource evidence service was disposed.");
+		const error = new Error('The DataResource evidence service was disposed.');
 		for (const request of this.queuedRequests.splice(0)) {
 			request.reject(error);
 		}
 		for (const slot of this.slots) {
 			slot.activeRequest?.reject(error);
 			slot.activeRequest = null;
-			slot.worker.terminate();
+			slot.worker.dispose();
 		}
 		this.slots.length = 0;
 		super.dispose();
@@ -110,7 +107,7 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 			}
 			const request = this.queuedRequests.shift()!;
 			slot.activeRequest = request;
-			this.dispatch(slot, request);
+			void this.dispatch(slot, request);
 		}
 	}
 
@@ -122,84 +119,61 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 		if (this.slots.length >= this.concurrency) {
 			return null;
 		}
-		const worker = new Worker(new URL("./structuredContentEvidenceWorker.ts", import.meta.url), {
-			name: "DataResource Evidence",
-			type: "module",
-		});
-		const slot: EvidenceWorkerSlot = { activeRequest: null, worker };
+
+		const slot: EvidenceWorkerSlot = {
+			activeRequest: null,
+			worker: this.workerFactory(),
+		};
 		this.slots.push(slot);
-		logPerf("dataResource.evidenceWorker.createWorker", {
+		logPerf('dataResource.evidenceWorker.createWorker', {
 			concurrency: this.concurrency,
 			workerCount: this.slots.length,
 		}, { silent: true });
 		return slot;
 	}
 
-	private dispatch(slot: EvidenceWorkerSlot, request: QueuedEvidenceRequest): void {
+	private async dispatch(
+		slot: EvidenceWorkerSlot,
+		request: QueuedEvidenceRequest,
+	): Promise<void> {
 		const startedAt = getPerfNow();
-		const timeout = globalThis.setTimeout(() => {
-			this.removeWorker(slot);
-			this.finish(slot, request, null, new Error("The DataResource evidence worker timed out."), startedAt);
-		}, STRUCTURED_CONTENT_EVIDENCE_WORKER_TIMEOUT_MS);
-		slot.worker.onmessage = (
-			event: MessageEvent<StructuredContentEvidenceWorkerMessage>,
-		): void => {
-			const message = event.data;
-			if (message?.payload?.requestId !== request.requestId) {
-				return;
-			}
-			globalThis.clearTimeout(timeout);
-			if (message.type === "createEvidenceResult") {
-				logPerf("dataResource.structuredContent.evidence", {
-					columnCount: request.content.columnCount,
-					durationMs: message.payload.durationMs,
-					rowCount: request.content.rowCount,
-					worker: true,
-				}, { silent: true });
-				this.finish(slot, request, message.payload.evidence, null, startedAt);
-				return;
-			}
-			this.finish(slot, request, null, new Error(message.payload.message), startedAt);
-		};
-		slot.worker.onerror = event => {
-			globalThis.clearTimeout(timeout);
-			this.removeWorker(slot);
-			this.finish(
-				slot,
-				request,
-				null,
-				new Error(event.message || "The DataResource evidence worker failed."),
-				startedAt,
-			);
-		};
-		slot.worker.onmessageerror = () => {
-			globalThis.clearTimeout(timeout);
-			this.removeWorker(slot);
-			this.finish(
-				slot,
-				request,
-				null,
-				new Error("The DataResource evidence worker returned an unreadable result."),
-				startedAt,
-			);
-		};
-		logPerf("dataResource.evidenceWorker.dispatch", {
-			queueLength: this.queuedRequests.length,
-			workerCount: this.slots.length,
-		}, { silent: true });
+		let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+		let timedOut = false;
 		try {
-			slot.worker.postMessage({
-				payload: {
-					content: request.content,
-					patches: request.patches,
-					requestId: request.requestId,
-				},
-				type: "createEvidence",
-			} satisfies StructuredContentEvidenceWorkerRequest);
+			const workerRequest = slot.worker.proxy.$createEvidence({
+				content: request.content,
+				patches: request.patches,
+			});
+			const output = await new Promise<Awaited<typeof workerRequest>>((resolve, reject) => {
+				timeout = globalThis.setTimeout(() => {
+					timedOut = true;
+					reject(new Error('The DataResource evidence worker timed out.'));
+				}, STRUCTURED_CONTENT_EVIDENCE_WORKER_TIMEOUT_MS);
+				workerRequest.then(resolve, reject);
+			});
+			if (slot.activeRequest !== request || this.disposed) {
+				return;
+			}
+
+			logPerf('dataResource.structuredContent.evidence', {
+				columnCount: request.content.columnCount,
+				durationMs: output.durationMs,
+				rowCount: request.content.rowCount,
+				worker: true,
+			}, { silent: true });
+			this.finish(slot, request, output.evidence, null, startedAt);
 		} catch (error) {
-			globalThis.clearTimeout(timeout);
-			this.removeWorker(slot);
+			if (slot.activeRequest !== request || this.disposed) {
+				return;
+			}
+			if (timedOut || slot.worker.isClosed()) {
+				this.removeWorker(slot);
+			}
 			this.finish(slot, request, null, toError(error), startedAt);
+		} finally {
+			if (timeout !== undefined) {
+				globalThis.clearTimeout(timeout);
+			}
 		}
 	}
 
@@ -214,7 +188,7 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 			return;
 		}
 		slot.activeRequest = null;
-		logPerf("dataResource.evidenceWorker.complete", {
+		logPerf('dataResource.evidenceWorker.complete', {
 			durationMs: getPerfNow() - startedAt,
 			queueLength: this.queuedRequests.length,
 			success: Boolean(evidence),
@@ -222,13 +196,13 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 		if (evidence) {
 			request.resolve(evidence);
 		} else {
-			request.reject(error ?? new Error("The DataResource evidence worker failed."));
+			request.reject(error ?? new Error('The DataResource evidence worker failed.'));
 		}
 		this.flush();
 	}
 
 	private removeWorker(slot: EvidenceWorkerSlot): void {
-		slot.worker.terminate();
+		slot.worker.dispose();
 		const index = this.slots.indexOf(slot);
 		if (index >= 0) {
 			this.slots.splice(index, 1);
@@ -236,13 +210,8 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 	}
 }
 
-const toError = (error: unknown): Error =>
-	error instanceof Error
+function toError(error: unknown): Error {
+	return error instanceof Error
 		? error
-		: new Error("The DataResource evidence worker failed.");
-
-registerSingleton(
-	IStructuredContentEvidenceService,
-	StructuredContentEvidenceService,
-	InstantiationType.Delayed,
-);
+		: new Error('The DataResource evidence worker failed.');
+}

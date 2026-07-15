@@ -6,8 +6,6 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { logPerf, startPerf } from "src/cs/workbench/common/perf";
-import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
   IStorageService,
   StorageScope,
@@ -42,8 +40,7 @@ import {
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
 import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
 import {
-  calculatePlotDataInWorker,
-  calculatePlotDisplayModelInWorker,
+  PlotCalculatedDataWorkerClient,
   type PlotDisplayModelWorkerLane,
 } from "src/cs/workbench/services/plot/browser/plotCalculatedDataWorkerClient";
 import {
@@ -221,6 +218,7 @@ export class PlotService extends Disposable implements IPlotService {
   private nextPlotDisplayModelWorkerRequestId = 1;
 
   constructor(
+    private readonly calculatedDataWorkerClient: PlotCalculatedDataWorkerClient,
     @ISessionService private readonly sessionService: ISessionService,
     @ISettingsService private readonly settingsService: ISettingsService,
     @IStorageService private readonly storageService: IStorageService,
@@ -228,6 +226,7 @@ export class PlotService extends Disposable implements IPlotService {
   ) {
     super();
 
+    this._register(this.calculatedDataWorkerClient);
     this._register(this.sessionService.onDidChangeSession(event => {
       this.invalidatePlotModelsForSessionChange(event);
     }));
@@ -1799,7 +1798,7 @@ export class PlotService extends Disposable implements IPlotService {
       priority,
       requestId,
     });
-    void calculatePlotDataInWorker({
+    void this.calculatedDataWorkerClient.calculateData({
       file,
       plotType,
       priority,
@@ -2093,7 +2092,7 @@ export class PlotService extends Disposable implements IPlotService {
       priority: request.priority,
       requestId,
     });
-    void calculatePlotDisplayModelInWorker({
+    void this.calculatedDataWorkerClient.calculateDisplayModel({
       axisSettings: this.resolveAxisSettings(snapshot ?? undefined),
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
       calculatedData,
@@ -2175,7 +2174,7 @@ export class PlotService extends Disposable implements IPlotService {
       priority: request.priority,
       requestId,
     });
-    void calculatePlotDisplayModelInWorker({
+    void this.calculatedDataWorkerClient.calculateDisplayModel({
       axisSettings: this.resolveAxisSettings(snapshot ?? undefined),
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
       calculatedData,
@@ -3147,9 +3146,3 @@ const readRetiredSettingsStringMap = (value: unknown): Record<string, string> =>
   }
   return result;
 };
-
-registerSingleton(
-  IPlotService,
-  PlotService as unknown as new (...services: BrandedService[]) => IPlotService,
-  InstantiationType.Delayed,
-);

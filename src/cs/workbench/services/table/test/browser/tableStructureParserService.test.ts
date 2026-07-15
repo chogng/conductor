@@ -2,25 +2,26 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from "assert";
+import assert from 'assert';
 
-import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import type { IWebWorkerClient } from 'src/cs/base/common/worker/webWorker';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'src/cs/base/test/common/lifecycleTestUtils';
 import {
 	getTableStructureParserWorkerConcurrency,
 	TableStructureParserWorkerPool,
-	type TableStructureParserWorker,
-} from "src/cs/workbench/services/table/browser/tableStructureParserService";
+} from 'src/cs/workbench/services/table/browser/tableStructureParserService';
 import type {
-	TableStructureParserWorkerMessage,
-	TableStructureParserWorkerRequest,
-} from "src/cs/workbench/services/table/browser/tableStructureParserWorker";
-import { createTableTextBuffer } from "src/cs/workbench/services/table/common/tableReadBuffer";
-import type { ParsedTableStructure } from "src/cs/workbench/services/table/common/tableStructureParser";
+	ITableStructureParserWorker,
+	TableStructureParserWorkerInput,
+	TableStructureParserWorkerOutput,
+} from 'src/cs/workbench/services/table/browser/tableStructureParserWorker';
+import type { ParsedTableStructure } from 'src/cs/workbench/services/table/common/tableStructureParser';
+import { createTableTextBuffer } from 'src/cs/workbench/services/table/common/tableReadBuffer';
 
-suite("workbench/services/table/test/browser/tableStructureParserService", () => {
+suite('workbench/services/table/test/browser/tableStructureParserService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("scales worker concurrency from available CPU cores", () => {
+	test('scales worker concurrency from available CPU cores', () => {
 		assert.deepStrictEqual([
 			getTableStructureParserWorkerConcurrency(1),
 			getTableStructureParserWorkerConcurrency(2),
@@ -30,16 +31,16 @@ suite("workbench/services/table/test/browser/tableStructureParserService", () =>
 		], [1, 1, 3, 8, 4]);
 	});
 
-	test("bounds concurrent parsing and reuses workers for queued files", async () => {
-		const workers: TestTableStructureParserWorker[] = [];
-		const pool = store.add(new TableStructureParserWorkerPool(3, () => {
-			const worker = new TestTableStructureParserWorker();
+	test('bounds concurrent parsing and reuses workers for queued files', async () => {
+		const workers: TestTableStructureParserWorkerClient[] = [];
+		const pool = store.add(new TableStructureParserWorkerPool(() => {
+			const worker = new TestTableStructureParserWorkerClient();
 			workers.push(worker);
-			return worker;
-		}));
+			return worker as unknown as IWebWorkerClient<ITableStructureParserWorker>;
+		}, 3));
 		const parses = Array.from({ length: 5 }, (_, index) => pool.parse({
-			buffer: createTableTextBuffer(`X,Y\n${index},${index + 1}`, "utf8"),
-			format: "csv",
+			buffer: createTableTextBuffer(`X,Y\n${index},${index + 1}`, 'utf8'),
+			format: 'csv',
 		}));
 
 		await waitFor(() => countWorkerRequests(workers) === 3);
@@ -62,7 +63,7 @@ suite("workbench/services/table/test/browser/tableStructureParserService", () =>
 
 		assert.deepStrictEqual({
 			resultCount: results.length,
-			terminatedWorkers: workers.filter(worker => worker.terminated).length,
+			terminatedWorkers: workers.filter(worker => worker.disposed).length,
 			workerCount: workers.length,
 		}, {
 			resultCount: 5,
@@ -72,39 +73,50 @@ suite("workbench/services/table/test/browser/tableStructureParserService", () =>
 	});
 });
 
-class TestTableStructureParserWorker implements TableStructureParserWorker {
-	public onerror: ((event: ErrorEvent) => void) | null = null;
-	public onmessage: ((event: MessageEvent<TableStructureParserWorkerMessage>) => void) | null = null;
-	public onmessageerror: ((event: MessageEvent) => void) | null = null;
-	public readonly requests: TableStructureParserWorkerRequest[] = [];
-	public terminated = false;
+type PendingRequest = {
+	readonly input: TableStructureParserWorkerInput;
+	readonly reject: (error: unknown) => void;
+	readonly resolve: (output: TableStructureParserWorkerOutput) => void;
+};
 
-	public postMessage(
-		message: TableStructureParserWorkerRequest,
-		_transfer: Transferable[],
-	): void {
-		this.requests.push(message);
+class TestTableStructureParserWorkerClient {
+	public disposed = false;
+	public readonly requests: PendingRequest[] = [];
+	public requestCount = 0;
+
+	public request(
+		_method: '$parse',
+		args: [TableStructureParserWorkerInput],
+	): Promise<TableStructureParserWorkerOutput> {
+		this.requestCount += 1;
+		return new Promise<TableStructureParserWorkerOutput>((resolve, reject) => {
+			this.requests.push({ input: args[0], reject, resolve });
+		});
 	}
 
-	public terminate(): void {
-		this.terminated = true;
+	public isClosed(): boolean {
+		return this.disposed;
+	}
+
+	public dispose(): void {
+		if (this.disposed) {
+			return;
+		}
+		this.disposed = true;
+		for (const request of this.requests.splice(0)) {
+			request.reject(new Error('The test worker was disposed.'));
+		}
 	}
 
 	public complete(): void {
-		const request = this.requests[this.requests.length - 1];
+		const request = this.requests.shift();
 		if (!request) {
-			throw new Error("The test worker has no request to complete.");
+			throw new Error('The test worker has no request to complete.');
 		}
-		this.onmessage?.(new MessageEvent<TableStructureParserWorkerMessage>("message", {
-			data: {
-				payload: {
-					durationMs: 1,
-					requestId: request.payload.requestId,
-					result: emptyParsedTableStructure,
-				},
-				type: "parseResult",
-			},
-		}));
+		request.resolve({
+			durationMs: 1,
+			result: emptyParsedTableStructure,
+		});
 	}
 }
 
@@ -114,16 +126,18 @@ const emptyParsedTableStructure: ParsedTableStructure = {
 	sheets: [],
 };
 
-const countWorkerRequests = (
-	workers: readonly TestTableStructureParserWorker[],
-): number => workers.reduce((count, worker) => count + worker.requests.length, 0);
+function countWorkerRequests(
+	workers: readonly TestTableStructureParserWorkerClient[],
+): number {
+	return workers.reduce((count, worker) => count + worker.requestCount, 0);
+}
 
-const waitFor = async (condition: () => boolean): Promise<void> => {
+async function waitFor(condition: () => boolean): Promise<void> {
 	for (let attempt = 0; attempt < 20; attempt += 1) {
 		if (condition()) {
 			return;
 		}
 		await new Promise<void>(resolve => globalThis.setTimeout(resolve, 0));
 	}
-	throw new Error("Timed out waiting for the worker pool test condition.");
-};
+	throw new Error('Timed out waiting for the worker pool test condition.');
+}

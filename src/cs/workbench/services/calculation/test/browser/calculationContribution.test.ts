@@ -5,10 +5,17 @@
 import assert from "assert";
 
 import { Emitter, type Event } from "src/cs/base/common/event";
+import type {
+  WebWorkerReplyMessage,
+  WebWorkerRequestMessage,
+} from "src/cs/base/common/worker/webWorker";
+import { WebWorkerDescriptor } from "src/cs/platform/webWorker/browser/webWorkerDescriptor";
+import { WebWorkerService } from "src/cs/platform/webWorker/browser/webWorkerServiceImpl";
 import {
   CalculationService,
   shouldUpdateCalculationForSessionChange,
-} from "src/cs/workbench/services/calculation/browser/calculation.contribution";
+} from "src/cs/workbench/services/calculation/browser/calculationService";
+import { CalculationWorkerClient } from "src/cs/workbench/services/calculation/browser/calculationWorkerClient";
 import type { CalculationRecordsWorkerRequest } from "src/cs/workbench/services/calculation/browser/calculationWorker";
 import type {
   CommitCurvesBatchInput,
@@ -30,6 +37,21 @@ import type {
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+
+const testCalculationWorkerDescriptor = new WebWorkerDescriptor({
+  esmModuleLocationBundler: "calculation-worker.js",
+  label: "Calculation",
+});
+const testWebWorkerService = new WebWorkerService();
+
+const createCalculationService = (sessionService: ISessionService): CalculationService =>
+  new CalculationService(
+    new CalculationWorkerClient(
+      testWebWorkerService,
+      testCalculationWorkerDescriptor,
+    ),
+    sessionService,
+  );
 
 suite("workbench/services/calculation/test/browser/calculationContribution", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -98,7 +120,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       "file-a": createFileRecord("file-a", "series-a", "base-a"),
       "file-b": createFileRecord("file-b", "series-b", "base-b"),
     });
-    const contribution = new CalculationService(createSessionServiceStub({
+    const contribution = createCalculationService(createSessionServiceStub({
       commitCurvesBatch: input => curveCommits.push(...input),
       commitCalculatedRecordsBatch: input => {
         curveCommits.push(...input.map(commit => ({
@@ -147,7 +169,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       "file-b": createFileRecord("file-b", "series-b", "base-b"),
       "file-c": createFileRecord("file-c", "series-c", "base-c"),
     });
-    const contribution = new CalculationService(createSessionServiceStub({
+    const contribution = createCalculationService(createSessionServiceStub({
       commitCurvesBatch: () => undefined,
       commitCalculatedRecordsBatch: input => {
         calculatedCommitFileIds.push(input.map(commit => commit.fileId));
@@ -170,7 +192,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     const sessionEvents = new Emitter<SessionChangeEvent>();
     const calculatedCommitFileIds: string[][] = [];
     const workerRecords: Array<{
-      readonly message: CalculationRecordsWorkerRequest;
+      readonly message: WebWorkerRequestMessage;
       readonly worker: TestWorker;
     }> = [];
     let activeWorkerCount = 0;
@@ -178,13 +200,14 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     class TestWorker {
       public onerror: ((event: ErrorEvent) => void) | null = null;
       public onmessage: ((event: MessageEvent) => void) | null = null;
+      public onmessageerror: ((event: MessageEvent) => void) | null = null;
 
       constructor() {
         activeWorkerCount += 1;
         maxActiveWorkerCount = Math.max(maxActiveWorkerCount, activeWorkerCount);
       }
 
-      public postMessage(message: CalculationRecordsWorkerRequest): void {
+      public postMessage(message: WebWorkerRequestMessage): void {
         workerRecords.push({ message, worker: this });
       }
 
@@ -201,7 +224,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
         "file-b": createFileRecord("file-b", "series-b", "base-b"),
         "file-c": createFileRecord("file-c", "series-c", "base-c"),
       });
-      contribution = new CalculationService(createSessionServiceStub({
+      contribution = createCalculationService(createSessionServiceStub({
         commitCurvesBatch: () => undefined,
         commitCalculatedRecordsBatch: input => {
           calculatedCommitFileIds.push(input.map(commit => commit.fileId));
@@ -214,7 +237,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       await waitForPendingCalculation();
 
       assert.equal(workerRecords.length, 1);
-      assert.equal(workerRecords[0].message.payload?.fileId, "file-a");
+      assert.equal(getCalculationWorkerPayload(workerRecords[0]).fileId, "file-a");
       assert.deepEqual(calculatedCommitFileIds, []);
 
       contribution.prioritizeCalculationFile("file-c");
@@ -225,7 +248,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       await waitForCalculationWorkerResult();
 
       assert.equal(workerRecords.length, 2);
-      assert.equal(workerRecords[1].message.payload?.fileId, "file-c");
+      assert.equal(getCalculationWorkerPayload(workerRecords[1]).fileId, "file-c");
       assert.deepEqual(calculatedCommitFileIds, [["file-a"]]);
       assert.equal(maxActiveWorkerCount, 1);
 
@@ -236,7 +259,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
 
       await waitForPendingCalculation();
       assert.equal(workerRecords.length, 3);
-      assert.equal(workerRecords[2].message.payload?.fileId, "file-b");
+      assert.equal(getCalculationWorkerPayload(workerRecords[2]).fileId, "file-b");
       assert.equal(maxActiveWorkerCount, 1);
     } finally {
       contribution?.dispose();
@@ -250,14 +273,15 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     const sessionEvents = new Emitter<SessionChangeEvent>();
     const calculatedCommitFileIds: string[][] = [];
     const workerRecords: Array<{
-      readonly message: CalculationRecordsWorkerRequest;
+      readonly message: WebWorkerRequestMessage;
       readonly worker: TestWorker;
     }> = [];
     class TestWorker {
       public onerror: ((event: ErrorEvent) => void) | null = null;
       public onmessage: ((event: MessageEvent) => void) | null = null;
+      public onmessageerror: ((event: MessageEvent) => void) | null = null;
 
-      public postMessage(message: CalculationRecordsWorkerRequest): void {
+      public postMessage(message: WebWorkerRequestMessage): void {
         workerRecords.push({ message, worker: this });
       }
 
@@ -272,7 +296,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       let snapshot = createSnapshot({
         "file-a": createFileRecord("file-a", "series-a", "base-a"),
       });
-      contribution = new CalculationService(createSessionServiceStub({
+      contribution = createCalculationService(createSessionServiceStub({
         commitCurvesBatch: () => undefined,
         commitCalculatedRecordsBatch: input => {
           calculatedCommitFileIds.push(input.map(commit => commit.fileId));
@@ -322,7 +346,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       "file-b": createFileRecord("file-b", "series-b", "base-b"),
       "file-c": createFileRecord("file-c", "series-c", "base-c"),
     });
-    const contribution = new CalculationService(createSessionServiceStub({
+    const contribution = createCalculationService(createSessionServiceStub({
       commitCurvesBatch: () => undefined,
       commitCalculatedRecordsBatch: input => {
         calculatedCommitFileIds.push(input.map(commit => commit.fileId));
@@ -359,7 +383,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       "file-b": createFileRecord("file-b", "series-b", "base-b"),
       "file-c": createFileRecord("file-c", "series-c", "base-c"),
     });
-    const contribution = new CalculationService(createSessionServiceStub({
+    const contribution = createCalculationService(createSessionServiceStub({
       commitCurvesBatch: () => undefined,
       commitCalculatedRecordsBatch: input => {
         calculatedCommitFileIds.push(input.map(commit => commit.fileId));
@@ -387,7 +411,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     let snapshot = createSnapshot({
       "file-a": createFileRecord("file-a", "series-a", "base-a"),
     });
-    const contribution = new CalculationService(createSessionServiceStub({
+    const contribution = createCalculationService(createSessionServiceStub({
       commitCurvesBatch: () => undefined,
       commitCalculatedRecordsBatch: input => {
         calculatedCommitFileIds.push(input.map(commit => commit.fileId));
@@ -419,7 +443,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     let snapshot = createSnapshot({
       "file-a": createFileRecord("file-a", "series-a", "base-a"),
     });
-    const contribution = new CalculationService(createSessionServiceStub({
+    const contribution = createCalculationService(createSessionServiceStub({
       commitCurvesBatch: () => undefined,
       commitCalculatedRecordsBatch: input => {
         calculatedCommitFileIds.push(input.map(commit => commit.fileId));
@@ -576,25 +600,31 @@ const createFileRecord = (
 };
 
 const completeCalculationWorker = (record: {
-  readonly message: CalculationRecordsWorkerRequest;
+  readonly message: WebWorkerRequestMessage;
   readonly worker: {
     readonly onmessage: ((event: MessageEvent) => void) | null;
   };
 }): void => {
-  const payload = record.message.payload;
+  const payload = getCalculationWorkerPayload(record);
   record.worker.onmessage?.({
     data: {
-      payload: {
+      requestId: record.message.requestId,
+      result: {
         curves: [],
-        fileId: payload?.fileId ?? "",
+        fileId: payload.fileId,
         metrics: [],
-        requestId: payload?.requestId ?? 0,
-        sessionVersion: payload?.sessionVersion ?? 0,
+        requestId: payload.requestId,
+        sessionVersion: payload.sessionVersion,
       },
-      type: "calculateRecordsResult",
-    },
-  } as MessageEvent);
+      type: "reply",
+      workerId: record.message.workerId,
+    } satisfies WebWorkerReplyMessage,
+  } as MessageEvent<WebWorkerReplyMessage>);
 };
+
+const getCalculationWorkerPayload = (record: {
+  readonly message: WebWorkerRequestMessage;
+}): CalculationRecordsWorkerRequest => record.message.args[0] as CalculationRecordsWorkerRequest;
 
 const waitForPendingCalculation = async (flushCount = 1): Promise<void> => {
   for (let index = 0; index < flushCount; index += 1) {
@@ -603,6 +633,7 @@ const waitForPendingCalculation = async (flushCount = 1): Promise<void> => {
 };
 
 const waitForCalculationWorkerResult = async (): Promise<void> => {
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let index = 0; index < 8; index += 1) {
+    await Promise.resolve();
+  }
 };
