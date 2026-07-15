@@ -23,6 +23,14 @@ import {
 	NativeTableFileService,
 	readNativeXlsWorkbook,
 } from "src/cs/workbench/services/tableFile/electron-browser/nativeTableFileService";
+import { parseTableStructure } from "src/cs/workbench/services/table/common/tableStructureParser";
+import type { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
+
+const directTableStructureParserService: ITableStructureParserService = {
+	_serviceBrand: undefined,
+	dispose: () => undefined,
+	parse: parseTableStructure,
+};
 
 suite("workbench/services/tableFile/test/electron-browser/nativeTableFileService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,6 +51,7 @@ suite("workbench/services/tableFile/test/electron-browser/nativeTableFileService
 		const resource = URI.file("/workspace/native.xls");
 		const tableFileService = store.add(new NativeTableFileService(
 			new TestFileService(createMinimalBiff8OleWorkbook()),
+			directTableStructureParserService,
 		));
 		const editorModel = tableFileService.getOrCreateFileEditorModel(resource);
 

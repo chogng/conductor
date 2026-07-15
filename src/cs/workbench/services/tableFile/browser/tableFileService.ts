@@ -11,6 +11,7 @@ import type {
 } from "src/cs/workbench/services/table/common/model";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { tableFormatService } from "src/cs/workbench/services/table/common/tableFormatService";
+import type { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
 import {
 	getTableFileReadMode,
 	type TableFileReadMode,
@@ -34,10 +35,12 @@ export class TableFileService extends Disposable implements ITableFileService {
 
 	public constructor(
 		fileService: IFileService,
+		tableStructureParserService: ITableStructureParserService,
 	) {
 		super();
 
 		this.tableFileEditorModelManager = this._register(new TableFileEditorModelManager(
+			tableStructureParserService,
 			fileService,
 		));
 		this.onDidChangeModel = this.tableFileEditorModelManager.onDidChangeModel;

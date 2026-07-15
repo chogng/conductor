@@ -94,14 +94,6 @@ export interface IDataResourceService extends IDisposable {
 	): Promise<IDataResourceStructuredContentReference>;
 
 	/**
-	 * Returns the currently cached structured-content state for a resource, if
-	 * the underlying source has already been resolved.
-	 */
-	getStructuredContent(
-		target: DataResourceStructuredContentTarget,
-	): DataResourceStructuredContentResolution | undefined;
-
-	/**
 	 * Starts resolving structured content without requiring the caller to hold a
 	 * reference.
 	 */

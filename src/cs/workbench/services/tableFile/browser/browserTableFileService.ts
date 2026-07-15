@@ -7,6 +7,7 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import {
 	TableFileService,
 } from "src/cs/workbench/services/tableFile/browser/tableFileService";
+import { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
 import {
 	ITableFileService,
 } from "src/cs/workbench/services/tableFile/common/tablefiles";
@@ -14,8 +15,9 @@ import {
 export class BrowserTableFileService extends TableFileService {
 	public constructor(
 		@IFileService fileService: IFileService,
+		@ITableStructureParserService tableStructureParserService: ITableStructureParserService,
 	) {
-		super(fileService);
+		super(fileService, tableStructureParserService);
 	}
 }
 

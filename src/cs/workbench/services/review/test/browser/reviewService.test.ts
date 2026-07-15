@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
+import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
 import type {
 	DataResourceStructuredContentResolution,
 	IDataResourceService,
@@ -85,7 +86,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		store.add(new DataResourceService(store.add(new TestTableModelService(resource, diagnostics, fixedSheetId, content)), {
 			onDidChangeConductorSettings: Event.None,
 			getConductorSettings: () => conductorSettings,
-		} as unknown as ISettingsService));
+		} as unknown as ISettingsService, testStructuredContentEvidenceService));
 	const createReviewTargetForTest = (fileName = "Transfer.csv") => ({
 		resource: URI.file(`/workspace/${fileName}`),
 		modelVersion: 1,
@@ -883,16 +884,13 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 
 		assert.equal(service.getLatestReviewSummary(target).state, "missing");
 		assert.equal(service.getLatestReviewSummary(target).state, "missing");
-		assert.equal(dataResourceService.getStructuredContentCalls, 0);
 		assert.equal(dataResourceService.resolveStructuredContentCalls, 0);
 
 		await service.reviewResourceForExecution(target);
-		const getStructuredContentCalls = dataResourceService.getStructuredContentCalls;
 		const resolveStructuredContentCalls = dataResourceService.resolveStructuredContentCalls;
 
 		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 		assert.equal(service.getLatestReviewSummary(target).state, "ready");
-		assert.equal(dataResourceService.getStructuredContentCalls, getStructuredContentCalls);
 		assert.equal(dataResourceService.resolveStructuredContentCalls, resolveStructuredContentCalls);
 	});
 
@@ -1420,7 +1418,6 @@ class CountingDataResourceService extends Disposable implements IDataResourceSer
 	public declare readonly _serviceBrand: undefined;
 
 	public readonly onDidChangeResource: IDataResourceService["onDidChangeResource"];
-	public getStructuredContentCalls = 0;
 	public resolveStructuredContentCalls = 0;
 	private readonly delegate: IDataResourceService;
 
@@ -1443,13 +1440,6 @@ class CountingDataResourceService extends Disposable implements IDataResourceSer
 	): ReturnType<IDataResourceService["resolveStructuredContent"]> {
 		this.resolveStructuredContentCalls += 1;
 		return this.delegate.resolveStructuredContent(target);
-	}
-
-	public getStructuredContent(
-		target: Parameters<IDataResourceService["getStructuredContent"]>[0],
-	): ReturnType<IDataResourceService["getStructuredContent"]> {
-		this.getStructuredContentCalls += 1;
-		return this.delegate.getStructuredContent(target);
 	}
 
 	public resolve(
@@ -1479,10 +1469,6 @@ class ResolvingDataResourceService extends Disposable implements IDataResourceSe
 		};
 	}
 
-	public getStructuredContent(): ReturnType<IDataResourceService["getStructuredContent"]> {
-		return undefined;
-	}
-
 	public resolve(): void {}
 }
 
@@ -1503,10 +1489,6 @@ class ControlledDataResourceService extends Disposable implements IDataResourceS
 		return new Promise(resolve => {
 			this.pendingResolvers.push(resolve);
 		});
-	}
-
-	public getStructuredContent(): ReturnType<IDataResourceService["getStructuredContent"]> {
-		return undefined;
 	}
 
 	public resolve(): void {}

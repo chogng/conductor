@@ -21,6 +21,7 @@ import {
 import {
   type TableSource,
 } from "src/cs/workbench/services/table/common/table";
+import type { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
 
 export type TableFileEditorModelManagerResolveOptions = TableFileEditorModelResolveOptions & {
   readonly force?: boolean;
@@ -36,6 +37,7 @@ export class TableFileEditorModelManager extends Disposable {
   private readonly pendingResolves = new Map<string, Promise<void>>();
 
   public constructor(
+    private readonly tableStructureParserService: ITableStructureParserService,
     @IFileService private readonly fileService: IFileService,
   ) {
     super();
@@ -129,6 +131,7 @@ export class TableFileEditorModelManager extends Disposable {
       model = this._register(new TableFileEditorModel(
         resource,
         this.fileService,
+        this.tableStructureParserService,
       ));
       const createdModel = model;
       this._register(createdModel.onDidChangeState(() => {

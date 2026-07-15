@@ -31,6 +31,8 @@ import {
 } from "src/cs/workbench/services/table/browser/tableService";
 import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
 import { TableModelResolverService } from "src/cs/workbench/services/table/common/tableModelResolverService";
+import { parseTableStructure } from "src/cs/workbench/services/table/common/tableStructureParser";
+import type { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
 import {
   areTableSelectionsEqual,
   createTableViewModelInScope,
@@ -45,6 +47,12 @@ import type {
 } from "src/cs/workbench/services/settings/common/settings";
 
 let tableTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite> | undefined;
+
+const directTableStructureParserService: ITableStructureParserService = {
+  _serviceBrand: undefined,
+  dispose: () => undefined,
+  parse: parseTableStructure,
+};
 
 suite("workbench/services/table/browser/tableService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1018,8 +1026,10 @@ const createTableServiceFixture = ({
   readonly fileService?: IFileService;
 } = {}): TableServiceFixture => {
   tableTestStore?.add(storageService);
-  const tableFileService = tableTestStore?.add(new TableFileService(fileService))
-    ?? new TableFileService(fileService);
+  const tableFileService = tableTestStore?.add(new TableFileService(
+    fileService,
+    directTableStructureParserService,
+  )) ?? new TableFileService(fileService, directTableStructureParserService);
   const tableModelService = tableTestStore?.add(new TableModelResolverService(
     tableFileService,
   )) ?? new TableModelResolverService(tableFileService);

@@ -20,12 +20,12 @@ import {
 } from "src/cs/workbench/services/table/common/model";
 import {
 	DEFAULT_PHYSICAL_TABLE_SHEET_ID,
-	parseTableStructure,
 	type ParsedTableContent,
 	type ParsedTableSheet,
 	type ParsedTableStructure,
 	type TableXlsReader,
 } from "src/cs/workbench/services/table/common/tableStructureParser";
+import type { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
 import {
 	readTableFile,
 	isTableFileReadDiagnosticError,
@@ -68,6 +68,7 @@ export class TableFileEditorModel extends Disposable {
 	public constructor(
 		public readonly resource: URI,
 		private readonly fileService: IFileService,
+		private readonly tableStructureParserService: ITableStructureParserService,
 	) {
 		super();
 		this.model = this._register(new TableModel(resource));
@@ -244,7 +245,7 @@ export class TableFileEditorModel extends Disposable {
 		}
 		this.lastResolvedStat = readResult.stat;
 		this.sourceVersion = normalizeResourceSourceVersion(readResult.stat.mtime);
-		const parsedContent = await parseTableStructure({
+		const parsedContent = await this.tableStructureParserService.parse({
 			buffer: readResult.buffer,
 			format: readResult.format,
 			...(readResult.format === "xls" && xlsReader ? { xlsReader } : {}),

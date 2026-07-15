@@ -25,6 +25,7 @@ import type {
 } from "src/cs/workbench/services/table/common/resolverService";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
+import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
 
 type EvaluationExpectation = {
 	readonly decision: ReviewResult["decision"]["kind"];
@@ -66,7 +67,11 @@ const evaluateSample = async (
 	} as unknown as ISettingsService;
 	const resource = URI.file(`/workspace/eval-${resourceCounter}.csv`);
 	const tableModelService = store.add(new TestTableModelService(resource, createTableContent(sample.rows)));
-	const service = store.add(new DataResourceService(tableModelService, settingsService));
+	const service = store.add(new DataResourceService(
+		tableModelService,
+		settingsService,
+		testStructuredContentEvidenceService,
+	));
 	const reference = await service.resolveStructuredContent({ resource, sheetId: "table-a" });
 	const resolution = reference.object;
 	if (resolution.kind !== "ready") {

@@ -9,6 +9,7 @@ import {
 	type TableXlsReader,
 } from "src/cs/workbench/services/table/common/tableStructureParser";
 import { tableFormatService } from "src/cs/workbench/services/table/common/tableFormatService";
+import { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
 import {
 	TableFileService,
 } from "src/cs/workbench/services/tableFile/browser/tableFileService";
@@ -50,8 +51,9 @@ type BiffSheetReference = {
 export class NativeTableFileService extends TableFileService {
 	public constructor(
 		@IFileService fileService: IFileService,
+		@ITableStructureParserService tableStructureParserService: ITableStructureParserService,
 	) {
-		super(fileService);
+		super(fileService, tableStructureParserService);
 	}
 
 	public override async resolveModel(

@@ -27,12 +27,22 @@ import {
 	type TableModelDecorationsChangedEvent,
 } from "src/cs/workbench/services/table/common/model";
 import type { ITableModelContentProvider } from "src/cs/workbench/services/table/common/resolverService";
-import { PARSED_TABLE_ROW_WINDOW_SIZE } from "src/cs/workbench/services/table/common/tableStructureParser";
+import { PARSED_TABLE_ROW_WINDOW_SIZE, parseTableStructure } from "src/cs/workbench/services/table/common/tableStructureParser";
+import type { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
+
+const directTableStructureParserService: ITableStructureParserService = {
+	_serviceBrand: undefined,
+	dispose: () => undefined,
+	parse: parseTableStructure,
+};
 
 suite("workbench/services/table/test/browser/tableModel", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const createResolverService = (fileService: IFileService = createFileServiceStub()) =>
-		store.add(new TableModelResolverService(store.add(new TableFileService(fileService))));
+		store.add(new TableModelResolverService(store.add(new TableFileService(
+			fileService,
+			directTableStructureParserService,
+		))));
 
 	test("takes format from resolved content instead of inferring it on construction", async () => {
 		const resource = URI.file("/workspace/data/core.csv");
@@ -519,7 +529,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		let text = "A,B\n1,2";
 		let mtime = 10;
 		const resource = URI.file("/workspace/data/reload.csv");
-		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
+		const manager = store.add(new TableFileEditorModelManager(directTableStructureParserService, createFileServiceStub({
 			readFile: async () => textFileContent(text),
 			stat: async () => ({
 				ctime: 1,
@@ -571,7 +581,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		let mtime = 10;
 		const fileChanges = store.add(new Emitter<readonly IFileChange[]>());
 		const resource = URI.file("/workspace/data/watch.csv");
-		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
+		const manager = store.add(new TableFileEditorModelManager(directTableStructureParserService, createFileServiceStub({
 			onDidFilesChange: fileChanges.event,
 			readFile: async () => textFileContent(text),
 			stat: async () => ({
@@ -615,7 +625,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		let mtime = 10;
 		const fileChanges = store.add(new Emitter<readonly IFileChange[]>());
 		const resource = URI.file("/workspace/data/conflict.csv");
-		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
+		const manager = store.add(new TableFileEditorModelManager(directTableStructureParserService, createFileServiceStub({
 			onDidFilesChange: fileChanges.event,
 			readFile: async () => textFileContent(text),
 			stat: async () => ({
@@ -652,7 +662,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		let mtime = 10;
 		let writtenContent = "";
 		const resource = URI.file("/workspace/data/save.csv");
-		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
+		const manager = store.add(new TableFileEditorModelManager(directTableStructureParserService, createFileServiceStub({
 			readFile: async () => textFileContent(text),
 			stat: async () => ({
 				ctime: 1,
@@ -694,7 +704,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		let text = "A,B\n1,2";
 		let mtime = 10;
 		const resource = URI.file("/workspace/data/revert.csv");
-		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
+		const manager = store.add(new TableFileEditorModelManager(directTableStructureParserService, createFileServiceStub({
 			readFile: async () => textFileContent(text),
 			stat: async () => ({
 				ctime: 1,
@@ -730,7 +740,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		let mtime = 10;
 		const fileChanges = store.add(new Emitter<readonly IFileChange[]>());
 		const resource = URI.file("/workspace/data/orphan.csv");
-		const manager = store.add(new TableFileEditorModelManager(createFileServiceStub({
+		const manager = store.add(new TableFileEditorModelManager(directTableStructureParserService, createFileServiceStub({
 			onDidFilesChange: fileChanges.event,
 			readFile: async () => textFileContent(text),
 			stat: async () => ({

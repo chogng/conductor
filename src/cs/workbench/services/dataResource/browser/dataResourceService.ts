@@ -5,8 +5,6 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
-import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import { parseFiniteNumber } from "src/cs/workbench/common/cellText";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
@@ -54,9 +52,11 @@ import {
 	createStructuredBlockSegments,
 	type StructuredBlockSegment,
 } from "src/cs/workbench/services/dataResource/common/structuredBlockSegmentation";
+import { IStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/common/structuredContentEvidenceService";
 import {
 	ISettingsService,
 	normalizeTemplateSemanticPatches,
+	type TemplateSemanticPatches,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
 	type TableModelContentSnapshot,
@@ -163,11 +163,13 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	private readonly trackedResources = new Map<string, URI>();
 	private readonly structuredContentSignaturesByResourceKey = new Map<string, string>();
 	private semanticMatcher: SemanticMatcher;
+	private semanticPatches: TemplateSemanticPatches;
 	private semanticSettingsFingerprint = "";
 
 	public constructor(
 		@ITableModelService private readonly tableModelService: ITableModelServiceType,
 		@ISettingsService private readonly settingsService: ISettingsService,
+		@IStructuredContentEvidenceService private readonly structuredContentEvidenceService: IStructuredContentEvidenceService,
 	) {
 		super();
 
@@ -177,7 +179,9 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 				this.structuredContentSignaturesByResourceKey.clear();
 			},
 		});
-		this.semanticMatcher = this.createSettingsSemanticMatcher();
+		const semanticConfiguration = this.createSettingsSemanticConfiguration();
+		this.semanticMatcher = semanticConfiguration.matcher;
+		this.semanticPatches = semanticConfiguration.patches;
 		this.semanticSettingsFingerprint = this.semanticMatcher.fingerprint;
 		this._register(this.tableModelService.onDidChangeModel(model => {
 			if (this.rememberStableStructuredContentSignature(model.getSnapshot())) {
@@ -185,12 +189,14 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 			}
 		}));
 		this._register(this.settingsService.onDidChangeConductorSettings(() => {
-			const nextMatcher = this.createSettingsSemanticMatcher();
+			const nextConfiguration = this.createSettingsSemanticConfiguration();
+			const nextMatcher = nextConfiguration.matcher;
 			const nextFingerprint = nextMatcher.fingerprint;
 			if (nextFingerprint === this.semanticSettingsFingerprint) {
 				return;
 			}
 			this.semanticMatcher = nextMatcher;
+			this.semanticPatches = nextConfiguration.patches;
 			this.semanticSettingsFingerprint = nextFingerprint;
 			for (const resource of this.trackedResources.values()) {
 				this.onDidChangeResourceEmitter.fire(resource);
@@ -210,9 +216,27 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 			target.resource,
 			createStructuredContentSource(target),
 		);
-		const snapshot = reference.object.getSnapshot();
-		this.rememberStableStructuredContentSignature(snapshot);
-		const resolution = createStructuredContentResolution(snapshot, target, this.semanticMatcher);
+		let snapshot = reference.object.getSnapshot();
+		let resolution: DataResourceStructuredContentResolution;
+		while (true) {
+			this.rememberStableStructuredContentSignature(snapshot);
+			const semanticSettingsFingerprint = this.semanticSettingsFingerprint;
+			resolution = await createStructuredContentResolution(
+				snapshot,
+				target,
+				this.semanticPatches,
+				this.structuredContentEvidenceService,
+			);
+			const currentSnapshot = reference.object.getSnapshot();
+			if (
+				currentSnapshot.version === snapshot.version &&
+				currentSnapshot.sourceVersion === snapshot.sourceVersion &&
+				semanticSettingsFingerprint === this.semanticSettingsFingerprint
+			) {
+				break;
+			}
+			snapshot = currentSnapshot;
+		}
 		return {
 			object: resolution,
 			dispose: () => {
@@ -221,30 +245,21 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		};
 	}
 
-	public getStructuredContent(
-		target: DataResourceStructuredContentTarget,
-	): DataResourceStructuredContentResolution | undefined {
-		this.trackResource(target.resource);
-		const model = this.tableModelService.get(target.resource);
-		if (!model) {
-			return undefined;
-		}
-
-		const snapshot = model.getSnapshot();
-		this.rememberStableStructuredContentSignature(snapshot);
-		return createStructuredContentResolution(snapshot, target, this.semanticMatcher);
-	}
-
 	public resolve(target: DataResourceStructuredContentTarget): void {
 		this.trackResource(target.resource);
 		this.tableModelService.resolve(target.resource, createStructuredContentSource(target));
 	}
 
-	private createSettingsSemanticMatcher(): SemanticMatcher {
+	private createSettingsSemanticConfiguration(): {
+		readonly matcher: SemanticMatcher;
+		readonly patches: TemplateSemanticPatches;
+	} {
 		const settings = this.settingsService.getConductorSettings();
-		return createSemanticMatcher({
-			patches: normalizeTemplateSemanticPatches(settings?.templateSemanticPatches),
-		});
+		const patches = normalizeTemplateSemanticPatches(settings?.templateSemanticPatches);
+		return {
+			matcher: createSemanticMatcher({ patches }),
+			patches,
+		};
 	}
 
 	private trackResource(resource: URI): string {
@@ -267,11 +282,12 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	}
 }
 
-const createStructuredContentResolution = (
+const createStructuredContentResolution = async (
 	snapshot: TableModelSnapshot,
 	target: DataResourceStructuredContentTarget,
-	semanticMatcher: SemanticMatcher,
-): DataResourceStructuredContentResolution => {
+	semanticPatches: TemplateSemanticPatches,
+	structuredContentEvidenceService: IStructuredContentEvidenceService,
+): Promise<DataResourceStructuredContentResolution> => {
 	if (snapshot.loadState.state === "error") {
 		return {
 			kind: "loadError",
@@ -302,7 +318,7 @@ const createStructuredContentResolution = (
 	}
 
 	const fileName = getStructuredContentFileName(target.resource, selectedSheet);
-	const evidence = createStructuredContentEvidence(content, semanticMatcher);
+	const evidence = await structuredContentEvidenceService.create(content, semanticPatches);
 	return {
 		kind: "ready",
 		snapshot: {
@@ -422,7 +438,7 @@ const toDataResourceLoadState = (
 	};
 };
 
-const createStructuredContentEvidence = (
+export const createStructuredContentEvidence = (
 	content: TableModelContentSnapshot,
 	semanticMatcher: SemanticMatcher,
 ): StructuredContentEvidence => {
@@ -3477,9 +3493,3 @@ const uniqueStrings = <T extends string>(
 	}
 	return result;
 };
-
-registerSingleton(
-	IDataResourceService,
-	DataResourceService as unknown as new (...services: BrandedService[]) => IDataResourceService,
-	InstantiationType.Delayed,
-);

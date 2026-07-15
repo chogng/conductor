@@ -24,7 +24,8 @@ import "src/cs/workbench/workbench.common.main";
 import "src/cs/workbench/services/appearance/browser/appearanceService";
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
 import "src/cs/workbench/services/chart/browser/chartService";
-import "src/cs/workbench/services/dataResource/browser/dataResourceService";
+import "src/cs/workbench/services/dataResource/browser/structuredContentEvidenceService";
+import "src/cs/workbench/services/dataResource/browser/dataResource.contribution";
 import "src/cs/workbench/services/export/browser/exportService";
 import "src/cs/workbench/services/layout/browser/layoutService";
 import "src/cs/workbench/services/localization/browser/localeService";
@@ -49,6 +50,7 @@ import "src/cs/workbench/services/views/browser/viewDescriptorService";
 import "src/cs/workbench/services/views/browser/viewsService";
 import "src/cs/workbench/services/table/common/tableModelResolverService";
 import "src/cs/workbench/services/table/browser/tableService";
+import "src/cs/workbench/services/table/browser/tableStructureParserService";
 
 //#endregion
 

@@ -27,6 +27,7 @@ import type {
 	SliceResourceRequest,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
+import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
 
 type ResourceSheetIdentity = {
 	readonly resource: URI;
@@ -42,7 +43,11 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 	const createDataResourceServiceForTest = (
 		tableModelService: ITableModelService,
 	): DataResourceService =>
-		store.add(new DataResourceService(tableModelService, settingsService));
+		store.add(new DataResourceService(
+			tableModelService,
+			settingsService,
+			testStructuredContentEvidenceService,
+		));
 
 	test("stores template selections by resource in Slice state", () => {
 		const sliceService = store.add(new SliceService());

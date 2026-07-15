@@ -23,6 +23,7 @@ import type {
 	TemplateSemanticTermPatch,
 } from "src/cs/workbench/services/settings/common/settings";
 import type { StructuredContentEvidence } from "src/cs/workbench/services/dataResource/common/structuredContent";
+import type { IStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/common/structuredContentEvidenceService";
 import {
 	TableModel as TableContentModel,
 	type ITableModel,
@@ -34,6 +35,7 @@ import type {
 	ITableModelReference,
 	ITableModelService,
 } from "src/cs/workbench/services/table/common/resolverService";
+import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
 
 suite("workbench/services/dataResource/test/browser/dataResourceService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,7 +52,11 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			onDidChangeConductorSettings: Event.None,
 			getConductorSettings: () => conductorSettings,
 		} as unknown as ISettingsService;
-		const service = store.add(new DataResourceService(tableModelService, settingsService));
+		const service = store.add(new DataResourceService(
+			tableModelService,
+			settingsService,
+			testStructuredContentEvidenceService,
+		));
 		const reference = await service.resolveStructuredContent({ resource });
 		const resolution = reference.object;
 		if (resolution.kind !== "ready") {
@@ -1000,7 +1006,11 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 				["1", "2"],
 			]),
 		));
-		const service = store.add(new DataResourceService(tableModelService, settingsService));
+		const service = store.add(new DataResourceService(
+			tableModelService,
+			settingsService,
+			testStructuredContentEvidenceService,
+		));
 
 		const first = await service.resolveStructuredContent({ resource });
 		first.dispose();
@@ -1013,6 +1023,59 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		const afterSettingsChange = await service.resolveStructuredContent({ resource });
 		afterSettingsChange.dispose();
 		assert.equal(settingsReadCount, 2);
+	});
+
+	test("restarts evidence production when semantic settings change in flight", async () => {
+		const resource = URI.file("/workspace/stale-evidence.csv");
+		const settingsChangeEmitter = store.add(new Emitter<void>());
+		let conductorSettings: Record<string, unknown> | null = null;
+		const settingsService = {
+			onDidChangeConductorSettings: settingsChangeEmitter.event,
+			getConductorSettings: () => conductorSettings,
+		} as unknown as ISettingsService;
+		const tableModelService = store.add(new TestTableModelService(
+			resource,
+			createTableContent([
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			]),
+		));
+		const evidenceService = new ControlledStructuredContentEvidenceService();
+		const service = store.add(new DataResourceService(
+			tableModelService,
+			settingsService,
+			evidenceService,
+		));
+
+		const resolvingReference = service.resolveStructuredContent({ resource });
+		await waitFor(() => evidenceService.requestCount === 1);
+		conductorSettings = createRulePatchSettings({
+			id: "user:stale-evidence",
+			label: "Stale Evidence",
+			proofTerms: ["Stale Evidence"],
+			xTerms: ["Vg"],
+			yTerms: ["Id"],
+		});
+		settingsChangeEmitter.fire();
+		await evidenceService.resolveNext();
+		await waitFor(() => evidenceService.requestCount === 2);
+		await evidenceService.resolveNext();
+
+		const reference = await resolvingReference;
+		assert.equal(reference.object.kind, "ready");
+		if (reference.object.kind === "ready") {
+			assert.equal(evidenceService.resolvedFingerprints.length, 2);
+			assert.equal(
+				reference.object.snapshot.structuredContent.semanticRulesFingerprint,
+				evidenceService.resolvedFingerprints[1],
+			);
+			assert.notEqual(
+				evidenceService.resolvedFingerprints[0],
+				evidenceService.resolvedFingerprints[1],
+			);
+		}
+		reference.dispose();
 	});
 
 	test("does not publish resource changes when stable table content is unchanged", async () => {
@@ -1029,7 +1092,11 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 				["1", "2"],
 			]),
 		));
-		const service = store.add(new DataResourceService(tableModelService, settingsService));
+		const service = store.add(new DataResourceService(
+			tableModelService,
+			settingsService,
+			testStructuredContentEvidenceService,
+		));
 		const changedResources: URI[] = [];
 		store.add(service.onDidChangeResource(changedResource => {
 			changedResources.push(changedResource);
@@ -1224,6 +1291,42 @@ class ReResolvingTableModelService extends Disposable implements ITableModelServ
 	}
 }
 
+class ControlledStructuredContentEvidenceService implements IStructuredContentEvidenceService {
+	public declare readonly _serviceBrand: undefined;
+	public readonly resolvedFingerprints: string[] = [];
+	private readonly requests: Array<{
+		readonly content: TableModelContentSnapshot;
+		readonly patches: TemplateSemanticPatches;
+		readonly resolve: (evidence: StructuredContentEvidence) => void;
+	}> = [];
+
+	public get requestCount(): number {
+		return this.requests.length + this.resolvedFingerprints.length;
+	}
+
+	public create(
+		content: TableModelContentSnapshot,
+		patches: TemplateSemanticPatches,
+	): Promise<StructuredContentEvidence> {
+		return new Promise(resolve => {
+			this.requests.push({ content, patches, resolve });
+		});
+	}
+
+	public async resolveNext(): Promise<void> {
+		const request = this.requests.shift();
+		assert.ok(request, "Expected a pending structured-content evidence request.");
+		const evidence = await testStructuredContentEvidenceService.create(
+			request.content,
+			request.patches,
+		);
+		this.resolvedFingerprints.push(evidence.semanticRulesFingerprint);
+		request.resolve(evidence);
+	}
+
+	public dispose(): void {}
+}
+
 const createTableContent = (
 	rows: readonly (readonly string[])[],
 ): TableModelContentSnapshot => {
@@ -1236,6 +1339,16 @@ const createTableContent = (
 		rowCount: rows.length,
 		rows,
 	};
+};
+
+const waitFor = async (condition: () => boolean): Promise<void> => {
+	for (let attempt = 0; attempt < 20; attempt += 1) {
+		if (condition()) {
+			return;
+		}
+		await new Promise<void>(resolve => globalThis.setTimeout(resolve, 0));
+	}
+	throw new Error("Timed out waiting for the DataResource test condition.");
 };
 
 const createRulePatchSettings = (
