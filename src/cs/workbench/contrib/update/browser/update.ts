@@ -14,9 +14,9 @@ import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import { IUpdateService } from "src/cs/platform/update/common/update";
 import {
   CONTEXT_UPDATE_STATE,
-  IWorkbenchUpdateService,
   UpdateCommandId,
 } from "src/cs/workbench/contrib/update/common/update";
 import type { ReleaseNotesEditor } from "src/cs/workbench/contrib/update/browser/releaseNotesEditor";
@@ -99,7 +99,7 @@ export const registerUpdateCommands = (releaseNotesEditor?: UpdateReleaseNotesEd
     }
 
     public run(accessor: ServicesAccessor): Promise<unknown> {
-      return accessor.get(IWorkbenchUpdateService).checkForUpdates();
+      return accessor.get(IUpdateService).checkForUpdates({ manual: true });
     }
   }));
 
@@ -123,28 +123,28 @@ export const registerUpdateCommands = (releaseNotesEditor?: UpdateReleaseNotesEd
 
   disposables.add(CommandsRegistry.registerCommand({
     id: UpdateCommandId.downloadNow,
-    handler: accessor => accessor.get(IWorkbenchUpdateService).checkForUpdates(),
+    handler: accessor => accessor.get(IUpdateService).checkForUpdates({ manual: true }),
     metadata: {
       description: localize("update.commands.downloadNow.description", "Download the available app update."),
     },
   }));
   disposables.add(CommandsRegistry.registerCommand({
     id: UpdateCommandId.install,
-    handler: accessor => accessor.get(IWorkbenchUpdateService).installDownloadedUpdate(),
+    handler: accessor => accessor.get(IUpdateService).installDownloadedUpdate(),
     metadata: {
       description: localize("update.commands.install.description", "Install the downloaded app update."),
     },
   }));
   disposables.add(CommandsRegistry.registerCommand({
     id: UpdateCommandId.restart,
-    handler: accessor => accessor.get(IWorkbenchUpdateService).installDownloadedUpdate(),
+    handler: accessor => accessor.get(IUpdateService).installDownloadedUpdate(),
     metadata: {
       description: localize("update.commands.restart.description", "Restart to install the downloaded app update."),
     },
   }));
   disposables.add(CommandsRegistry.registerCommand({
     id: UpdateCommandId.state,
-    handler: accessor => accessor.get(IWorkbenchUpdateService).getStatus(),
+    handler: accessor => accessor.get(IUpdateService).getStatus(),
     metadata: {
       description: localize("update.commands.state.description", "Get the current app update state."),
     },
@@ -195,7 +195,7 @@ export const registerDeveloperUpdateCommand = (
     }
 
     public async run(accessor: ServicesAccessor): Promise<unknown> {
-      const updateService = accessor.get(IWorkbenchUpdateService);
+      const updateService = accessor.get(IUpdateService);
       const fileDialogService = accessor.get(IFileDialogService);
       const updatePath = await fileDialogService.showOpenDialog({
         canSelectFiles: true,

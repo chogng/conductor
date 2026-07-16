@@ -3,7 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter, type Event as EventType } from "../../../base/common/event.js";
-import { Disposable } from "../../../base/common/lifecycle.js";
+import {
+	Disposable,
+	DisposableStore,
+	type IDisposable,
+} from "../../../base/common/lifecycle.js";
 import type {
 	IStorage,
 	IStorageDatabase,
@@ -11,12 +15,18 @@ import type {
 	IUpdateRequest,
 } from "../../../base/parts/storage/common/storage.js";
 import type { IChannel, IServerChannel } from "../../../base/parts/ipc/common/ipc.js";
-import { StorageScope } from "./storage.js";
+import {
+	type IStorageService,
+	StorageScope,
+	STORAGE_TARGET_KEY,
+} from "./storage.js";
 
 export const STORAGE_CHANNEL_NAME = "storage";
 export const STORAGE_ITEMS_CHANGE_EVENT = "onDidChangeItems";
 
 type StorageItemsChangeDto = {
+	readonly key: string;
+	readonly targetChanged: boolean;
 	readonly changed?: readonly (readonly [string, string])[];
 	readonly deleted?: readonly string[];
 };
@@ -31,8 +41,10 @@ export interface IStorageProvider {
 	getStorage(scope: StorageScope): IStorage;
 }
 
+export interface IStorageServer extends IStorageProvider, IStorageService {}
+
 export class StorageChannel implements IServerChannel<string> {
-	constructor(private readonly storageProvider: IStorageProvider) {}
+	constructor(private readonly storageServer: IStorageServer) {}
 
 	public listen<T>(
 		_ctx: string,
@@ -43,13 +55,8 @@ export class StorageChannel implements IServerChannel<string> {
 			return Event.None as EventType<T>;
 		}
 
-		const storage = this.storageProvider.getStorage(toStorageScope(arg));
-		return Event.map(storage.onDidChangeStorage, change => {
-			const value = storage.get(change.key);
-			return value === undefined
-				? { deleted: [change.key] }
-				: { changed: [[change.key, value]] };
-		}) as EventType<T>;
+		const scope = toStorageScope(arg);
+		return this.onDidChangeItems(scope) as EventType<T>;
 	}
 
 	public async call<T>(
@@ -59,26 +66,75 @@ export class StorageChannel implements IServerChannel<string> {
 	): Promise<T> {
 		switch (command) {
 			case "getItems": {
-				const storage = this.storageProvider.getStorage(toStorageScope(arg));
+				const storage = this.storageServer.getStorage(toStorageScope(arg));
 				return Array.from(storage.items) as T;
 			}
 			case "updateItems": {
 				const request = toStorageUpdateRequest(arg);
-				const storage = this.storageProvider.getStorage(request.scope);
+				const storage = this.storageServer.getStorage(request.scope);
 				await Promise.all([
 					...(request.insert?.map(([key, value]) => storage.set(key, value, true)) ?? []),
 					...(request.delete?.map(key => storage.delete(key, true)) ?? []),
 				]);
 				return undefined as T;
 			}
+			case "replaceItems": {
+				const request = toStorageUpdateRequest(arg);
+				const storage = this.storageServer.getStorage(request.scope);
+				const replacement = new Map(request.insert);
+				await Promise.all([
+					...Array.from(storage.items.keys())
+						.filter(key => !replacement.has(key))
+						.map(key => storage.delete(key, true)),
+					...Array.from(replacement, ([key, value]) =>
+						storage.set(key, value, true)),
+				]);
+				await storage.flush(0);
+				return undefined as T;
+			}
 			case "optimize": {
-				const storage = this.storageProvider.getStorage(toStorageScope(arg));
+				const storage = this.storageServer.getStorage(toStorageScope(arg));
 				await storage.optimize();
 				return undefined as T;
 			}
 			default:
 				throw new Error(`Unknown storage command '${command}'.`);
 		}
+	}
+
+	private onDidChangeItems(scope: StorageScope): EventType<StorageItemsChangeDto> {
+		return (listener, thisArgs, disposables) => {
+			const store = new DisposableStore();
+			const storage = this.storageServer.getStorage(scope);
+			this.storageServer.onDidChangeValue(scope, undefined, store)(event => {
+				const changed: Array<readonly [string, string]> = [];
+				const deleted: string[] = [];
+				if (event.targetChanged) {
+					const targetMarker = storage.get(STORAGE_TARGET_KEY);
+					if (targetMarker === undefined) {
+						deleted.push(STORAGE_TARGET_KEY);
+					} else {
+						changed.push([STORAGE_TARGET_KEY, targetMarker]);
+					}
+				}
+
+				const value = storage.get(event.key);
+				if (value === undefined) {
+					deleted.push(event.key);
+				} else {
+					changed.push([event.key, value]);
+				}
+
+				listener.call(thisArgs, {
+					key: event.key,
+					targetChanged: event.targetChanged === true,
+					changed: changed.length > 0 ? changed : undefined,
+					deleted: deleted.length > 0 ? deleted : undefined,
+				});
+			});
+			addDisposable(store, disposables);
+			return store;
+		};
 	}
 }
 
@@ -87,6 +143,13 @@ export class StorageDatabaseClient extends Disposable implements IStorageDatabas
 		this._register(new Emitter<IStorageItemsChangeEvent>());
 	public readonly onDidChangeItemsExternal =
 		this.onDidChangeItemsExternalEmitter.event;
+	private readonly onDidChangeValueExternalEmitter =
+		this._register(new Emitter<{
+			readonly key: string;
+			readonly targetChanged: boolean;
+		}>());
+	public readonly onDidChangeValueExternal =
+		this.onDidChangeValueExternalEmitter.event;
 
 	private didGetItems = false;
 	private readonly pendingChanges: StorageItemsChangeDto[] = [];
@@ -135,12 +198,25 @@ export class StorageDatabaseClient extends Disposable implements IStorageDatabas
 		await this.channel.call("optimize", this.scope);
 	}
 
-	public async close(): Promise<void> {}
+	public async close(recovery?: () => Map<string, string>): Promise<void> {
+		if (!recovery) {
+			return;
+		}
+
+		await this.channel.call("replaceItems", {
+			scope: this.scope,
+			insert: Array.from(recovery()),
+		} satisfies StorageUpdateRequestDto);
+	}
 
 	private emitChange(event: StorageItemsChangeDto): void {
 		this.onDidChangeItemsExternalEmitter.fire({
 			changed: event.changed ? new Map(event.changed) : undefined,
 			deleted: event.deleted ? new Set(event.deleted) : undefined,
+		});
+		this.onDidChangeValueExternalEmitter.fire({
+			key: event.key,
+			targetChanged: event.targetChanged,
 		});
 	}
 }
@@ -207,4 +283,20 @@ function toStorageScope(value: unknown): StorageScope {
 		default:
 			throw new Error(`Invalid storage scope '${String(value)}'.`);
 	}
+}
+
+function addDisposable(
+	disposable: IDisposable,
+	disposables?: IDisposable[] | DisposableStore,
+): void {
+	if (!disposables) {
+		return;
+	}
+
+	if (Array.isArray(disposables)) {
+		disposables.push(disposable);
+		return;
+	}
+
+	disposables.add(disposable);
 }

@@ -11,32 +11,13 @@ import os from "node:os";
 import path from "node:path";
 import { Transform } from "node:stream";
 
-export type DesktopUpdateChannel =
-  | "github"
-  | "generic"
-  | "store"
-  | "none"
-  | "unsupported";
-
-export type DesktopUpdateState =
-  | "idle"
-  | "checking"
-  | "available"
-  | "downloading"
-  | "downloaded"
-  | "updating"
-  | "error"
-  | "disabled"
-  | "unsupported";
-
-export interface DesktopUpdateStatus {
-  readonly status: DesktopUpdateState;
-  readonly version: string | null;
-  readonly channel: DesktopUpdateChannel;
-  readonly isStoreManaged: boolean;
-  readonly message: string | null;
-  readonly progressPercent: number | null;
-}
+import { Emitter } from "../../../base/common/event.js";
+import {
+  DEFAULT_DESKTOP_UPDATE_STATUS,
+  type DesktopUpdateState,
+  type DesktopUpdateStatus,
+  type IUpdateService,
+} from "../common/update.js";
 
 export interface Win32UpdateServiceOptions {
   readonly app: App;
@@ -46,8 +27,7 @@ export interface Win32UpdateServiceOptions {
   readonly isWindowsStorePackage: boolean;
   readonly packageJsonPath: string;
   readonly getDialogWindow: () => BrowserWindow | null;
-  readonly onStatusChange: (status: DesktopUpdateStatus) => void;
-  readonly prepareToQuitForUpdate?: () => void;
+  readonly prepareToQuitForUpdate?: () => Promise<boolean>;
   readonly localize: (key: string, vars?: Record<string, unknown>) => string;
   readonly log: (message: string) => void;
   readonly warn: (message: string, error?: unknown) => void;
@@ -165,22 +145,21 @@ interface YamlModule {
   readonly load: (value: string) => unknown;
 }
 
-export class Win32UpdateService {
+export class Win32UpdateService implements IUpdateService {
+  public declare readonly _serviceBrand: undefined;
+
+  private readonly onDidChangeStatusEmitter = new Emitter<DesktopUpdateStatus>();
+  public readonly onDidChangeStatus = this.onDidChangeStatusEmitter.event;
+
   private autoUpdater: any = null;
+  private autoUpdateInitialTimer: NodeJS.Timeout | null = null;
   private autoUpdateTimer: NodeJS.Timeout | null = null;
   private autoUpdateConfiguredFeedUrl: string | null = null;
   private autoUpdateListenersRegistered = false;
   private isAutoUpdateConfigured = false;
   private autoUpdateInstallAfterDownloadRequested = false;
   private localPackageFeedServer: Server | null = null;
-  private status: DesktopUpdateStatus = {
-    status: "idle",
-    version: null,
-    channel: "none",
-    isStoreManaged: false,
-    message: null,
-    progressPercent: null,
-  };
+  private status: DesktopUpdateStatus = DEFAULT_DESKTOP_UPDATE_STATUS;
 
   constructor(private readonly options: Win32UpdateServiceOptions) {}
 
@@ -188,7 +167,17 @@ export class Win32UpdateService {
     return { ...this.status };
   }
 
+  canCheckForUpdates(): boolean {
+    return !this.status.isStoreManaged &&
+      this.status.status !== "disabled" &&
+      this.status.status !== "unsupported";
+  }
+
   stopPolling(): void {
+    if (this.autoUpdateInitialTimer) {
+      clearTimeout(this.autoUpdateInitialTimer);
+      this.autoUpdateInitialTimer = null;
+    }
     if (this.autoUpdateTimer) {
       clearInterval(this.autoUpdateTimer);
       this.autoUpdateTimer = null;
@@ -196,7 +185,28 @@ export class Win32UpdateService {
     this.stopLocalPackageFeedServer();
   }
 
+  dispose(): void {
+    this.stopPolling();
+    this.onDidChangeStatusEmitter.dispose();
+  }
+
   async setup(): Promise<void> {
+    try {
+      await this.doSetup();
+    } catch (error) {
+      this.isAutoUpdateConfigured = false;
+      this.autoUpdateConfiguredFeedUrl = null;
+      this.setStatus(
+        "error",
+        null,
+        "none",
+        this.options.localize("update.failed"),
+      );
+      this.options.warn("[update] Failed to initialize auto updates.", error);
+    }
+  }
+
+  private async doSetup(): Promise<void> {
     if (!this.options.app.isPackaged) {
       this.setStatus("disabled", null, "none", this.options.localize("update.disabledDevelopment"));
       return;
@@ -268,15 +278,7 @@ export class Win32UpdateService {
     }
 
     this.registerUpdaterListeners();
-
-    setTimeout(() => {
-      void this.checkForUpdates();
-    }, AUTO_UPDATE_INITIAL_DELAY_MS);
-
-    this.stopPolling();
-    this.autoUpdateTimer = setInterval(() => {
-      void this.checkForUpdates();
-    }, AUTO_UPDATE_INTERVAL_MS);
+    this.startPolling();
   }
 
   async checkForUpdates({ manual = false } = {}): Promise<unknown> {
@@ -371,8 +373,13 @@ export class Win32UpdateService {
     if (this.status.status !== "downloaded") return false;
 
     this.autoUpdateInstallAfterDownloadRequested = false;
+    const downloadedStatus = this.getStatus();
     this.setStatus("updating");
-    this.prepareToQuitForUpdate();
+    if (!await this.prepareToQuitForUpdate()) {
+      this.status = downloadedStatus;
+      this.onDidChangeStatusEmitter.fire(this.getStatus());
+      return false;
+    }
     // Run the NSIS updater silently and relaunch the app when installation finishes.
     this.autoUpdater.quitAndInstall(true, true);
     return true;
@@ -596,13 +603,31 @@ export class Win32UpdateService {
     }
   }
 
-  private prepareToQuitForUpdate(): void {
+  private async prepareToQuitForUpdate(): Promise<boolean> {
+    this.stopPolling();
     try {
-      this.options.prepareToQuitForUpdate?.();
+      const didPrepare = await (this.options.prepareToQuitForUpdate?.() ??
+        Promise.resolve(true));
+      if (!didPrepare) {
+        this.startPolling();
+      }
+      return didPrepare;
     } catch (error) {
       this.options.warn("[update] Failed to prepare app quit for update install.", error);
+      this.startPolling();
+      return false;
     }
+  }
+
+  private startPolling(): void {
     this.stopPolling();
+    this.autoUpdateInitialTimer = setTimeout(() => {
+      this.autoUpdateInitialTimer = null;
+      void this.checkForUpdates();
+    }, AUTO_UPDATE_INITIAL_DELAY_MS);
+    this.autoUpdateTimer = setInterval(() => {
+      void this.checkForUpdates();
+    }, AUTO_UPDATE_INTERVAL_MS);
   }
 
   private async ensureAutoUpdater() {
@@ -717,7 +742,7 @@ export class Win32UpdateService {
       message: typeof message === "string" && message.trim() ? message.trim() : null,
       progressPercent: normalizeProgressPercent(progressPercent),
     };
-    this.options.onStatusChange(this.getStatus());
+    this.onDidChangeStatusEmitter.fire(this.getStatus());
   }
 
   private async showInfoDialog(message: string): Promise<void> {

@@ -6,13 +6,13 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
-  IWorkbenchUpdateService,
+  IUpdateService,
   UNSUPPORTED_DESKTOP_UPDATE_STATUS,
   type DesktopUpdateStatus,
-  type IWorkbenchUpdateService as IWorkbenchUpdateServiceType,
-} from "src/cs/workbench/contrib/update/common/update";
+  type IUpdateService as IUpdateServiceType,
+} from "src/cs/platform/update/common/update";
 
-export class BrowserUpdateService extends Disposable implements IWorkbenchUpdateServiceType {
+export class BrowserUpdateService extends Disposable implements IUpdateServiceType {
   public declare readonly _serviceBrand: undefined;
 
   private readonly onDidChangeStatusEmitter =
@@ -47,7 +47,7 @@ export class BrowserUpdateService extends Disposable implements IWorkbenchUpdate
 }
 
 registerSingleton(
-  IWorkbenchUpdateService,
+  IUpdateService,
   BrowserUpdateService,
   InstantiationType.Delayed,
 );

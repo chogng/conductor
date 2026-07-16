@@ -11,14 +11,16 @@ import type {
   ICommandEvent,
   ICommandService as ICommandServiceType,
 } from "src/cs/platform/commands/common/commands";
+import type {
+  DesktopUpdateStatus,
+  IUpdateService,
+} from "src/cs/platform/update/common/update";
 import {
   getUpdateTooltipText,
   UpdateTooltip,
 } from "src/cs/workbench/contrib/update/browser/updateTooltip";
 import {
   UpdateCommandId,
-  type DesktopUpdateStatus,
-  type IWorkbenchUpdateService,
 } from "src/cs/workbench/contrib/update/common/update";
 
 suite("workbench/contrib/update/test/browser/updateTooltip", () => {
@@ -299,7 +301,7 @@ suite("workbench/contrib/update/test/browser/updateTooltip", () => {
   });
 });
 
-class TestUpdateService extends Disposable implements IWorkbenchUpdateService {
+class TestUpdateService extends Disposable implements IUpdateService {
   public declare readonly _serviceBrand: undefined;
 
   private readonly onDidChangeStatusEmitter =

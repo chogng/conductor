@@ -24,15 +24,17 @@ import type {
   ServiceIdentifier,
 } from "src/cs/platform/instantiation/common/instantiation";
 import {
+  IUpdateService,
+  type DesktopUpdateStatus,
+  type IUpdateService as IUpdateServiceType,
+} from "src/cs/platform/update/common/update";
+import {
   appendUpdateMenuItems,
   registerDeveloperUpdateCommand,
   registerUpdateCommands,
 } from "src/cs/workbench/contrib/update/browser/update";
 import {
-  IWorkbenchUpdateService,
   UpdateCommandId,
-  type DesktopUpdateStatus,
-  type IWorkbenchUpdateService as IWorkbenchUpdateServiceType,
 } from "src/cs/workbench/contrib/update/common/update";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 
@@ -69,7 +71,7 @@ suite("workbench/contrib/update/test/browser/update", () => {
     };
     accessor = createAccessor([
       [ICommandService, commandService],
-      [IWorkbenchUpdateService, createUpdateService({
+      [IUpdateService, createUpdateService({
         checkForUpdates: async () => {
           calls.push("check");
           return "checked";
@@ -165,7 +167,7 @@ suite("workbench/contrib/update/test/browser/update", () => {
     const calls: string[] = [];
     const dialogOptions: IOpenDialogOptions[] = [];
     const accessor = createAccessor([
-      [IWorkbenchUpdateService, createUpdateService({
+      [IUpdateService, createUpdateService({
         applySpecificUpdate: async packagePath => {
           calls.push(`apply:${packagePath}`);
           return true;
@@ -229,8 +231,8 @@ function createAccessor(
 }
 
 function createUpdateService(
-  overrides: Partial<IWorkbenchUpdateServiceType>,
-): IWorkbenchUpdateServiceType {
+  overrides: Partial<IUpdateServiceType>,
+): IUpdateServiceType {
   return {
     _serviceBrand: undefined,
     canCheckForUpdates: () => true,

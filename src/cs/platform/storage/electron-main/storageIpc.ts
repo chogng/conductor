@@ -5,13 +5,13 @@
 import {
 	StorageChannel,
 	STORAGE_CHANNEL_NAME,
-	type IStorageProvider,
+	type IStorageServer,
 } from "../common/storageIpc.js";
 
 export { STORAGE_CHANNEL_NAME };
 
 export class StorageMainChannel extends StorageChannel {
-	constructor(storageProvider: IStorageProvider) {
-		super(storageProvider);
+	constructor(storageServer: IStorageServer) {
+		super(storageServer);
 	}
 }

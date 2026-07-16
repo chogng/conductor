@@ -5,11 +5,13 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import {
-  IWorkbenchUpdateService,
+  IUpdateService,
+  type DesktopUpdateStatus,
+  type IUpdateService as IUpdateServiceType,
+} from "src/cs/platform/update/common/update";
+import {
   isDesktopUpdateReadyToInstall,
   UpdateCommandId,
-  type DesktopUpdateStatus,
-  type IWorkbenchUpdateService as IWorkbenchUpdateServiceType,
 } from "src/cs/workbench/contrib/update/common/update";
 import { getUpdateTooltipText } from "src/cs/workbench/contrib/update/browser/updateTooltip";
 import {
@@ -23,7 +25,7 @@ import {
  */
 export class UpdateTitleBarEntry extends Disposable {
   public constructor(
-    @IWorkbenchUpdateService private readonly updateService: IWorkbenchUpdateServiceType,
+    @IUpdateService private readonly updateService: IUpdateServiceType,
     @ITitleService private readonly titleService: ITitleServiceType,
   ) {
     super();

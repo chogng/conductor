@@ -17,11 +17,13 @@ import {
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
 import {
-  CONTEXT_UPDATE_STATE,
-  IWorkbenchUpdateService,
-  UpdateContributionId,
+  IUpdateService,
   type DesktopUpdateState,
-  type IWorkbenchUpdateService as IWorkbenchUpdateServiceType,
+  type IUpdateService as IUpdateServiceType,
+} from "src/cs/platform/update/common/update";
+import {
+  CONTEXT_UPDATE_STATE,
+  UpdateContributionId,
 } from "src/cs/workbench/contrib/update/common/update";
 import { registerDeveloperUpdateCommand, registerUpdateCommands } from "src/cs/workbench/contrib/update/browser/update";
 import { ReleaseNotesEditor } from "src/cs/workbench/contrib/update/browser/releaseNotesEditor";
@@ -35,7 +37,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
   private readonly updateStateContextKey: IContextKey<DesktopUpdateState>;
 
   public constructor(
-    @IWorkbenchUpdateService private readonly updateService: IWorkbenchUpdateServiceType,
+    @IUpdateService private readonly updateService: IUpdateServiceType,
     @IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentServiceType,
     @IContextKeyService contextKeyService: IContextKeyService,
     @IInstantiationService instantiationService: IInstantiationServiceType,

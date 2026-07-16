@@ -18,6 +18,7 @@ import {
 	WORKSPACE_STORAGE_DIRECTORY,
 	type IStorageMain,
 } from "./storageMain.js";
+import { migrateLegacyStorage } from "./storageMigration.js";
 
 const ALL_STORAGE_SCOPES = [
 	StorageScope.APPLICATION,
@@ -81,6 +82,14 @@ export class StorageMainService extends AbstractStorageService implements IStora
 
 	protected override async doInitialize(): Promise<void> {
 		await Promise.all(ALL_STORAGE_SCOPES.map(scope => this.getStorage(scope).init()));
+		await migrateLegacyStorage({
+			getHomeDir: this.options.getHomeDir,
+			getStorage: scope => this.getStorage(scope),
+			logWarning: this.options.logWarning,
+		});
+		for (const scope of ALL_STORAGE_SCOPES) {
+			this.initializeTargets(scope);
+		}
 	}
 
 	protected readValue(key: string, scope: StorageScope): string | undefined {

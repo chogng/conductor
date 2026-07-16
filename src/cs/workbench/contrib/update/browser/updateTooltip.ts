@@ -10,12 +10,14 @@ import {
   type ICommandService as ICommandServiceType,
 } from "src/cs/platform/commands/common/commands";
 import {
-  IWorkbenchUpdateService,
-  UpdateCommandId,
+  IUpdateService,
   type DesktopUpdateChannel,
   type DesktopUpdateState,
   type DesktopUpdateStatus,
-  type IWorkbenchUpdateService as IWorkbenchUpdateServiceType,
+  type IUpdateService as IUpdateServiceType,
+} from "src/cs/platform/update/common/update";
+import {
+  UpdateCommandId,
 } from "src/cs/workbench/contrib/update/common/update";
 
 import "src/cs/workbench/contrib/update/browser/media/updateTooltip.css";
@@ -50,7 +52,7 @@ export const getUpdateTooltipText = (
 
 /**
  * Stateful tooltip content for the desktop update status.
- * IWorkbenchUpdateService owns the status; this control renders snapshots only.
+ * IUpdateService owns the status; this control renders snapshots only.
  */
 export class UpdateTooltip extends Disposable {
   public readonly domNode: HTMLElement;
@@ -68,7 +70,7 @@ export class UpdateTooltip extends Disposable {
   private readonly actionButton: HTMLButtonElement;
 
   public constructor(
-    @IWorkbenchUpdateService private readonly updateService: IWorkbenchUpdateServiceType,
+    @IUpdateService private readonly updateService: IUpdateServiceType,
     @ICommandService private readonly commandService: ICommandServiceType,
   ) {
     super();

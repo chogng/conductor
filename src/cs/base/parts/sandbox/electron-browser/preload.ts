@@ -89,15 +89,6 @@ function validateIpcChannel(channel: string): true {
   return true;
 }
 
-function readAutoUpdateStatus(ipcRenderer: IpcRenderer): unknown {
-  try {
-    return ipcRenderer.sendSync(workbenchIpcChannels.desktopAutoUpdateStatusGet);
-  } catch (error) {
-    console.warn("[boot][preload] Failed to refresh auto-update status:", error);
-    return null;
-  }
-}
-
 //#endregion
 
 //#region Desktop app bridge
@@ -112,42 +103,6 @@ function createDesktopAppBridge(ipcRenderer: IpcRenderer) {
       ipcRenderer.send("desktop-command", { command, payload });
     },
 
-    getAutoUpdateStatus() {
-      return readAutoUpdateStatus(ipcRenderer);
-    },
-
-    async checkForUpdates() {
-      return ipcRenderer.invoke(workbenchIpcChannels.desktopAutoUpdateCheck);
-    },
-
-    async checkForUpdatesAndInstall() {
-      return ipcRenderer.invoke(workbenchIpcChannels.desktopAutoUpdateCheckAndInstall);
-    },
-
-    async installDownloadedUpdate() {
-      return ipcRenderer.invoke(workbenchIpcChannels.desktopAutoUpdateInstallDownloaded);
-    },
-
-    async applySpecificUpdate(packagePath: unknown) {
-      if (typeof packagePath !== "string" || packagePath.trim().length === 0) {
-        return undefined;
-      }
-
-      return ipcRenderer.invoke(workbenchIpcChannels.desktopAutoUpdateApplySpecific, packagePath);
-    },
-
-    onAutoUpdateStatusChange(listener: unknown) {
-      if (typeof listener !== "function") {
-        return () => undefined;
-      }
-
-      const handleStatusChanged = (_event: Electron.IpcRendererEvent, status: unknown) => {
-        listener(status);
-      };
-
-      ipcRenderer.on(workbenchIpcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
-      return () => ipcRenderer.removeListener(workbenchIpcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
-    },
   };
 }
 

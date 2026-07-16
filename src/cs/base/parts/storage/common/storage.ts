@@ -258,7 +258,11 @@ export class Storage extends Disposable implements IStorage {
     }
 
     public async close(): Promise<void> {
-        this.pendingClose ??= this.doClose();
+        this.pendingClose ??= this.doClose().catch(error => {
+            this.state = StorageState.Initialized;
+            this.pendingClose = undefined;
+            throw error;
+        });
         return this.pendingClose;
     }
 
@@ -305,14 +309,16 @@ export class Storage extends Disposable implements IStorage {
     private async doClose(): Promise<void> {
         this.state = StorageState.Closed;
 
+        let flushFailed = false;
         try {
             await this.doFlush(0);
         }
         catch (error) {
+            flushFailed = true;
             console.warn("Failed to flush storage before close.", error);
         }
 
-        await this.database.close(() => this.cache);
+        await this.database.close(flushFailed ? () => this.cache : undefined);
     }
 
     private async doFlush(delay?: number): Promise<void> {

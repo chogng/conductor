@@ -8,11 +8,10 @@ import {
 	type IStorageService,
 	type IStorageValueChangeEvent,
 	StorageScope,
+	STORAGE_TARGET_KEY,
 	StorageTarget,
 	type StorageValue,
 } from "./storage.js";
-
-const TARGET_KEY = "__$__targetStorageMarker";
 
 export abstract class AbstractStorageService implements IStorageService, IDisposable {
 	declare readonly _serviceBrand: undefined;
@@ -113,7 +112,7 @@ export abstract class AbstractStorageService implements IStorageService, IDispos
 		if (valueChanged) {
 			this.runStorageOperation(this.writeValue(key, scope, serializedValue));
 		}
-		this.fireDidChangeValue(key, scope, target);
+		this.fireDidChangeValue(key, scope, target, false, targetChanged);
 	}
 
 	public remove(key: string, scope: StorageScope): void {
@@ -126,12 +125,12 @@ export abstract class AbstractStorageService implements IStorageService, IDispos
 		if (valueExists) {
 			this.runStorageOperation(this.deleteValue(key, scope));
 		}
-		this.fireDidChangeValue(key, scope, undefined);
+		this.fireDidChangeValue(key, scope, undefined, false, targetChanged);
 	}
 
 	public keys(scope: StorageScope): string[] {
 		return this.readKeys(scope)
-			.filter(key => key !== TARGET_KEY)
+			.filter(key => key !== STORAGE_TARGET_KEY)
 			.sort();
 	}
 
@@ -171,13 +170,34 @@ export abstract class AbstractStorageService implements IStorageService, IDispos
 	protected abstract readKeys(scope: StorageScope): string[];
 
 	protected fireDidChangeValueExternal(key: string, scope: StorageScope): void {
-		if (key === TARGET_KEY) {
+		if (key === STORAGE_TARGET_KEY) {
+			const previousTargets = new Map(this.getTargets(scope));
 			this.loadedTargetScopes.delete(scope);
 			this.targets.delete(scope);
+			const currentTargets = this.getTargets(scope);
+			const changedKeys = new Set([
+				...previousTargets.keys(),
+				...currentTargets.keys(),
+			]);
+			for (const changedKey of changedKeys) {
+				if (previousTargets.get(changedKey) !== currentTargets.get(changedKey)) {
+					this.fireDidChangeValue(
+						changedKey,
+						scope,
+						currentTargets.get(changedKey),
+						true,
+						true,
+					);
+				}
+			}
 			return;
 		}
 
 		this.fireDidChangeValue(key, scope, this.getTarget(key, scope), true);
+	}
+
+	protected initializeTargets(scope: StorageScope): void {
+		this.getTargets(scope);
 	}
 
 	protected fireDidChangeValue(
@@ -185,8 +205,15 @@ export abstract class AbstractStorageService implements IStorageService, IDispos
 		scope: StorageScope,
 		target: StorageTarget | undefined,
 		external = false,
+		targetChanged = false,
 	): void {
-		this.onDidChangeValueEmitter.fire({ key, scope, target, external });
+		this.onDidChangeValueEmitter.fire({
+			key,
+			scope,
+			target,
+			external,
+			targetChanged,
+		});
 	}
 
 	private getTarget(key: string, scope: StorageScope): StorageTarget | undefined {
@@ -199,7 +226,7 @@ export abstract class AbstractStorageService implements IStorageService, IDispos
 		}
 
 		const targets = new Map<string, StorageTarget>();
-		const rawTargets = this.readValue(TARGET_KEY, scope);
+		const rawTargets = this.readValue(STORAGE_TARGET_KEY, scope);
 		if (rawTargets) {
 			try {
 				const parsed = JSON.parse(rawTargets) as unknown;
@@ -238,10 +265,10 @@ export abstract class AbstractStorageService implements IStorageService, IDispos
 		}
 
 		if (targets.size === 0) {
-			this.runStorageOperation(this.deleteValue(TARGET_KEY, scope));
+			this.runStorageOperation(this.deleteValue(STORAGE_TARGET_KEY, scope));
 		} else {
 			this.runStorageOperation(this.writeValue(
-				TARGET_KEY,
+				STORAGE_TARGET_KEY,
 				scope,
 				JSON.stringify(Object.fromEntries(targets)),
 			));

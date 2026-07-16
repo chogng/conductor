@@ -7,12 +7,14 @@ import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import type {
+  DesktopUpdateStatus,
+  IUpdateService,
+} from "src/cs/platform/update/common/update";
 import { UpdateTitleBarEntry } from "src/cs/workbench/contrib/update/browser/updateTitleBarEntry";
 import { getUpdateTooltipText } from "src/cs/workbench/contrib/update/browser/updateTooltip";
 import {
   UpdateCommandId,
-  type DesktopUpdateStatus,
-  type IWorkbenchUpdateService,
 } from "src/cs/workbench/contrib/update/common/update";
 import type {
   ITitleService,
@@ -300,7 +302,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
   });
 });
 
-class TestUpdateService extends Disposable implements IWorkbenchUpdateService {
+class TestUpdateService extends Disposable implements IUpdateService {
   public declare readonly _serviceBrand: undefined;
 
   private readonly onDidChangeStatusEmitter =

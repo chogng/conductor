@@ -3,6 +3,7 @@ import { DisposableStore } from "../../../base/common/lifecycle.js";
 import { createDecorator } from "../../instantiation/common/instantiation.js";
 
 export const IStorageService = createDecorator<IStorageService>("storageService");
+export const STORAGE_TARGET_KEY = "__$__targetStorageMarker";
 
 export const enum StorageScope {
   APPLICATION = -1,
@@ -22,6 +23,7 @@ export interface IStorageValueChangeEvent {
   readonly scope: StorageScope;
   readonly target: StorageTarget | undefined;
   readonly external?: boolean;
+  readonly targetChanged?: boolean;
 }
 
 export interface IStorageService {

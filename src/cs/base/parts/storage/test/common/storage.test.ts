@@ -35,6 +35,28 @@ suite("base/parts/storage/common/storage", () => {
 		await storage.close();
 		storage.dispose();
 	});
+
+	test("uses database recovery when the final close flush fails", async () => {
+		const database = new CloseRecoveryStorageDatabase();
+		const storage = new Storage(database, {
+			hint: StorageHint.STORAGE_IN_MEMORY,
+		});
+		await storage.init();
+
+		await assert.rejects(storage.set("key", "value"));
+		const originalWarn = console.warn;
+		console.warn = () => undefined;
+		try {
+			await assert.rejects(storage.close());
+			await storage.close();
+		} finally {
+			console.warn = originalWarn;
+		}
+
+		assert.equal(database.items.get("key"), "value");
+		assert.equal(database.didRecover, true);
+		storage.dispose();
+	});
 });
 
 class FlakyStorageDatabase implements IStorageDatabase {
@@ -59,4 +81,32 @@ class FlakyStorageDatabase implements IStorageDatabase {
 
 	public async optimize(): Promise<void> {}
 	public async close(): Promise<void> {}
+}
+
+class CloseRecoveryStorageDatabase implements IStorageDatabase {
+	public readonly onDidChangeItemsExternal =
+		Event.None as EventType<IStorageItemsChangeEvent>;
+	public readonly items = new Map<string, string>();
+	public didRecover = false;
+	private closeAttempts = 0;
+
+	public async getItems(): Promise<Map<string, string>> {
+		return new Map(this.items);
+	}
+
+	public async updateItems(): Promise<void> {
+		throw new Error("expected persistent write failure");
+	}
+
+	public async optimize(): Promise<void> {}
+
+	public async close(recovery?: () => Map<string, string>): Promise<void> {
+		assert.ok(recovery);
+		this.closeAttempts += 1;
+		if (this.closeAttempts === 1) {
+			throw new Error("expected recovery write failure");
+		}
+		this.didRecover = true;
+		recovery().forEach((value, key) => this.items.set(key, value));
+	}
 }

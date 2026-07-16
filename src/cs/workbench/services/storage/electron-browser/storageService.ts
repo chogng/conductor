@@ -14,6 +14,7 @@ import { IMainProcessService } from "src/cs/platform/ipc/common/mainProcessServi
 import {
 	IStorageService,
 	StorageScope,
+	STORAGE_TARGET_KEY,
 	type IStorageService as IStorageServiceType,
 } from "src/cs/platform/storage/common/storage";
 import {
@@ -52,10 +53,11 @@ export class NativeWorkbenchStorageService
 			));
 			const storage = this.disposables.add(new Storage(database));
 			this.storages.set(scope, storage);
-			this.disposables.add(storage.onDidChangeStorage(event => {
-				if (event.external) {
-					this.fireDidChangeValueExternal(event.key, scope);
-				}
+			this.disposables.add(database.onDidChangeValueExternal(event => {
+				this.fireDidChangeValueExternal(
+					event.targetChanged ? STORAGE_TARGET_KEY : event.key,
+					scope,
+				);
 			}));
 		}
 
@@ -68,11 +70,21 @@ export class NativeWorkbenchStorageService
 
 		const handleFlushRequest = () => {
 			void this.close()
+				.then(() => {
+					ipcRenderer.send(
+						workbenchBootstrapIpcChannels.storageFlushComplete,
+						{ ok: true },
+					);
+				})
 				.catch(error => {
 					console.error("Failed to flush renderer storage before quit.", error);
-				})
-				.finally(() => {
-					ipcRenderer.send(workbenchBootstrapIpcChannels.storageFlushComplete);
+					ipcRenderer.send(
+						workbenchBootstrapIpcChannels.storageFlushComplete,
+						{
+							ok: false,
+							message: error instanceof Error ? error.message : String(error),
+						},
+					);
 				});
 		};
 		ipcRenderer.on(
@@ -89,6 +101,9 @@ export class NativeWorkbenchStorageService
 
 	protected override async doInitialize(): Promise<void> {
 		await Promise.all(ALL_STORAGE_SCOPES.map(scope => this.getStorage(scope).init()));
+		for (const scope of ALL_STORAGE_SCOPES) {
+			this.initializeTargets(scope);
+		}
 	}
 
 	protected readValue(key: string, scope: StorageScope): string | undefined {

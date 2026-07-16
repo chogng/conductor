@@ -9,7 +9,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { Win32UpdateService, type DesktopUpdateStatus } from "src/cs/platform/update/electron-main/updateService.win32";
+import type { DesktopUpdateStatus } from "src/cs/platform/update/common/update";
+import { Win32UpdateService } from "src/cs/platform/update/electron-main/updateService.win32";
 
 suite("platform/update/test/electron-main/updateService.win32", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,11 +26,14 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
       isWindowsStorePackage: false,
       localize: key => key,
       log: () => undefined,
-      onStatusChange: status => statuses.push(status),
       packageJsonPath: "package.json",
-      prepareToQuitForUpdate: () => calls.push("prepare"),
+      prepareToQuitForUpdate: async () => {
+        calls.push("prepare");
+        return true;
+      },
       warn: () => undefined,
     });
+    const statusListener = service.onDidChangeStatus(status => statuses.push(status));
 
     const serviceState = service as unknown as {
       autoUpdater: { quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void };
@@ -62,6 +66,70 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
       message: null,
       progressPercent: null,
     }]);
+    statusListener.dispose();
+    service.dispose();
+  });
+
+  test("does not start the installer when storage preparation fails", async () => {
+    const calls: string[] = [];
+    const service = new Win32UpdateService({
+      app: { getVersion: () => "1.0.0", isPackaged: true } as never,
+      appDisplayName: "Conductor Studio",
+      dialog: {} as never,
+      getDialogWindow: () => null,
+      isWindowsStorePackage: false,
+      localize: key => key,
+      log: () => undefined,
+      packageJsonPath: "package.json",
+      prepareToQuitForUpdate: async () => false,
+      warn: () => undefined,
+    });
+    const serviceState = service as unknown as {
+      autoUpdater: { quitAndInstall: () => void };
+      status: DesktopUpdateStatus;
+    };
+    serviceState.autoUpdater = {
+      quitAndInstall: () => calls.push("quit"),
+    };
+    serviceState.status = {
+      status: "downloaded",
+      version: "1.2.0",
+      channel: "generic",
+      isStoreManaged: false,
+      message: null,
+      progressPercent: null,
+    };
+
+    assert.strictEqual(await service.installDownloadedUpdate(), false);
+    assert.deepStrictEqual(calls, []);
+    assert.strictEqual(service.getStatus().status, "downloaded");
+    service.dispose();
+  });
+
+  test("stops both the initial and recurring update timers", () => {
+    const service = new Win32UpdateService({
+      app: { getVersion: () => "1.0.0", isPackaged: true } as never,
+      appDisplayName: "Conductor Studio",
+      dialog: {} as never,
+      getDialogWindow: () => null,
+      isWindowsStorePackage: false,
+      localize: key => key,
+      log: () => undefined,
+      packageJsonPath: "package.json",
+      warn: () => undefined,
+    });
+    const serviceState = service as unknown as {
+      autoUpdateInitialTimer: NodeJS.Timeout | null;
+      autoUpdateTimer: NodeJS.Timeout | null;
+    };
+    serviceState.autoUpdateInitialTimer = setTimeout(() => undefined, 60_000);
+    serviceState.autoUpdateTimer = setInterval(() => undefined, 60_000);
+
+    service.stopPolling();
+
+    assert.strictEqual(serviceState.autoUpdateInitialTimer, null);
+    assert.strictEqual(serviceState.autoUpdateTimer, null);
+    service.dispose();
   });
 
   test("serves a local setup package through a debug update feed", async () => {
@@ -99,10 +167,10 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
       isWindowsStorePackage: false,
       localize: (key, vars) => vars ? `${key}:${JSON.stringify(vars)}` : key,
       log: () => undefined,
-      onStatusChange: status => statuses.push(status),
       packageJsonPath: "package.json",
       warn: () => undefined,
     });
+    const statusListener = service.onDidChangeStatus(status => statuses.push(status));
 
     const serviceState = service as unknown as {
       autoUpdater: TestAutoUpdater;
@@ -190,7 +258,48 @@ suite("platform/update/test/electron-main/updateService.win32", () => {
         ],
       });
     } finally {
-      service.stopPolling();
+      statusListener.dispose();
+      service.dispose();
+      await fs.promises.rm(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  test("reports updater setup filesystem failures as status", async () => {
+    if (process.platform !== "win32") {
+      return;
+    }
+
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "conductor-update-setup-"));
+    const blockedCacheRoot = path.join(tempDir, "not-a-directory");
+    await fs.promises.writeFile(blockedCacheRoot, "blocked", "utf8");
+    const warnings: string[] = [];
+    const service = new Win32UpdateService({
+      app: {
+        getVersion: () => "1.0.0",
+        isPackaged: true,
+      } as never,
+      appDisplayName: "Conductor Studio",
+      dialog: {} as never,
+      getDialogWindow: () => null,
+      getUpdateTempDir: () => blockedCacheRoot,
+      isWindowsStorePackage: false,
+      localize: key => key,
+      log: () => undefined,
+      packageJsonPath: "package.json",
+      warn: message => warnings.push(message),
+    });
+    (service as unknown as { autoUpdater: TestAutoUpdater }).autoUpdater =
+      new TestAutoUpdater();
+
+    try {
+      await assert.doesNotReject(service.setup());
+      assert.strictEqual(service.getStatus().status, "error");
+      assert.strictEqual(
+        warnings.some(message => message.includes("Failed to initialize")),
+        true,
+      );
+    } finally {
+      service.dispose();
       await fs.promises.rm(tempDir, { force: true, recursive: true });
     }
   });

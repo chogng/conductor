@@ -62,6 +62,10 @@ import { registerOriginMainHandlers } from "../../platform/origin/electron-main/
 import { IOriginMainService } from "../../platform/origin/electron-main/originMainService.js";
 import { OriginMainService } from "../../platform/origin/electron-main/originMainServiceImpl.js";
 import { Win32UpdateService } from "../../platform/update/electron-main/updateService.win32.js";
+import {
+  UPDATE_CHANNEL_NAME,
+  UpdateChannel,
+} from "../../platform/update/common/updateIpc.js";
 import { DialogMainService } from "../../platform/dialogs/electron-main/dialogMainService.js";
 import { NativeHostMainService } from "../../platform/native/electron-main/nativeHostMainService.js";
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
@@ -1005,7 +1009,7 @@ function flushRendererStorageBeforeQuit() {
     return Promise.resolve();
   }
 
-  return new Promise<void>(resolve => {
+  return new Promise<void>((resolve, reject) => {
     let didComplete = false;
     const complete = () => {
       if (didComplete) {
@@ -1020,14 +1024,35 @@ function flushRendererStorageBeforeQuit() {
       );
       resolve();
     };
-    const handleComplete = event => {
+    const handleComplete = (event, result) => {
       if (event.sender === win.webContents) {
-        complete();
+        if (result?.ok === true) {
+          complete();
+          return;
+        }
+
+        fail(new Error(
+          typeof result?.message === "string" && result.message.trim()
+            ? result.message
+            : "Renderer storage flush failed.",
+        ));
       }
     };
+    const fail = error => {
+      if (didComplete) {
+        return;
+      }
+
+      didComplete = true;
+      clearTimeout(timeout);
+      ipcMain.removeListener(
+        workbenchBootstrapIpcChannels.storageFlushComplete,
+        handleComplete,
+      );
+      reject(error);
+    };
     const timeout = setTimeout(() => {
-      console.warn("Timed out waiting for renderer storage to flush before quit.");
-      complete();
+      fail(new Error("Timed out waiting for renderer storage to flush before quit."));
     }, 5000);
 
     ipcMain.on(
@@ -1036,10 +1061,32 @@ function flushRendererStorageBeforeQuit() {
     );
     try {
       win.webContents.send(workbenchBootstrapIpcChannels.storageFlushRequest);
-    } catch {
-      complete();
+    } catch (error) {
+      fail(error);
     }
   });
+}
+
+let storageClosedForQuit = false;
+let storageClosePromise: Promise<boolean> | null = null;
+
+function prepareStorageForQuit(): Promise<boolean> {
+  if (storageClosedForQuit) {
+    return Promise.resolve(true);
+  }
+
+  storageClosePromise ??= flushRendererStorageBeforeQuit()
+    .then(() => mainStorageService.close())
+    .then(() => {
+      storageClosedForQuit = true;
+      return true;
+    })
+    .catch(error => {
+      console.error("Failed to close storage before quit.", error);
+      storageClosePromise = null;
+      return false;
+    });
+  return storageClosePromise;
 }
 
 function createSharedProcessContributionContext() {
@@ -1258,21 +1305,6 @@ function getAutoUpdateDialogWindow() {
   return null;
 }
 
-function broadcastAutoUpdateStatus() {
-  const payload = updateService?.getStatus() ?? {
-    status: "idle",
-    version: null,
-    channel: "none",
-    isStoreManaged: false,
-    message: null,
-    progressPercent: null,
-  };
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (win.isDestroyed()) continue;
-    win.webContents.send(ipcChannels.desktopAutoUpdateStatusChanged, payload);
-  }
-}
-
 function createUpdateService() {
   return new Win32UpdateService({
     app,
@@ -1281,10 +1313,13 @@ function createUpdateService() {
     getDialogWindow: getAutoUpdateDialogWindow,
     isWindowsStorePackage,
     packageJsonPath: path.join(getAppRootPath(), "package.json"),
-    onStatusChange: broadcastAutoUpdateStatus,
-    prepareToQuitForUpdate: () => {
-      trayMainService.markQuitRequested();
-      stopAllRustEngines();
+    prepareToQuitForUpdate: async () => {
+      const didPrepare = await prepareStorageForQuit();
+      if (didPrepare) {
+        trayMainService.markQuitRequested();
+        stopAllRustEngines();
+      }
+      return didPrepare;
     },
     localize: mainMessage,
     log: (message: string) => {
@@ -1659,17 +1694,6 @@ function handleDesktopCommand(event, payload) {
   }
 }
 
-function handleDesktopAutoUpdateStatusGet(event) {
-  event.returnValue = updateService?.getStatus() ?? {
-    status: "idle",
-    version: null,
-    channel: "none",
-    isStoreManaged: false,
-    message: null,
-    progressPercent: null,
-  };
-}
-
 if (hasSingleInstanceLock) {
   app.on("second-instance", () => {
     if (app.isReady()) {
@@ -1705,6 +1729,10 @@ if (hasSingleInstanceLock) {
     new StorageMainChannel(mainStorageService),
   );
   mainProcessServer.registerChannel(
+    UPDATE_CHANNEL_NAME,
+    new UpdateChannel(updateService),
+  );
+  mainProcessServer.registerChannel(
     CONFIGURATION_CHANNEL_NAME,
     new ConfigurationChannel(mainConfigurationService),
   );
@@ -1717,24 +1745,9 @@ if (hasSingleInstanceLock) {
     resolveNativeHostEnvironment(event.sender),
   );
   ipcMain.on(nativeHostBootstrapIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
-  ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
   ipcMain.on(workbenchBootstrapIpcChannels.settingsGet, handleWorkbenchBootstrapSettingsGet);
   ipcMain.on(workbenchBootstrapIpcChannels.storageGet, handleWorkbenchBootstrapStorageGet);
   ipcMain.handle(workbenchBootstrapIpcChannels.uiReady, handleWorkbenchBootstrapUiReady);
-  ipcMain.handle(ipcChannels.desktopAutoUpdateCheck, () =>
-    updateService?.checkForUpdates({ manual: true }),
-  );
-  ipcMain.handle(ipcChannels.desktopAutoUpdateCheckAndInstall, () =>
-    updateService?.checkForUpdatesAndInstall(),
-  );
-  ipcMain.handle(ipcChannels.desktopAutoUpdateInstallDownloaded, () =>
-    updateService?.installDownloadedUpdate(),
-  );
-  ipcMain.handle(ipcChannels.desktopAutoUpdateApplySpecific, (_event, packagePath: unknown) =>
-    typeof packagePath === "string" && packagePath.trim()
-      ? updateService?.applySpecificUpdate(packagePath)
-      : undefined,
-  );
   ipcMain.handle(ipcChannels.desktopAppearanceSet, handleDesktopAppearanceSet);
   ipcMain.handle(ipcChannels.demoFilesGet, handleAnalysisDemoFilesGet);
   rustHandlers = registerRustHostChannels({
@@ -1772,7 +1785,9 @@ if (hasSingleInstanceLock) {
   const window = createMainWindow();
   window.webContents.once("did-finish-load", () => {
     logDesktopBoot("post-load:auto-updates:init");
-    void updateService?.setup();
+    void updateService?.setup().catch(error => {
+      console.error("Failed to initialize auto updates.", error);
+    });
   });
 
   app.on("activate", () => {
@@ -1786,32 +1801,26 @@ app.on("window-all-closed", () => {
   app.quit();
 });
 
-let storageClosedForQuit = false;
-let storageClosePromise: Promise<void> | null = null;
-
 app.on("before-quit", event => {
-  trayMainService.markQuitRequested();
-  stopAllRustEngines();
-
   if (storageClosedForQuit) {
+    trayMainService.markQuitRequested();
+    stopAllRustEngines();
     return;
   }
 
   event.preventDefault();
-  storageClosePromise ??= flushRendererStorageBeforeQuit()
-    .then(() => mainStorageService.close())
-    .catch(error => {
-      console.error("Failed to close main storage before quit.", error);
-    })
-    .finally(() => {
-      storageClosedForQuit = true;
+  void prepareStorageForQuit().then(didClose => {
+    if (didClose) {
+      trayMainService.markQuitRequested();
+      stopAllRustEngines();
       app.quit();
-    });
+    }
+  });
 });
 
 app.on("will-quit", () => {
   trayMainService.markQuitRequested();
-  updateService?.stopPolling();
+  updateService?.dispose();
   themeMainServiceListener?.dispose();
   themeMainServiceListener = null;
   mainInstantiationService.dispose();
@@ -1826,17 +1835,9 @@ app.on("will-quit", () => {
   ipcMain.removeListener(nativeHostBootstrapIpcChannels.windowCommand, handleNativeWindowCommand);
   ipcMain.removeHandler(nativeHostBootstrapIpcChannels.environmentGet);
   ipcMain.removeListener(nativeHostBootstrapIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
-  ipcMain.removeListener(
-    ipcChannels.desktopAutoUpdateStatusGet,
-    handleDesktopAutoUpdateStatusGet,
-  );
   ipcMain.removeListener(workbenchBootstrapIpcChannels.settingsGet, handleWorkbenchBootstrapSettingsGet);
   ipcMain.removeListener(workbenchBootstrapIpcChannels.storageGet, handleWorkbenchBootstrapStorageGet);
   ipcMain.removeHandler(workbenchBootstrapIpcChannels.uiReady);
-  ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheck);
-  ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheckAndInstall);
-  ipcMain.removeHandler(ipcChannels.desktopAutoUpdateInstallDownloaded);
-  ipcMain.removeHandler(ipcChannels.desktopAutoUpdateApplySpecific);
   ipcMain.removeHandler(ipcChannels.desktopAppearanceSet);
   ipcMain.removeHandler(ipcChannels.demoFilesGet);
   ipcMain.removeHandler(ipcChannels.originZipSave);
