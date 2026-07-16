@@ -218,6 +218,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			candidate.source.dataRange?.endCol === 2
 		);
 		assert.equal(block?.ivMode, "output");
+		assert.deepEqual(block?.proofColumns, [3]);
 	});
 
 	test("keeps noisy nA CH2 current proof from overriding stepped CH2 voltage output proof", async () => {

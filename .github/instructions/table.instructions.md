@@ -71,6 +71,7 @@ sheet-key derivation rules in service/view files.
 | `base/browser/ui/table/virtualTable.ts` | two-dimensional virtual table engine: visible range calculation, pooled corner/header/body DOM, scroll spacers, cell descriptor rebinding, and scroll/visible-range fact events. |
 | `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over base table widget events, service selection sync, keyboard shortcuts, wheel handling, zoom controls, column width persistence callbacks, and final decoration snapshots. |
 | `contrib/table/browser/tableTemplateDecorationsProvider.ts` | provider from the current Slice-owned template slot to Template-derived table range decorations. |
+| `contrib/table/browser/tableReviewDecorationsProvider.ts` | provider from the current cached Review execution to Review-owned proof range decorations while the automatic template is selected. |
 | `contrib/table/browser/tableController.ts` | adapter from view input/callbacks to widget props. |
 | `contrib/table/browser/tableWidgetService.ts` | active widget controller registry for commands. |
 | `contrib/table/browser/tableDropTarget.ts` | table preview resource-drop target, following the upstream editor drop-target shape and delegating DataTransfer source collection to files helpers. |
@@ -150,10 +151,12 @@ Table fixed column boundary auto-fit
   -> contrib TableWidget stores that width through the existing fixed-width persistence path
   -> base TableWidget/VirtualTable consumes the updated width through the existing render/layout path
 
-TableWidget header scale badge / shared stepper
+TableWidget header scale badge / bottom scale stepper
   -> TableViewPane derives header selection and scale-adjustment policy from template mode
   -> TableController forwards the policy to TableWidget
-  -> TableWidget keeps column selection and scale adjustment mutually exclusive
+  -> template management uses single-column header selection while the template editor keeps additive multi-column selection
+  -> TableWidget targets the single selected column, or column zero when no single column is selected
+  -> TableWidget renders the shared scale stepper above the bottom-right table zoom control
   -> ITableService.adjustColumnDisplayScale / resetColumnDisplayScale
   -> TableService delegates to its active tableViewModel
   -> tableViewModel emits display rows-version dirty ranges
@@ -165,6 +168,8 @@ Template visualization
   -> auto slot reads the current cached Review-owned system recommended ReviewedTemplate.template through the side-effect-free execution projection
   -> saved user slot reads the selected IUserTemplateService UserTemplate.template snapshot directly
   -> templateTableMap projects Template blocks into display data ranges and Template block/axis ranges into visual TableRangeDecoration values
+  -> TableReviewDecorationsProvider independently reads Review-owned proof ranges from the cached system-recommended ReviewedTemplate while the auto slot is selected
+  -> the Review provider projects proof ranges into reviewProof TableRangeDecoration values without adding them to Template
   -> provider returns `IDecorationData<{ tableDisplayDataRanges, tableRangeDecorations }>` for the active table decoration resource
   -> TableService listens to `IDecorationsService.onDidChangeDecorations`, rereads `getDecorationData(...)`, and updates active table view-model data ranges and display-only range decorations
   -> tableViewModel invalidates column display profiles when display data ranges change because smart numeric sampling is limited to data ranges

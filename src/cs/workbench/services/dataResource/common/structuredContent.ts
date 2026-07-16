@@ -314,6 +314,7 @@ export type StructuredMeasurementBlockRecord = {
 	readonly itMode?: StructuredItSweepMode;
 	readonly source: StructuredMeasurementBlockSource;
 	readonly columns: StructuredMeasurementColumnMap;
+	readonly proofColumns?: readonly number[];
 	readonly rowCount: number;
 	readonly columnCount: number;
 	readonly confidence?: number;

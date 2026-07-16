@@ -263,6 +263,7 @@ suite("workbench/services/table/browser/tableViewModel range decorations", () =>
 
     model.setRangeDecorations([
       { kind: "templateX", sheetId: "sheet-a", startRow: 0, endRow: 9, startCol: 0, endCol: 1 },
+      { kind: "reviewProof", sheetId: "sheet-a", startRow: 0, endRow: 9, startCol: 2, endCol: 2 },
       { kind: "templateY", sheetId: "other", startRow: 0, endRow: 1, startCol: 2, endCol: 2 },
       { kind: "unknown", startRow: 0, endRow: 1, startCol: 0, endCol: 0 } as never,
       { kind: "templateBlock", startRow: 2, endRow: 1, startCol: 2, endCol: 9 },
@@ -271,6 +272,7 @@ suite("workbench/services/table/browser/tableViewModel range decorations", () =>
     assert.deepEqual(model.getSelection(), selection);
     assert.deepEqual(model.getRangeDecorations(), [
       { kind: "templateX", sheetId: "sheet-a", startRow: 0, endRow: 2, startCol: 0, endCol: 1 },
+      { kind: "reviewProof", sheetId: "sheet-a", startRow: 0, endRow: 2, startCol: 2, endCol: 2 },
       { kind: "templateBlock", sheetId: "sheet-a", startRow: 1, endRow: 2, startCol: 2, endCol: 2 },
     ]);
 
@@ -287,6 +289,7 @@ suite("workbench/services/table/browser/tableViewModel range decorations", () =>
     assert.deepEqual(changes, [
       [
         { kind: "templateX", sheetId: "sheet-a", startRow: 0, endRow: 2, startCol: 0, endCol: 1 },
+        { kind: "reviewProof", sheetId: "sheet-a", startRow: 0, endRow: 2, startCol: 2, endCol: 2 },
         { kind: "templateBlock", sheetId: "sheet-a", startRow: 1, endRow: 2, startCol: 2, endCol: 2 },
       ],
       [],

@@ -321,7 +321,10 @@ const areTableRangeDecorationsEqual = (
 const isTableRangeDecorationKind = (
   kind: unknown,
 ): kind is TableRangeDecoration["kind"] =>
-  kind === "templateBlock" || kind === "templateX" || kind === "templateY";
+  kind === "reviewProof" ||
+  kind === "templateBlock" ||
+  kind === "templateX" ||
+  kind === "templateY";
 
 const firstString = (...values: readonly unknown[]): string | null => {
   for (const value of values) {

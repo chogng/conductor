@@ -114,14 +114,6 @@
   right: 0.75rem;
   bottom: 0.75rem;
   z-index: 7;
-  opacity: 0.58;
-  transition: opacity 120ms ease;
-}
-
-.table_view_actions:hover,
-.table_view_actions:focus-within,
-.table_view_actions.table_view_actions--active {
-  opacity: 1;
 }
 
 .table_view_actions .ui-actionbar__items {
@@ -154,7 +146,8 @@
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
 }
 
-.table_view_actions .ui-stepper__value {
+.table_view_actions .ui-stepper__value,
+.table_view_column_scale_control .ui-stepper__value {
   border-top: 0;
   border-bottom: 0;
   background: transparent;
@@ -165,7 +158,8 @@
   line-height: 1rem;
 }
 
-.table_view_actions .ui-stepper__value:disabled {
+.table_view_actions .ui-stepper__value:disabled,
+.table_view_column_scale_control .ui-stepper__value:disabled {
   color: inherit;
   cursor: default;
   opacity: 1;
@@ -271,45 +265,14 @@
 .table_view_column_scale_control {
   position: absolute;
   box-sizing: border-box;
-  z-index: 6;
+  right: 0.75rem;
+  bottom: 3rem;
+  z-index: 7;
   height: 1.5rem;
   justify-content: center;
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.16);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1rem;
-  pointer-events: none;
-}
-
-.table_view_column_scale_control .ui-stepper__button {
-  flex: 0 0 1.25rem;
-  width: 1.25rem;
-  height: 100%;
-}
-
-.table_view_column_scale_control .ui-stepper__button,
-.table_view_column_scale_control .ui-stepper__value {
-  pointer-events: auto;
-}
-
-.table_view_column_scale_control .ui-stepper__value {
-  appearance: none;
-  flex: 0 0 auto;
-  width: max-content;
-  min-width: 3rem;
-  border-top: 0;
-  border-bottom: 0;
-  padding: 0 0.25rem;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-}
-
-.table_view_column_scale_control .ui-stepper__value:disabled {
-  color: inherit;
-  cursor: default;
-  opacity: 1;
-  -webkit-text-fill-color: currentColor;
 }
 
 .table_view--selecting_cells,
@@ -349,6 +312,10 @@
 
 .table_view_grid td[data-decoration~="templateBlock"][data-decoration~="templateY"] {
   background: linear-gradient(135deg, rgb(22 163 74 / 0.13), rgb(var(--text-secondary) / 0.05));
+}
+
+.table_view_grid td[data-decoration~="reviewProof"] {
+  background: rgb(124 58 237 / 0.14);
 }
 
 .table_view_grid td[data-selected="true"][data-decoration],

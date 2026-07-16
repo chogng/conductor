@@ -370,6 +370,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(reviewExecution?.summary.state, "ready");
 		assert.equal(reviewExecution?.summary.reviewedType, "output");
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
+		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.evidence?.proofRanges, [{
+			column: 3,
+			startRow: 1,
+			endRow: 6,
+		}]);
 	});
 
 	test("derives IV output review from stepped CH2 proof with instrument export columns", async () => {
@@ -421,6 +426,11 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(reviewExecution?.summary.state, "ready");
 		assert.equal(reviewExecution?.summary.reviewedType, "output");
 		assert.equal(reviewExecution?.systemRecommendedReviewedTemplate?.template.measurement?.ivMode, "output");
+		assert.deepEqual(reviewExecution?.systemRecommendedReviewedTemplate?.evidence?.proofRanges, [{
+			column: 7,
+			startRow: 1,
+			endRow: rows.length - 1,
+		}]);
 	});
 
 	test("derives IV output review when transfer-priority settings keep noisy CH2 current as transfer proof", async () => {

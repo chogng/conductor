@@ -21,6 +21,7 @@ import type {
 	ReviewCandidateLegend,
 	ReviewCandidateRowRange,
 	ReviewContext,
+	ReviewProofRange,
 } from "src/cs/workbench/services/review/common/reviewModel";
 import type {
 	TemplateItMode,
@@ -154,6 +155,11 @@ const createDataResourceReviewCandidate = ({
 			reasons: projection.reasons,
 			diagnostics: projection.diagnostics,
 		},
+		...(projection.proofRanges.length ? {
+			evidence: {
+				proofRanges: projection.proofRanges,
+			},
+		} : {}),
 		captures: {
 			relation: binding.relation,
 			dataBlockCandidateIds: binding.dataBlockCandidateIds,
@@ -171,11 +177,13 @@ const createDataResourceCandidateProjection = ({
 	readonly blocks: readonly ReviewCandidateBlock[];
 	readonly diagnostics: readonly ReviewCandidateDiagnostic[];
 	readonly measurementBlocks: readonly StructuredMeasurementBlockRecord[];
+	readonly proofRanges: readonly ReviewProofRange[];
 	readonly reasons: readonly string[];
 } => {
 	const blocks: ReviewCandidateBlock[] = [];
 	const diagnostics: ReviewCandidateDiagnostic[] = [];
 	const measurementBlocks: StructuredMeasurementBlockRecord[] = [];
+	const proofRanges: ReviewProofRange[] = [];
 	const reasons: string[] = [];
 	for (const blockId of binding.dataBlockCandidateIds) {
 		const dataBlock = structuredContent.dataBlockCandidates.find(candidate => candidate.id === blockId);
@@ -187,6 +195,7 @@ const createDataResourceCandidateProjection = ({
 		const measurementBlock = structuredContent.blocks.find(candidate => candidate.id === dataBlock.id);
 		if (measurementBlock) {
 			measurementBlocks.push(measurementBlock);
+			proofRanges.push(...createReviewProofRanges(dataBlock, measurementBlock));
 		}
 
 		const groupBlocks = createReviewBlocksForDataBlock({
@@ -205,8 +214,36 @@ const createDataResourceCandidateProjection = ({
 		blocks,
 		diagnostics,
 		measurementBlocks,
+		proofRanges: normalizeReviewProofRanges(proofRanges),
 		reasons,
 	};
+};
+
+const createReviewProofRanges = (
+	dataBlock: StructuredDataBlockCandidate,
+	measurementBlock: StructuredMeasurementBlockRecord,
+): readonly ReviewProofRange[] =>
+	(measurementBlock.proofColumns ?? []).map(column => ({
+		column,
+		startRow: dataBlock.startRow,
+		endRow: dataBlock.endRow,
+	}));
+
+const normalizeReviewProofRanges = (
+	ranges: readonly ReviewProofRange[],
+): readonly ReviewProofRange[] => {
+	const rangesByKey = new Map<string, ReviewProofRange>();
+	for (const range of ranges) {
+		rangesByKey.set(
+			`${range.column}:${range.startRow}:${range.endRow}`,
+			range,
+		);
+	}
+	return [...rangesByKey.values()].sort((left, right) =>
+		left.startRow - right.startRow ||
+		left.endRow - right.endRow ||
+		left.column - right.column
+	);
 };
 
 const createReviewBlocksForDataBlock = ({

@@ -212,6 +212,7 @@ const createReviewDecision = ({
 				template,
 				templateFingerprint,
 				review,
+				...(readyCandidate.evidence ? { evidence: readyCandidate.evidence } : {}),
 			},
 			application,
 			summary: application.kind === "systemRecommended"

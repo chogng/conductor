@@ -31,7 +31,8 @@ import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import {
   createTableColumnScaleStepper,
-  isTableColumnScaleStepperVisible,
+  isTableColumnScaleAdjustable,
+  isTableColumnScaleBadgeVisible,
   syncTableColumnScaleStepper,
 } from "src/cs/workbench/contrib/table/browser/tableStepper";
 import {
@@ -57,7 +58,6 @@ import {
 } from "src/cs/workbench/services/table/common/table";
 
 const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS = 120;
-const TABLE_WIDGET_COLUMN_SCALE_RESIZE_HANDLE_GUTTER_PX = 8;
 const TABLE_WIDGET_AUTO_FIT_SAMPLE_ROW_COUNT = 32;
 const TABLE_WIDGET_AUTO_FIT_SAMPLE_TEXT_MAX_LENGTH = 256;
 
@@ -231,7 +231,6 @@ export class TableWidget {
   private bodyRangeSelectionState: BodyRangeSelectionState | null = null;
   private suppressNextBodyClick = false;
   private bodyClickSuppressionTimeout: number | null = null;
-  private hoveredColumnScaleColIndex: number | null = null;
   private columnScaleBadgeMeasureElement: HTMLButtonElement | null = null;
   private tracedBodyCellRenderCount = 0;
   private tracedHeaderCellRenderCount = 0;
@@ -325,9 +324,6 @@ export class TableWidget {
     this.store.add(this.grid.onDidScroll(() => {
       this.onTableScroll();
     }));
-    this.store.add(this.grid.onDidChangeVisibleRange(() => {
-      this.onVisibleRangeChanged();
-    }));
     this.store.add(this.grid.onDidClickHeader(event => {
       this.onHeaderClick(event);
     }));
@@ -352,12 +348,6 @@ export class TableWidget {
     this.store.add(addDisposableListener(this.element, EventType.WHEEL, event => {
       this.onWheel(event as WheelEvent);
     }, { passive: false }));
-    this.store.add(addDisposableListener(this.element, EventType.POINTER_MOVE, event => {
-      this.onColumnScalePointerMove(event as PointerEvent);
-    }));
-    this.store.add(addDisposableListener(this.element, "pointerleave", () => {
-      this.setHoveredColumnScaleTarget(null);
-    }));
     this.store.add(this.bodyRangeSelectionStore);
     this.bindTableState(props.tableViewModel);
     this.syncColumnWidthSheet();
@@ -368,7 +358,6 @@ export class TableWidget {
 
   public update(props: TableWidgetProps): void {
     const previousModel = this.props.tableViewModel;
-    const previousCanAdjustColumnScale = this.canAdjustColumnScale();
     const previousColumnSizingMode = this.props.columnSizingMode;
     const nextInputKey = getTableWidgetInputKey(props);
     this.props = props;
@@ -381,9 +370,6 @@ export class TableWidget {
       this.bindTableState(props.tableViewModel);
     }
     this.syncColumnWidthSheet();
-    if (previousModel === props.tableViewModel && previousCanAdjustColumnScale !== this.canAdjustColumnScale()) {
-      this.syncVisibleHeaderColumnScaleBadges();
-    }
     this.syncSharedColumnScaleControl();
     if (previousModel === props.tableViewModel && this.renderedInputKey === nextInputKey) {
       return;
@@ -684,13 +670,13 @@ export class TableWidget {
   }
 
   private measureColumnScaleBadgeWidth(profile: ColumnDisplayProfile): number {
-    if (!isTableColumnScaleStepperVisible(profile)) {
+    if (!isTableColumnScaleBadgeVisible(profile)) {
       return 0;
     }
 
     const badge = this.getColumnScaleBadgeMeasureElement();
     badge.textContent = getColumnScaleValueText(profile);
-    badge.dataset.interactive = this.canAdjustColumnScale() ? "true" : "false";
+    badge.dataset.interactive = "false";
     const style = badge.ownerDocument.defaultView?.getComputedStyle(badge);
     const rect = badge.getBoundingClientRect();
     return rect.width + getCssPixelValue(style?.marginLeft) + getCssPixelValue(style?.marginRight);
@@ -1075,7 +1061,7 @@ export class TableWidget {
     columnLabel: string,
     profile: ColumnDisplayProfile,
   ): boolean {
-    const showBadge = isTableColumnScaleStepperVisible(profile);
+    const showBadge = isTableColumnScaleBadgeVisible(profile);
     let changed = setHidden(badge, !showBadge);
     if (!showBadge) {
       return changed;
@@ -1091,31 +1077,24 @@ export class TableWidget {
       changed = true;
     }
 
-    const canAdjust = this.canAdjustColumnScale();
-    if (setDatasetValue(badge, "interactive", canAdjust ? "true" : "false")) {
+    if (setDatasetValue(badge, "interactive", "false")) {
       changed = true;
     }
-    if (setElementAttribute(badge, "aria-disabled", canAdjust ? "false" : "true")) {
+    if (setElementAttribute(badge, "aria-disabled", "true")) {
       changed = true;
     }
-    const tabIndex = canAdjust ? 0 : -1;
-    if (badge.tabIndex !== tabIndex) {
-      badge.tabIndex = tabIndex;
+    if (badge.tabIndex !== -1) {
+      badge.tabIndex = -1;
       changed = true;
     }
 
     if (setElementAttribute(
       badge,
       "aria-label",
-      canAdjust
-        ? localize("table.preview.showColumnScaleControl", "Show column {column} scale controls, {scale}", {
-          column: columnLabel,
-          scale: valueText,
-        })
-        : localize("table.preview.columnScaleReadonly", "Column {column} scale {scale}", {
-          column: columnLabel,
-          scale: valueText,
-        }),
+      localize("table.preview.columnScaleReadonly", "Column {column} scale {scale}", {
+        column: columnLabel,
+        scale: valueText,
+      }),
     )) {
       changed = true;
     }
@@ -1184,24 +1163,6 @@ export class TableWidget {
     }
 
     return result.outcome;
-  }
-
-  private syncVisibleHeaderColumnScaleBadges(): void {
-    const { columnRange } = this.grid.getState();
-    for (let columnOffset = 0; columnOffset < columnRange.renderedCount; columnOffset += 1) {
-      const header = this.grid.getColumnHeaderTemplateData(columnOffset);
-      if (!header || header.cell.hidden) {
-        continue;
-      }
-
-      const profile = this.props.tableViewModel.getColumnDisplayProfile(columnRange.startIndex + columnOffset);
-      this.syncHeaderColumnScaleBadge(
-        header.scaleBadge,
-        columnRange.startIndex + columnOffset,
-        VirtualTableGridModel.getColumnLabel(columnRange.startIndex + columnOffset),
-        profile,
-      );
-    }
   }
 
   private getRowsRenderVersion(): string {
@@ -1333,24 +1294,7 @@ export class TableWidget {
   }
 
   private onHeaderClick(event: ITableColumnHeaderMouseEvent): void {
-    const browserEvent = event.browserEvent;
     const mouseEvent = event.mouseEvent;
-    const target = getElementFromEventTarget(browserEvent.target);
-    if (!target) {
-      return;
-    }
-
-    const scaleBadge = target.closest<HTMLButtonElement>(".table_view_column_scale_badge");
-    if (scaleBadge && this.canAdjustColumnScale() && this.grid.containsHeaderTarget(scaleBadge)) {
-      const colIndex = normalizeWidgetColumnIndex(scaleBadge.dataset.colIndex);
-      if (colIndex !== null) {
-        this.setHoveredColumnScaleTarget(colIndex);
-      }
-      mouseEvent.preventDefault();
-      mouseEvent.stopPropagation();
-      return;
-    }
-
     const colIndex = event.column?.colIndex;
     if (typeof colIndex !== "number") {
       return;
@@ -1401,138 +1345,32 @@ export class TableWidget {
     this.syncSharedColumnScaleControl();
   }
 
-  private onColumnScalePointerMove(event: PointerEvent): void {
-    if (!this.canAdjustColumnScale()) {
-      this.setHoveredColumnScaleTarget(null);
-      return;
-    }
-
-    const target = event.target;
-    if (!(target instanceof Element)) {
-      return;
-    }
-
-    if (
-      this.columnScaleControl.element.contains(target) ||
-      this.isColumnScalePointerWithinActiveSurface(event)
-    ) {
-      return;
-    }
-
-    const headerCell = target.closest<HTMLElement>("[data-table-view-column-index]");
-    if (headerCell && this.grid.containsHeaderTarget(headerCell)) {
-      this.setHoveredColumnScaleTarget(normalizeWidgetColumnIndex(headerCell.dataset.tableViewColumnIndex));
-      return;
-    }
-
-    this.setHoveredColumnScaleTarget(null);
-  }
-
-  private isColumnScalePointerWithinActiveSurface(event: Pick<PointerEvent, "clientX" | "clientY">): boolean {
-    const colIndex = this.resolveColumnScaleTarget();
-    if (colIndex === null) {
-      return false;
-    }
-
-    if (isPointInsideElement(this.columnScaleControl.element, event.clientX, event.clientY)) {
-      return true;
-    }
-
-    const { columnRange } = this.grid.getState();
-    const columnOffset = colIndex - columnRange.startIndex;
-    if (columnOffset < 0 || columnOffset >= columnRange.renderedCount) {
-      return false;
-    }
-
-    const headerCell = this.grid.getColumnHeaderCellElement(columnOffset);
-    if (headerCell && !headerCell.hidden && isPointInsideElement(headerCell, event.clientX, event.clientY)) {
-      return true;
-    }
-    return false;
-  }
-
-  private setHoveredColumnScaleTarget(colIndex: number | null): void {
-    if (this.hoveredColumnScaleColIndex === colIndex) {
-      return;
-    }
-
-    this.hoveredColumnScaleColIndex = colIndex;
-    this.syncSharedColumnScaleControl();
-  }
-
   private syncSharedColumnScaleControl(): void {
     if (!this.canAdjustColumnScale()) {
       this.hideColumnScaleControl();
       return;
     }
 
-    const colIndex = this.resolveColumnScaleTarget();
+    const colIndex = resolveTableColumnScaleTarget(
+      this.getSelection(),
+      this.props.tableState.file?.columnCount ?? this.grid.getSize().columnCount,
+    );
     if (colIndex === null) {
       this.hideColumnScaleControl();
       return;
     }
 
     const profile = this.props.tableViewModel.getColumnDisplayProfile(colIndex);
-    if (!isTableColumnScaleStepperVisible(profile)) {
-      this.hideColumnScaleControl();
-      return;
-    }
-
-    this.columnScaleResetAction.enabled = Boolean(profile.isScaleManual);
+    const isAdjustable = isTableColumnScaleAdjustable(profile);
+    setActionEnabled(this.columnScaleDecreaseAction, isAdjustable);
+    setActionEnabled(this.columnScaleIncreaseAction, isAdjustable);
+    setActionEnabled(this.columnScaleResetAction, isAdjustable && Boolean(profile.isScaleManual));
     syncTableColumnScaleStepper(this.columnScaleControl, colIndex, profile);
-    this.positionColumnScaleControl(colIndex);
-  }
-
-  private resolveColumnScaleTarget(): number | null {
-    if (this.hoveredColumnScaleColIndex !== null) {
-      return this.hoveredColumnScaleColIndex;
-    }
-
-    const selectedColumns = this.getSelection().selectedColumns;
-    if (selectedColumns?.length !== 1) {
-      return null;
-    }
-
-    return normalizeWidgetColumnIndex(selectedColumns[0]);
+    setHidden(this.columnScaleControl.element, false);
   }
 
   private hideColumnScaleControl(): void {
     setHidden(this.columnScaleControl.element, true);
-  }
-
-  private positionColumnScaleControl(colIndex: number): void {
-    const { columnRange } = this.grid.getState();
-    const columnOffset = colIndex - columnRange.startIndex;
-    if (columnOffset < 0 || columnOffset >= columnRange.renderedCount) {
-      this.hideColumnScaleControl();
-      return;
-    }
-
-    const headerCell = this.grid.getColumnHeaderCellElement(columnOffset);
-    if (!headerCell || headerCell.hidden) {
-      this.hideColumnScaleControl();
-      return;
-    }
-
-    setHidden(this.columnScaleControl.element, false);
-    this.columnScaleControl.element.style.width = "";
-    const rootRect = this.element.getBoundingClientRect();
-    const cellRect = headerCell.getBoundingClientRect();
-    const fallbackHeight = VirtualTableGridModel.getRowHeight(this.getZoomPercent());
-    const controlRect = this.columnScaleControl.element.getBoundingClientRect();
-    const controlHeight = controlRect.height || 24;
-    const controlWidth = Math.max(
-      controlRect.width || 0,
-      this.columnScaleControl.element.offsetWidth,
-      this.columnScaleControl.element.scrollWidth,
-    );
-    const cellLeft = cellRect.left - rootRect.left;
-    const cellWidth = cellRect.width || (this.getColumnWidth(colIndex) * (this.getZoomPercent() / 100));
-    const centeredLeft = cellLeft + ((cellWidth - controlWidth) / 2);
-    const handleSafeLeft = cellLeft + cellWidth - TABLE_WIDGET_COLUMN_SCALE_RESIZE_HANDLE_GUTTER_PX - controlWidth;
-    this.columnScaleControl.element.style.left = `${Math.min(centeredLeft, handleSafeLeft)}px`;
-    this.columnScaleControl.element.style.top = `${cellRect.top - rootRect.top + (((cellRect.height || fallbackHeight) - controlHeight) / 2)}px`;
-    this.columnScaleControl.element.style.width = `${controlWidth}px`;
   }
 
   private canAdjustColumnScale(): boolean {
@@ -1869,13 +1707,8 @@ export class TableWidget {
     }
   }
 
-  private onVisibleRangeChanged(): void {
-    this.syncSharedColumnScaleControl();
-  }
-
   private syncHeaderScroll(): void {
     this.grid.syncHeaderScroll();
-    this.syncSharedColumnScaleControl();
   }
 
   private onTableScroll(): void {
@@ -1941,6 +1774,26 @@ const normalizeWidgetColumnIndex = (value: unknown): number | null => {
   return Number.isInteger(index) && index >= 0 ? index : null;
 };
 
+const resolveTableColumnScaleTarget = (
+  selection: TableWidgetSelection,
+  columnCount: number,
+): number | null => {
+  const normalizedColumnCount = Math.max(0, Math.floor(Number(columnCount) || 0));
+  if (normalizedColumnCount === 0) {
+    return null;
+  }
+
+  const selectedColumns = selection.selectedColumns;
+  if (selectedColumns?.length === 1) {
+    const selectedColumn = normalizeWidgetColumnIndex(selectedColumns[0]);
+    if (selectedColumn !== null && selectedColumn < normalizedColumnCount) {
+      return selectedColumn;
+    }
+  }
+
+  return 0;
+};
+
 const getColumnScaleValueText = (profile: ColumnDisplayProfile): string =>
   `×10${toSuperscriptExponent(profile.scaleExponent)}`;
 
@@ -1971,6 +1824,12 @@ const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
 
   element.hidden = hidden;
   return true;
+};
+
+const setActionEnabled = (action: Action, enabled: boolean): void => {
+  if (action.enabled !== enabled) {
+    action.enabled = enabled;
+  }
 };
 
 const setElementText = (element: HTMLElement, text: string): boolean => {
@@ -2012,23 +1871,6 @@ const getCssPixelValue = (value: string | undefined): number => {
   const parsed = Number.parseFloat(value ?? "");
   return Number.isFinite(parsed) ? parsed : 0;
 };
-
-const isPointInsideElement = (element: HTMLElement, clientX: number, clientY: number): boolean => {
-  const rect = element.getBoundingClientRect();
-  return isPointInsideRect(rect, clientX, clientY);
-};
-
-const isPointInsideRect = (
-  rect: Pick<DOMRect, "bottom" | "height" | "left" | "right" | "top" | "width">,
-  clientX: number,
-  clientY: number,
-): boolean =>
-  rect.width > 0 &&
-  rect.height > 0 &&
-  clientX >= rect.left &&
-  clientX <= rect.right &&
-  clientY >= rect.top &&
-  clientY <= rect.bottom;
 
 const getTableWidgetInputKey = ({
   columnSizingMode,
@@ -2107,16 +1949,4 @@ const createCellDisplayHoverContent = (ownerDocument: Document, title: string): 
     container.append(row);
   }
   return container;
-};
-
-const getElementFromEventTarget = (target: EventTarget | null): Element | null => {
-  if (target instanceof Element) {
-    return target;
-  }
-
-  if (target instanceof Node) {
-    return target.parentElement;
-  }
-
-  return null;
 };

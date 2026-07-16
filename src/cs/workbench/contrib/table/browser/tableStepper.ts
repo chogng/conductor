@@ -49,12 +49,7 @@ export const syncTableColumnScaleStepper = (
   colIndex: number,
   profile: ColumnDisplayProfile,
 ): boolean => {
-  const showStepper = isTableColumnScaleStepperVisible(profile);
-  let changed = setHidden(stepper.element, !showStepper);
-  if (!showStepper) {
-    return changed;
-  }
-
+  let changed = false;
   const colIndexValue = String(colIndex);
   if (setTableColumnScaleStepperIndex(stepper, colIndexValue)) {
     changed = true;
@@ -63,11 +58,12 @@ export const syncTableColumnScaleStepper = (
   if (stepper.setValue(valueText)) {
     changed = true;
   }
-  stepper.syncActions();
 
-  const ariaLabel = profile.isScaleManual
-    ? localize("table.preview.columnScaleManual", "Column scale exponent {scale}, manually adjusted", { scale: valueText })
-    : localize("table.preview.columnScaleAutomatic", "Column scale exponent {scale}, automatic", { scale: valueText });
+  const ariaLabel = !isTableColumnScaleAdjustable(profile)
+    ? localize("table.preview.columnScaleUnavailable", "Column scale exponent {scale}, unavailable for this column", { scale: valueText })
+    : profile.isScaleManual
+      ? localize("table.preview.columnScaleManual", "Column scale exponent {scale}, manually adjusted", { scale: valueText })
+      : localize("table.preview.columnScaleAutomatic", "Column scale exponent {scale}, automatic", { scale: valueText });
   if (stepper.setAriaLabel(ariaLabel)) {
     changed = true;
   }
@@ -75,7 +71,11 @@ export const syncTableColumnScaleStepper = (
   return changed;
 };
 
-export const isTableColumnScaleStepperVisible = (profile: ColumnDisplayProfile): boolean =>
+export const isTableColumnScaleAdjustable = (profile: ColumnDisplayProfile): boolean =>
+  profile.mode === "columnScale" &&
+  profile.isNumericColumn;
+
+export const isTableColumnScaleBadgeVisible = (profile: ColumnDisplayProfile): boolean =>
   profile.mode === "columnScale" &&
   profile.isNumericColumn &&
   (Boolean(profile.headerSuffix) || Boolean(profile.isScaleManual));
@@ -92,14 +92,5 @@ const setTableColumnScaleStepperIndex = (
   }
 
   stepper.element.dataset.colIndex = colIndexValue;
-  return true;
-};
-
-const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
-  if (element.hidden === hidden) {
-    return false;
-  }
-
-  element.hidden = hidden;
   return true;
 };

@@ -73,6 +73,16 @@ export type ReviewCandidateColumnRange = {
 	readonly endRow: number | "end";
 };
 
+export type ReviewProofRange = {
+	readonly column: number;
+	readonly startRow: number;
+	readonly endRow: number;
+};
+
+export type ReviewCandidateEvidence = {
+	readonly proofRanges: readonly ReviewProofRange[];
+};
+
 export type ReviewCandidateAxisBinding = {
 	readonly columns: readonly number[];
 	readonly ranges?: readonly ReviewCandidateColumnRange[];
@@ -127,6 +137,7 @@ export type ReviewCandidate = {
 	readonly providerRank?: number;
 	readonly selectorTrace: ReviewCandidateTrace;
 	readonly projectionTrace: ReviewCandidateTrace;
+	readonly evidence?: ReviewCandidateEvidence;
 	readonly captures?: Readonly<Record<string, unknown>>;
 };
 
@@ -201,6 +212,7 @@ export type ReviewedTemplate = {
 	readonly template: Template;
 	readonly templateFingerprint: string;
 	readonly review: CandidateReview;
+	readonly evidence?: ReviewCandidateEvidence;
 	readonly userOverride?: {
 		readonly confirmedAt: number;
 		readonly reason?: string;

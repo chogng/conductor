@@ -47,8 +47,6 @@ import {
 export type TableViewPaneProps = TableViewInput;
 
 const ZOOM_CONTROL_ACTION_ID = "table.header.zoom";
-const ZOOM_CONTROL_ACTIVE_CLASS = "table_view_actions--active";
-const ZOOM_CONTROL_ACTIVE_MS = 1200;
 const TABLE_VIEW_PANE_EMPTY_CLASS = "table_view_pane--empty";
 
 export class TableViewPane extends ViewPane {
@@ -69,7 +67,6 @@ export class TableViewPane extends ViewPane {
   private readonly zoomOutAction: Action;
   private readonly resetZoomAction: Action;
   private zoomControl: Stepper | null = null;
-  private zoomControlActiveTimeout: number | null = null;
   private controller: TableController | null = null;
   private pendingControllerRender: IDisposable | null = null;
   private props: TableViewPaneProps | null = null;
@@ -186,7 +183,6 @@ export class TableViewPane extends ViewPane {
 
   public dispose(): void {
     this.disposed = true;
-    this.clearZoomControlActive();
     this.pendingControllerRender?.dispose();
     this.pendingControllerRender = null;
     this.controller?.dispose();
@@ -375,7 +371,6 @@ export class TableViewPane extends ViewPane {
 
   private onControllerZoomChanged(): void {
     this.updateZoomControl();
-    this.showZoomControlActive();
   }
 
   private updateZoomControl(): void {
@@ -385,30 +380,6 @@ export class TableViewPane extends ViewPane {
     this.resetZoomAction.enabled = zoomPercent !== TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
     this.zoomControl?.setValue(`${zoomPercent}%`);
     this.zoomControl?.syncActions();
-  }
-
-  private showZoomControlActive(): void {
-    const targetWindow = this.actionBar.domNode.ownerDocument.defaultView;
-    if (!targetWindow) {
-      return;
-    }
-
-    this.actionBar.domNode.classList.add(ZOOM_CONTROL_ACTIVE_CLASS);
-    if (this.zoomControlActiveTimeout !== null) {
-      targetWindow.clearTimeout(this.zoomControlActiveTimeout);
-    }
-    this.zoomControlActiveTimeout = targetWindow.setTimeout(() => {
-      this.zoomControlActiveTimeout = null;
-      this.actionBar.domNode.classList.remove(ZOOM_CONTROL_ACTIVE_CLASS);
-    }, ZOOM_CONTROL_ACTIVE_MS);
-  }
-
-  private clearZoomControlActive(): void {
-    if (this.zoomControlActiveTimeout !== null) {
-      this.actionBar.domNode.ownerDocument.defaultView?.clearTimeout(this.zoomControlActiveTimeout);
-      this.zoomControlActiveTimeout = null;
-    }
-    this.actionBar.domNode.classList.remove(ZOOM_CONTROL_ACTIVE_CLASS);
   }
 
   private updateDimensions(): void {
@@ -470,7 +441,7 @@ const getSheetTabButtonIndex = (
 export const getTableColumnHeaderSelection = (
   templateMode: TemplateMode,
 ): TableWidgetColumnHeaderSelection =>
-  templateMode === "editor" ? "multi" : "disabled";
+  templateMode === "editor" ? "multi" : "single";
 
 export const getCanAdjustColumnScale = (
   templateMode: TemplateMode,

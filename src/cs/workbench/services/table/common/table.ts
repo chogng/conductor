@@ -34,13 +34,14 @@ export type TableSelection = {
 	readonly ranges?: readonly TableRange[];
 };
 
-export type TableTemplateDecorationKind =
+export type TableRangeDecorationKind =
+	| "reviewProof"
 	| "templateBlock"
 	| "templateX"
 	| "templateY";
 
 export type TableRangeDecoration = TableRange & {
-	readonly kind: TableTemplateDecorationKind;
+	readonly kind: TableRangeDecorationKind;
 };
 
 export type TableDecorationData = IDecorationData<{

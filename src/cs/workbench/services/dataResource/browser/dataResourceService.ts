@@ -114,9 +114,17 @@ type BlockRuleCandidate = {
 	readonly label: string;
 	readonly type?: string;
 	readonly directPairScore: number;
+	readonly proofEvidence: readonly BlockProofColumnEvidence[];
 	readonly priorityIndex: number;
 	readonly proofEvidenceCount: number;
 	readonly proofScore: number;
+};
+
+type BlockProofColumnKind = "none" | "title" | "constantByXGroup" | "steppedByXGroup";
+
+type BlockProofColumnEvidence = {
+	readonly column: number;
+	readonly kind: Exclude<BlockProofColumnKind, "none">;
 };
 
 type HeaderSemanticMatch = NonNullable<ReturnType<SemanticMatcher["matchTitle"]>>;
@@ -2229,6 +2237,7 @@ const createStructuredMeasurementBlocks = ({
 				family: measurement.family,
 			...(measurement.ivMode ? { ivMode: measurement.ivMode } : {}),
 			...(measurement.itMode ? { itMode: measurement.itMode } : {}),
+			...(measurement.proofColumns?.length ? { proofColumns: measurement.proofColumns } : {}),
 			source: {
 				fullRange: createStructuredContentFullRange(content),
 				...(titleRow !== undefined ? {
@@ -2397,15 +2406,20 @@ const inferMeasurementForBlock = (
 	readonly family: StructuredMeasurementFamily;
 	readonly ivMode?: StructuredMeasurementBlockRecord["ivMode"];
 	readonly itMode?: StructuredMeasurementBlockRecord["itMode"];
+	readonly proofColumns?: readonly number[];
 } => {
 	const rule = selectBlockRule(block, context);
 	if (rule?.type) {
-		return toMeasurementFromType(rule.type);
+		return {
+			...toMeasurementFromType(rule.type),
+			...(rule.proofColumns.length ? { proofColumns: rule.proofColumns } : {}),
+		};
 	}
 	if (rule) {
 		return {
 			type: rule.label,
 			family: "unknown",
+			...(rule.proofColumns.length ? { proofColumns: rule.proofColumns } : {}),
 		};
 	}
 	return { family: "unknown" };
@@ -2424,6 +2438,7 @@ const selectBlockRule = (
 	readonly label: string;
 	readonly type?: string;
 	readonly priorityIndex: number;
+	readonly proofColumns: readonly number[];
 } | null => {
 	const { rows, semanticMatcher, titleSpansByColumn, xGroupCandidates } = context;
 	const xRules = titleSpansByColumn.get(block.xColumn)?.semanticRules
@@ -2475,8 +2490,17 @@ const selectBlockRule = (
 	if (strongestTypes.has("transfer") && strongestTypes.has("output")) {
 		return null;
 	}
-	return strongestDirectPairCandidates
-		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0] ?? null;
+	const selected = strongestDirectPairCandidates
+		.sort((left, right) => left.priorityIndex - right.priorityIndex)[0];
+	return selected
+		? {
+			id: selected.id,
+			label: selected.label,
+			...(selected.type ? { type: selected.type } : {}),
+			priorityIndex: selected.priorityIndex,
+			proofColumns: normalizeProofColumns(selected.proofEvidence),
+		}
+		: null;
 };
 
 const createDirectXYRuleCandidates = ({
@@ -2486,7 +2510,7 @@ const createDirectXYRuleCandidates = ({
 	xRules,
 }: {
 	readonly block: StructuredDataBlockCandidate;
-	readonly proofEvidenceByRuleId: ReadonlyMap<string, readonly BlockProofColumnKind[]>;
+	readonly proofEvidenceByRuleId: ReadonlyMap<string, readonly BlockProofColumnEvidence[]>;
 	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
 	readonly xRules: readonly HeaderSemanticRuleMatch[];
 }): readonly BlockRuleCandidate[] => {
@@ -2506,6 +2530,7 @@ const createDirectXYRuleCandidates = ({
 				label: xRule.label,
 				...(xRule.type ? { type: xRule.type } : {}),
 				directPairScore,
+				proofEvidence,
 				priorityIndex: Math.min(xRule.priorityIndex, yRule.priorityIndex),
 				proofEvidenceCount: proofEvidence.length,
 				proofScore: getBlockRuleProofScore(xRule.type, proofEvidence),
@@ -2550,7 +2575,7 @@ const createRepeatedPairHeaderRuleCandidates = ({
 	semanticMatcher,
 }: {
 	readonly block: StructuredDataBlockCandidate;
-	readonly proofEvidenceByRuleId: ReadonlyMap<string, readonly BlockProofColumnKind[]>;
+	readonly proofEvidenceByRuleId: ReadonlyMap<string, readonly BlockProofColumnEvidence[]>;
 	readonly rows: readonly (readonly string[])[];
 	readonly semanticMatcher: SemanticMatcher;
 }): readonly BlockRuleCandidate[] => {
@@ -2616,7 +2641,7 @@ const createAlignedHeaderXRuleCandidates = ({
 	semanticMatcher,
 }: {
 	readonly block: StructuredDataBlockCandidate;
-	readonly proofEvidenceByRuleId: ReadonlyMap<string, readonly BlockProofColumnKind[]>;
+	readonly proofEvidenceByRuleId: ReadonlyMap<string, readonly BlockProofColumnEvidence[]>;
 	readonly rows: readonly (readonly string[])[];
 	readonly semanticMatcher: SemanticMatcher;
 }): readonly BlockRuleCandidate[] => {
@@ -2665,7 +2690,7 @@ const createRuleCandidatesFromSemanticMatches = ({
 	shouldUseRule,
 }: {
 	readonly matches: readonly HeaderSemanticMatch[];
-	readonly proofEvidenceByRuleId: ReadonlyMap<string, readonly BlockProofColumnKind[]>;
+	readonly proofEvidenceByRuleId: ReadonlyMap<string, readonly BlockProofColumnEvidence[]>;
 	readonly shouldUseRule: (rule: HeaderSemanticRuleMatch) => boolean;
 }): readonly BlockRuleCandidate[] => {
 	const rulesById = new Map<string, BlockRuleCandidate>();
@@ -2681,6 +2706,7 @@ const createRuleCandidatesFromSemanticMatches = ({
 				label: rule.label,
 				...(rule.type ? { type: rule.type } : {}),
 				directPairScore: 0,
+				proofEvidence,
 				priorityIndex: rule.priorityIndex,
 				proofEvidenceCount: proofEvidence.length,
 				proofScore: getBlockRuleProofScore(rule.type, proofEvidence),
@@ -2703,8 +2729,8 @@ const collectBlockProofEvidence = ({
 	readonly rows: readonly (readonly string[])[];
 	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
 	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
-}): ReadonlyMap<string, readonly BlockProofColumnKind[]> => {
-	const evidenceByRuleId = new Map<string, BlockProofColumnKind[]>();
+}): ReadonlyMap<string, readonly BlockProofColumnEvidence[]> => {
+	const evidenceByRuleId = new Map<string, BlockProofColumnEvidence[]>();
 	const blockColumns = new Set([block.xColumn, ...block.dependentColumns]);
 	for (const [column, titleSpan] of titleSpansByColumn) {
 		const rules = titleSpan.semanticRules.filter(rule => rule.axisTendency === "unknown");
@@ -2723,9 +2749,9 @@ const collectBlockProofEvidence = ({
 			if (proofKind === "none") {
 				continue;
 			}
-			const kinds = evidenceByRuleId.get(rule.id) ?? [];
-			kinds.push(proofKind);
-			evidenceByRuleId.set(rule.id, kinds);
+			const evidence = evidenceByRuleId.get(rule.id) ?? [];
+			evidence.push({ column, kind: proofKind });
+			evidenceByRuleId.set(rule.id, evidence);
 		}
 	}
 	return evidenceByRuleId;
@@ -2733,19 +2759,23 @@ const collectBlockProofEvidence = ({
 
 const getBlockRuleProofScore = (
 	ruleType: string | undefined,
-	proofEvidence: readonly BlockProofColumnKind[] | undefined,
+	proofEvidence: readonly BlockProofColumnEvidence[] | undefined,
 ): number => {
 	if (!proofEvidence?.length) {
 		return 0;
 	}
 	const baseScore = proofEvidence.length;
 	const steppedOutputBonus = ruleType === "output"
-		? proofEvidence.filter(kind => kind === "steppedByXGroup").length
+		? proofEvidence.filter(evidence => evidence.kind === "steppedByXGroup").length
 		: 0;
 	return baseScore + steppedOutputBonus;
 };
 
-type BlockProofColumnKind = "none" | "title" | "constantByXGroup" | "steppedByXGroup";
+const normalizeProofColumns = (
+	proofEvidence: readonly BlockProofColumnEvidence[],
+): readonly number[] =>
+	[...new Set(proofEvidence.map(evidence => evidence.column))]
+		.sort((left, right) => left - right);
 
 const getBlockProofColumnKind = ({
 	block,
