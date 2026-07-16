@@ -7,9 +7,11 @@ import type { BrandedService } from 'src/cs/platform/instantiation/common/instan
 import { WebWorkerDescriptor } from 'src/cs/platform/webWorker/browser/webWorkerDescriptor';
 import { IWebWorkerService } from 'src/cs/platform/webWorker/browser/webWorkerService';
 import { DataResourceService } from 'src/cs/workbench/services/dataResource/browser/dataResourceService';
+import { DataResourceContentService } from 'src/cs/workbench/services/dataResource/browser/dataResourceContentService';
 import {
 	IDataResourceService,
 } from 'src/cs/workbench/services/dataResource/common/dataResource';
+import { IDataResourceContentService } from 'src/cs/workbench/services/dataResource/common/dataResourceContentService';
 import { StructuredContentEvidenceService } from 'src/cs/workbench/services/dataResource/browser/structuredContentEvidenceService';
 import structuredContentEvidenceWorkerUrl from 'src/cs/workbench/services/dataResource/browser/structuredContentEvidenceWorker.ts?worker&url';
 import type { IStructuredContentEvidenceWorker } from 'src/cs/workbench/services/dataResource/browser/structuredContentEvidenceWorker';
@@ -33,6 +35,12 @@ class BrowserStructuredContentEvidenceService extends StructuredContentEvidenceS
 registerSingleton(
 	IStructuredContentEvidenceService,
 	BrowserStructuredContentEvidenceService,
+	InstantiationType.Delayed,
+);
+
+registerSingleton(
+	IDataResourceContentService,
+	DataResourceContentService,
 	InstantiationType.Delayed,
 );
 

@@ -13,6 +13,11 @@ import {
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
+  type DataResourceContentSnapshot,
+  IDataResourceContentService,
+  type IDataResourceContentService as IDataResourceContentServiceType,
+} from "src/cs/workbench/services/dataResource/common/dataResourceContentService";
+import {
   type TableSource,
 } from "src/cs/workbench/services/table/common/table";
 import {
@@ -21,10 +26,8 @@ import {
   type TableModelResolvedContent,
 } from "src/cs/workbench/services/table/common/model";
 import {
-  type ITableModelContentProvider,
   ITableModelService,
   type ITableModelReference,
-  type TableModelContentProviderResult,
 } from "src/cs/workbench/services/table/common/resolverService";
 import {
   ITableFileService,
@@ -39,12 +42,13 @@ export class TableModelResolverService extends Disposable implements ITableModel
   public readonly onDidChangeModel: Event<ITableModel> =
     this.onDidChangeModelEmitter.event;
 
-  private readonly contentProviders: ITableModelContentProvider[] = [];
-  private readonly pendingProviderResolves = new Map<string, Promise<void>>();
+  private readonly pendingModelResolves = new Map<string, Promise<void>>();
   private readonly providerModels = new Map<string, TableModel>();
   private readonly references = new Map<string, { count: number; resource: URI }>();
+  private readonly materializedProviderContents = new Map<string, DataResourceContentSnapshot>();
 
   public constructor(
+    @IDataResourceContentService private readonly contentService: IDataResourceContentServiceType,
     @ITableFileService private readonly tableFileService: ITableFileServiceType,
   ) {
     super();
@@ -55,20 +59,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
   }
 
   public canHandleResource(resource: URI): boolean {
-    return this.tableFileService.canHandleResource(resource) || Boolean(this.findContentProvider(resource));
-  }
-
-  public registerContentProvider(provider: ITableModelContentProvider): { dispose(): void } {
-    this.contentProviders.push(provider);
-    return {
-      dispose: () => {
-        const index = this.contentProviders.indexOf(provider);
-        if (index >= 0) {
-          this.contentProviders.splice(index, 1);
-        }
-        provider.dispose();
-      },
-    };
+    return this.contentService.canHandleResource(resource);
   }
 
   public async createModelReference(
@@ -81,6 +72,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
       throw new Error(`Unsupported table file: ${resource.toString()}`);
     }
 
+    const contentReference = await this.contentService.createContentReference(resource);
     const key = resource.toString();
     const reference = this.references.get(key);
     const previousReferenceCount = reference?.count ?? 0;
@@ -88,7 +80,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
       count: previousReferenceCount + 1,
       resource,
     });
-    const provider = this.findContentProvider(resource);
+    const provider = !this.tableFileService.canHandleResource(resource);
     const endReferencePerf = startPerf("table.modelReference.resolve", {
       branch: provider ? "provider" : "file",
       previousReferenceCount,
@@ -97,39 +89,31 @@ export class TableModelResolverService extends Disposable implements ITableModel
     }, { silent: true });
 
     try {
+      let model: TableModel;
       if (provider) {
-        const model = this.getOrCreateProviderModel(resource, source);
-        await this.resolveProviderModel(model, provider, source);
-        endReferencePerf({
-          loadState: model.getSnapshot().loadState.state,
-          referenceCount: previousReferenceCount + 1,
-          success: model.getSnapshot().loadState.state === "ready",
-        });
-        mark("code/didCreateTableModelReference");
-        return {
-          object: model,
-          dispose: () => {
-            this.releaseModelReference(key);
-          },
-        };
+        model = this.getOrCreateProviderModel(resource);
+        await this.resolveProviderModel(model, contentReference.object);
+      } else {
+        const fileEditorModel = this.tableFileService.getOrCreateFileEditorModel(resource, source);
+        await this.tableFileService.resolveModel(fileEditorModel);
+        model = fileEditorModel.model;
       }
-
-      const fileEditorModel = this.tableFileService.getOrCreateFileEditorModel(resource, source);
-      await this.tableFileService.resolveModel(fileEditorModel);
       endReferencePerf({
-        loadState: fileEditorModel.model.getSnapshot().loadState.state,
+        loadState: model.getSnapshot().loadState.state,
         referenceCount: previousReferenceCount + 1,
-        success: fileEditorModel.model.getSnapshot().loadState.state === "ready",
+        success: model.getSnapshot().loadState.state === "ready",
       });
       mark("code/didCreateTableModelReference");
       return {
-        object: fileEditorModel.model,
+        object: model,
         dispose: () => {
           this.releaseModelReference(key);
+          contentReference.dispose();
         },
       };
     } catch (error) {
       this.releaseModelReference(key);
+      contentReference.dispose();
       endReferencePerf({
         errorName: error instanceof Error ? error.name : "unknown",
         referenceCount: Math.max(0, previousReferenceCount),
@@ -148,13 +132,21 @@ export class TableModelResolverService extends Disposable implements ITableModel
   }
 
   public resolve(resource: URI, source?: TableSource | null): void {
-    const provider = this.findContentProvider(resource);
-    if (provider) {
-      void this.resolveProviderModel(this.getOrCreateProviderModel(resource, source), provider, source);
+    if (this.tableFileService.canHandleResource(resource)) {
+      this.tableFileService.resolve(resource, source);
       return;
     }
 
-    this.tableFileService.resolve(resource, source);
+    void this.contentService.createContentReference(resource).then(async reference => {
+      try {
+        await this.resolveProviderModel(
+          this.getOrCreateProviderModel(resource),
+          reference.object,
+        );
+      } finally {
+        reference.dispose();
+      }
+    }).catch(() => undefined);
   }
 
   private releaseModelReference(key: string): void {
@@ -169,6 +161,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
     }
 
     this.references.delete(key);
+    this.materializedProviderContents.delete(key);
     if (!reference) {
       return;
     }
@@ -177,20 +170,12 @@ export class TableModelResolverService extends Disposable implements ITableModel
     if (providerModel) {
       providerModel.dispose();
       this.providerModels.delete(key);
-      this.pendingProviderResolves.delete(key);
-      return;
+      this.pendingModelResolves.delete(key);
     }
-
-    this.tableFileService.remove(reference.resource);
-  }
-
-  private findContentProvider(resource: URI): ITableModelContentProvider | null {
-    return this.contentProviders.find(provider => provider.canHandleResource(resource)) ?? null;
   }
 
   private getOrCreateProviderModel(
     resource: URI,
-    source?: TableSource | null,
   ): TableModel {
     const key = resource.toString();
     let model = this.providerModels.get(key);
@@ -206,47 +191,52 @@ export class TableModelResolverService extends Disposable implements ITableModel
 
   private async resolveProviderModel(
     model: TableModel,
-    provider: ITableModelContentProvider,
-    source?: TableSource | null,
+    content: DataResourceContentSnapshot,
   ): Promise<void> {
-    if (model.getSnapshot().loadState.state === "ready") {
+    const snapshot = model.getSnapshot();
+    const key = model.resource.toString();
+    if (
+      snapshot.loadState.state === "ready" &&
+      this.materializedProviderContents.get(key) === content
+    ) {
       return;
     }
 
-    const key = model.resource.toString();
-    const pending = this.pendingProviderResolves.get(key);
+    const pending = this.pendingModelResolves.get(key);
     if (pending) {
       await pending;
-      return;
+      if (this.materializedProviderContents.get(key) === content) {
+        return;
+      }
+      return this.resolveProviderModel(model, content);
     }
 
     const pendingResolve = model.resolve({
-      resolveContent: async () => {
-        const result = await provider.resolveTableModel(model.resource, source);
-        return toProviderResolvedContent(result, model.resource);
-      },
+      resolveContent: async () => toTableModelResolvedContent(content),
     }).finally(() => {
-      if (this.pendingProviderResolves.get(key) === pendingResolve) {
-        this.pendingProviderResolves.delete(key);
+      if (this.pendingModelResolves.get(key) === pendingResolve) {
+        this.pendingModelResolves.delete(key);
       }
     });
-    this.pendingProviderResolves.set(key, pendingResolve);
+    this.pendingModelResolves.set(key, pendingResolve);
     await pendingResolve;
+    if (model.getSnapshot().loadState.state === "ready") {
+      this.materializedProviderContents.set(key, content);
+    }
   }
 
 }
 
-const toProviderResolvedContent = (
-  result: TableModelContentProviderResult,
-  resource: URI,
+const toTableModelResolvedContent = (
+  snapshot: DataResourceContentSnapshot,
 ): TableModelResolvedContent => ({
-  content: result.content,
-  defaultSheetId: result.defaultSheetId,
-  diagnostics: result.diagnostics,
-  format: result.format,
-  resource,
-  sheets: result.sheets,
-  sourceVersion: result.sourceVersion,
+  content: snapshot.content,
+  defaultSheetId: snapshot.defaultSheetId,
+  diagnostics: snapshot.diagnostics,
+  format: snapshot.format,
+  resource: snapshot.resource,
+  sheets: snapshot.sheets,
+  sourceVersion: snapshot.sourceVersion,
 });
 
 registerSingleton(

@@ -56,16 +56,19 @@ export class NativeTableFileService extends TableFileService {
 		super(fileService, tableStructureParserService);
 	}
 
-	public override async resolveModel(
+	protected override normalizeResolveOptions(
 		model: TableFileEditorModel,
 		options: TableFileEditorModelManagerResolveOptions = {},
-	): Promise<void> {
-		await super.resolveModel(model, tableFormatService.resolveFormat(model.resource) === "xls"
+	): TableFileEditorModelManagerResolveOptions {
+		return super.normalizeResolveOptions(
+			model,
+			tableFormatService.resolveFormat(model.resource) === "xls"
 			? {
 					...withoutXlsReader(options),
 					xlsReader: options.xlsReader ?? readNativeXlsWorkbook,
 				}
-			: withoutXlsReader(options));
+			: withoutXlsReader(options),
+		);
 	}
 }
 

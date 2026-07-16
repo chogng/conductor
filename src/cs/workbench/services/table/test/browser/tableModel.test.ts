@@ -15,6 +15,8 @@ import {
 	type IFileChange,
 	type IFileService,
 } from "src/cs/platform/files/common/files";
+import { DataResourceContentService } from "src/cs/workbench/services/dataResource/browser/dataResourceContentService";
+import type { IDataResourceContentProvider } from "src/cs/workbench/services/dataResource/common/dataResourceContentService";
 import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
 import { TableFileEditorModelManager } from "src/cs/workbench/services/tableFile/common/tableFileEditorModelManager";
 import { TableModelResolverService } from "src/cs/workbench/services/table/common/tableModelResolverService";
@@ -26,7 +28,6 @@ import {
 	TableModelSelectionDirection,
 	type TableModelDecorationsChangedEvent,
 } from "src/cs/workbench/services/table/common/model";
-import type { ITableModelContentProvider } from "src/cs/workbench/services/table/common/resolverService";
 import { PARSED_TABLE_ROW_WINDOW_SIZE, parseTableStructure } from "src/cs/workbench/services/table/common/tableStructureParser";
 import type { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
 
@@ -38,11 +39,19 @@ const directTableStructureParserService: ITableStructureParserService = {
 
 suite("workbench/services/table/test/browser/tableModel", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const createResolverService = (fileService: IFileService = createFileServiceStub()) =>
-		store.add(new TableModelResolverService(store.add(new TableFileService(
+	const createResolverFixture = (fileService: IFileService = createFileServiceStub()) => {
+		const tableFileService = store.add(new TableFileService(
 			fileService,
 			directTableStructureParserService,
-		))));
+		));
+		const contentService = store.add(new DataResourceContentService(tableFileService));
+		return {
+			contentService,
+			service: store.add(new TableModelResolverService(contentService, tableFileService)),
+		};
+	};
+	const createResolverService = (fileService: IFileService = createFileServiceStub()) =>
+		createResolverFixture(fileService).service;
 
 	test("takes format from resolved content instead of inferring it on construction", async () => {
 		const resource = URI.file("/workspace/data/core.csv");
@@ -443,6 +452,42 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		});
 	});
 
+	test("resolves shared file content before table-model materialization", async () => {
+		let readCount = 0;
+		const resource = URI.file("/workspace/data/review-first.csv");
+		const { contentService, service } = createResolverFixture(createFileServiceStub({
+			readFile: async () => {
+				readCount += 1;
+				return textFileContent("Vg,Id\n0,1");
+			},
+		}));
+
+		const contentReference = await contentService.createContentReference(resource);
+		assert.deepStrictEqual({
+			contentRows: contentReference.object.content?.rows,
+			modelState: service.get(resource)?.getSnapshot().loadState.state,
+			readCount,
+		}, {
+			contentRows: [["Vg", "Id"], ["0", "1"]],
+			modelState: "idle",
+			readCount: 1,
+		});
+
+		const modelReference = await service.createModelReference(resource);
+		assert.deepStrictEqual({
+			modelRows: modelReference.object.getSnapshot().content?.rows,
+			modelState: modelReference.object.getSnapshot().loadState.state,
+			readCount,
+		}, {
+			modelRows: [["Vg", "Id"], ["0", "1"]],
+			modelState: "ready",
+			readCount: 1,
+		});
+
+		modelReference.dispose();
+		contentReference.dispose();
+	});
+
 	test("releases file-backed model cache after the last reference is disposed", async () => {
 		let readCount = 0;
 		const resource = URI.file("/workspace/data/release.csv");
@@ -477,13 +522,13 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			path: "/generated/report",
 			scheme: "table-memory",
 		});
-		const service = createResolverService();
-		const registration = service.registerContentProvider({
+		const { contentService, service } = createResolverFixture();
+		const registration = contentService.registerContentProvider({
 			canHandleResource: candidate => candidate.scheme === "table-memory",
 			dispose: () => {
 				disposeCount += 1;
 			},
-			resolveTableModel: async () => {
+			resolveContent: async () => {
 				resolveCount += 1;
 				return {
 					content: {
@@ -496,7 +541,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 					sourceVersion: 7,
 				};
 			},
-		} satisfies ITableModelContentProvider);
+		} satisfies IDataResourceContentProvider);
 
 		const reference = await service.createModelReference(resource);
 
@@ -620,6 +665,64 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		});
 	});
 
+	test("does not let an obsolete content read overwrite a newer file generation", async () => {
+		let mtime = 10;
+		const pendingReads: Array<(content: ReturnType<typeof textFileContent>) => void> = [];
+		const fileChanges = store.add(new Emitter<readonly IFileChange[]>());
+		const resource = URI.file("/workspace/data/generation.csv");
+		const manager = store.add(new TableFileEditorModelManager(
+			directTableStructureParserService,
+			createFileServiceStub({
+				onDidFilesChange: fileChanges.event,
+				readFile: async () => new Promise(resolve => {
+					pendingReads.push(resolve);
+				}),
+				stat: async () => ({
+					ctime: 1,
+					mtime,
+					path: resource.path,
+					size: 20,
+					type: FileType.File,
+				}),
+			}),
+		));
+		const fileEditorModel = manager.getOrCreateFileEditorModel(resource);
+		const firstResolve = manager.resolveContent(fileEditorModel);
+		await waitForTestCondition(() => pendingReads.length === 1);
+
+		mtime = 20;
+		const didReload = new Promise<void>(resolve => {
+			let listener: { dispose(): void } | undefined;
+			listener = manager.onDidChangeModel(model => {
+				if (model.getSnapshot().sourceVersion === 20) {
+					listener?.dispose();
+					resolve();
+				}
+			});
+		});
+		fileChanges.fire([{ resource, type: FileChangeType.UPDATED }]);
+		await waitForTestCondition(() => pendingReads.length === 2);
+
+		pendingReads[1]!(textFileContent("A,B\n7,8"));
+		await didReload;
+		pendingReads[0]!(textFileContent("A,B\n1,2"));
+		const resolved = await firstResolve;
+
+		assert.deepStrictEqual({
+			cachedRows: manager.getResolvedContent(resource)?.content.content?.rows,
+			editorSourceVersion: fileEditorModel.getSourceVersion(),
+			modelRows: fileEditorModel.model.getSnapshot().content?.rows,
+			resolvedRows: resolved.content.content?.rows,
+			sourceVersion: fileEditorModel.model.getSnapshot().sourceVersion,
+		}, {
+			cachedRows: [["A", "B"], ["7", "8"]],
+			editorSourceVersion: 20,
+			modelRows: [["A", "B"], ["7", "8"]],
+			resolvedRows: [["A", "B"], ["7", "8"]],
+			sourceVersion: 20,
+		});
+	});
+
 	test("marks dirty file-backed models conflicted on external updates", async () => {
 		let text = "A,B\n1,2";
 		let mtime = 10;
@@ -643,15 +746,18 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		text = "A,B\n7,8";
 		mtime = 20;
 		fileChanges.fire([{ resource, type: FileChangeType.UPDATED }]);
+		await manager.resolveContent(fileEditorModel);
 
 		assert.deepStrictEqual({
 			conflict: fileEditorModel.getSnapshot().conflict,
 			dirty: fileEditorModel.getSnapshot().dirty,
+			editorSourceVersion: fileEditorModel.getSourceVersion(),
 			rows: fileEditorModel.model.getSnapshot().content?.rows,
 			sourceVersion: fileEditorModel.model.getSnapshot().sourceVersion,
 		}, {
 			conflict: true,
 			dirty: true,
+			editorSourceVersion: 20,
 			rows: [["A", "B"], ["1", "2"]],
 			sourceVersion: 10,
 		});
@@ -1170,4 +1276,16 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
 		binary += String.fromCharCode(byte);
 	}
 	return globalThis.btoa(binary);
+};
+
+const waitForTestCondition = async (
+	condition: () => boolean,
+): Promise<void> => {
+	for (let attempt = 0; attempt < 50; attempt += 1) {
+		if (condition()) {
+			return;
+		}
+		await new Promise<void>(resolve => globalThis.setTimeout(resolve, 0));
+	}
+	throw new Error("Timed out waiting for the table model test condition.");
 };

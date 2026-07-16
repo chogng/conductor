@@ -7,7 +7,6 @@ import assert from 'assert';
 import type { IWebWorkerClient } from 'src/cs/base/common/worker/webWorker';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'src/cs/base/test/common/lifecycleTestUtils';
 import {
-	getTableStructureParserWorkerConcurrency,
 	TableStructureParserWorkerPool,
 } from 'src/cs/workbench/services/table/browser/tableStructureParserService';
 import type {
@@ -21,44 +20,31 @@ import { createTableTextBuffer } from 'src/cs/workbench/services/table/common/ta
 suite('workbench/services/table/test/browser/tableStructureParserService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('scales worker concurrency from available CPU cores', () => {
-		assert.deepStrictEqual([
-			getTableStructureParserWorkerConcurrency(1),
-			getTableStructureParserWorkerConcurrency(2),
-			getTableStructureParserWorkerConcurrency(4),
-			getTableStructureParserWorkerConcurrency(12),
-			getTableStructureParserWorkerConcurrency(Number.NaN),
-		], [1, 1, 3, 8, 4]);
-	});
-
-	test('bounds concurrent parsing and reuses workers for queued files', async () => {
+	test('dispatches every parse immediately without a concurrency queue', async () => {
+		const requestCount = 12;
 		const workers: TestTableStructureParserWorkerClient[] = [];
 		const pool = store.add(new TableStructureParserWorkerPool(() => {
 			const worker = new TestTableStructureParserWorkerClient();
 			workers.push(worker);
 			return worker as unknown as IWebWorkerClient<ITableStructureParserWorker>;
-		}, 3));
-		const parses = Array.from({ length: 5 }, (_, index) => pool.parse({
+		}));
+		const parses = Array.from({ length: requestCount }, (_, index) => pool.parse({
 			buffer: createTableTextBuffer(`X,Y\n${index},${index + 1}`, 'utf8'),
 			format: 'csv',
 		}));
 
-		await waitFor(() => countWorkerRequests(workers) === 3);
+		await waitFor(() => countWorkerRequests(workers) === requestCount);
 		assert.deepStrictEqual({
 			requestCount: countWorkerRequests(workers),
 			workerCount: workers.length,
 		}, {
-			requestCount: 3,
-			workerCount: 3,
+			requestCount,
+			workerCount: requestCount,
 		});
 
-		workers[0]!.complete();
-		workers[1]!.complete();
-		await waitFor(() => countWorkerRequests(workers) === 5);
-
-		workers[2]!.complete();
-		workers[0]!.complete();
-		workers[1]!.complete();
+		for (const worker of workers) {
+			worker.complete();
+		}
 		const results = await Promise.all(parses);
 
 		assert.deepStrictEqual({
@@ -66,9 +52,9 @@ suite('workbench/services/table/test/browser/tableStructureParserService', () =>
 			terminatedWorkers: workers.filter(worker => worker.disposed).length,
 			workerCount: workers.length,
 		}, {
-			resultCount: 5,
-			terminatedWorkers: 0,
-			workerCount: 3,
+			resultCount: requestCount,
+			terminatedWorkers: requestCount,
+			workerCount: requestCount,
 		});
 	});
 });

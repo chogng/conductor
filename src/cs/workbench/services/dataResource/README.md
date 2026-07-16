@@ -10,16 +10,18 @@ X ranges/groups, data blocks, binding candidates, measurement blocks, parser
 diagnostics, source versions, and sheet sub-targets. Those facts are shared
 workbench domain data, not generic filesystem or URI infrastructure.
 
-Current migration state:
+Current architecture:
 
 - public callers depend on `IDataResourceService` and structured-content
   snapshots;
 - structured-content evidence, projection, and grid snapshot contracts are
   owned by `services/dataResource/common/structuredContent.ts`;
-- the first browser implementation still materializes snapshots through
-  `ITableModelService`;
-- that table-model dependency is an implementation bridge, not the target
-  ownership boundary;
+- `IDataResourceContentService` owns reusable physical content references below
+  both DataResource evidence and table-model materialization;
+- Review can resolve evidence directly from the physical content reference
+  without waiting for an `ITableModel` to enter the ready state;
+- Table materializes the same referenced content into its model only when a
+  table consumer requests it;
 - Review and Slice consume data-resource snapshots and must not directly depend
   on Table UI/view state or table model lifecycle.
 
@@ -30,9 +32,10 @@ Target direction:
 
 ```txt
 URI/resource
-  -> IDataResourceService
-  -> structured content snapshot
-  -> Review / Table UI / Search / Slice consumers
+  -> IDataResourceContentService
+  -> physical content snapshot
+     -> IDataResourceService -> evidence -> Review / Search / Slice
+     -> ITableModelService -> Table UI
 ```
 
 If structured content later becomes larger than this service should own, split

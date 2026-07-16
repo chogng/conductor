@@ -18,7 +18,6 @@ import type {
 	TableModelSnapshot,
 } from "src/cs/workbench/services/table/common/model";
 import type {
-	ITableModelContentProvider,
 	ITableModelReference,
 	ITableModelService,
 } from "src/cs/workbench/services/table/common/resolverService";
@@ -28,6 +27,7 @@ import type {
 } from "src/cs/workbench/services/slice/common/slice";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
+import { TestDataResourceContentService } from "src/cs/workbench/services/dataResource/test/common/testDataResourceContentService";
 
 type ResourceSheetIdentity = {
 	readonly resource: URI;
@@ -44,7 +44,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		tableModelService: ITableModelService,
 	): DataResourceService =>
 		store.add(new DataResourceService(
-			tableModelService,
+			store.add(new TestDataResourceContentService(tableModelService, false)),
 			settingsService,
 			testStructuredContentEvidenceService,
 		));
@@ -438,10 +438,6 @@ class BlockingTableModelService implements ITableModelService {
 		return undefined;
 	}
 
-	public registerContentProvider(_provider: ITableModelContentProvider): { dispose(): void } {
-		return { dispose: () => undefined };
-	}
-
 	public resolve(_resource: URI, _source?: TableSource | null): void {}
 
 	public fireModelChanged(resource: URI): void {
@@ -478,10 +474,6 @@ class StaticTableModelService implements ITableModelService {
 
 	public get(): ITableModel | undefined {
 		return undefined;
-	}
-
-	public registerContentProvider(_provider: ITableModelContentProvider): { dispose(): void } {
-		return { dispose: () => undefined };
 	}
 
 	public resolve(_resource: URI, _source?: TableSource | null): void {}

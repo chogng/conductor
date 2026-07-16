@@ -39,6 +39,12 @@ Explicit Explorer import
   checks;
 - updates to the associated `ITableModel` after file content changes.
 
+`TableFileEditorModelManager` also caches and de-duplicates resolved physical
+content below model materialization. `IDataResourceContentService` may retain
+that content for Review/DataResource while `ITableModelService` materializes
+the same result for Table. Resolving physical content must not itself move the
+table model to `ready`.
+
 `TableFileService` owns the file-backed branch between resolver and editor model:
 
 - file-backed table resource support checks after resolver/provider dispatch;

@@ -36,6 +36,14 @@
 	overflow: hidden;
 }
 
+.table_view_scroll_area > .scrollAreaTrackY {
+	width: 10px;
+}
+
+.table_view_scroll_area > .scrollAreaTrackX {
+	height: 10px;
+}
+
 .table_view_grid_header {
 	display: flex;
 	position: relative;

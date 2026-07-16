@@ -9,11 +9,7 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import type {
 	ITableModel,
-	TableModelContentSnapshot,
-	TableParseDiagnostic,
-	TableModelSheetSnapshot,
 } from "src/cs/workbench/services/table/common/model";
-import type { TableFormatId } from "src/cs/workbench/services/table/common/tableFormatService";
 
 export const ITableModelService = createDecorator<ITableModelService>("tableModelService");
 
@@ -24,38 +20,6 @@ export const ITableModelService = createDecorator<ITableModelService>("tableMode
  */
 export interface ITableModelReference extends IDisposable {
 	readonly object: ITableModel;
-}
-
-/**
- * Physical table content supplied by a provider-backed table resource.
- */
-export type TableModelContentProviderResult = {
-	readonly content: TableModelContentSnapshot | null;
-	readonly defaultSheetId?: string | null;
-	readonly diagnostics?: readonly TableParseDiagnostic[];
-	readonly format: TableFormatId | null;
-	readonly sheets?: readonly TableModelSheetSnapshot[];
-	readonly sourceVersion?: number;
-};
-
-/**
- * Supplies already-materialized table content for virtual or provider-backed
- * resources. File-backed CSV/TSV/XLS/XLSX parsing belongs to table parsers and
- * tableFile services, not to this provider contract.
- */
-export interface ITableModelContentProvider extends IDisposable {
-	/**
-	 * Returns whether this provider owns resolving the given resource.
-	 */
-	canHandleResource(resource: URI): boolean;
-
-	/**
-	 * Resolves the given resource to physical table content and sheet snapshots.
-	 */
-	resolveTableModel(
-		resource: URI,
-		source?: TableSource | null,
-	): Promise<TableModelContentProviderResult>;
 }
 
 /**
@@ -88,11 +52,6 @@ export interface ITableModelService extends IDisposable {
 	 * Returns an already cached model for the resource, if one exists.
 	 */
 	get(resource: URI | null | undefined): ITableModel | undefined;
-
-	/**
-	 * Registers a provider for virtual or generated table resources.
-	 */
-	registerContentProvider(provider: ITableModelContentProvider): IDisposable;
 
 	/**
 	 * Starts resolving the resource without requiring the caller to hold a model

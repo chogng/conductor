@@ -17,8 +17,6 @@ import {
 import { ITableStructureParserService } from 'src/cs/workbench/services/table/common/tableStructureParserService';
 import { getTableReadBufferFilePart } from 'src/cs/workbench/services/table/common/tableReadBuffer';
 
-const TABLE_STRUCTURE_PARSER_WORKER_DEFAULT_CONCURRENCY = 4;
-const TABLE_STRUCTURE_PARSER_WORKER_MAX_CONCURRENCY = 8;
 const TABLE_STRUCTURE_PARSER_WORKER_TIMEOUT_MS = 60_000;
 
 export type TableStructureParserWorkerClientFactory = () => IWebWorkerClient<ITableStructureParserWorker>;
@@ -34,26 +32,12 @@ type TableStructureParserWorkerSlot = {
 	readonly worker: IWebWorkerClient<ITableStructureParserWorker>;
 };
 
-export function getTableStructureParserWorkerConcurrency(
-	hardwareConcurrency = globalThis.navigator?.hardwareConcurrency,
-): number {
-	const coreCount = Number.isFinite(hardwareConcurrency)
-		? Math.max(1, Math.floor(Number(hardwareConcurrency)))
-		: TABLE_STRUCTURE_PARSER_WORKER_DEFAULT_CONCURRENCY + 1;
-	return Math.max(
-		1,
-		Math.min(TABLE_STRUCTURE_PARSER_WORKER_MAX_CONCURRENCY, coreCount - 1),
-	);
-}
-
 export class TableStructureParserWorkerPool extends Disposable {
-	private readonly queuedRequests: QueuedTableStructureParse[] = [];
 	private readonly slots: TableStructureParserWorkerSlot[] = [];
 	private disposed = false;
 
 	public constructor(
 		private readonly workerFactory: TableStructureParserWorkerClientFactory,
-		private readonly concurrency = getTableStructureParserWorkerConcurrency(),
 	) {
 		super();
 	}
@@ -64,12 +48,17 @@ export class TableStructureParserWorkerPool extends Disposable {
 		}
 
 		return new Promise<ParsedTableStructure>((resolve, reject) => {
-			this.queuedRequests.push({ input, reject, resolve });
-			logPerf('table.parserWorker.enqueue', {
-				concurrency: this.concurrency,
-				queueLength: this.queuedRequests.length,
-			}, { silent: true });
-			this.flush();
+			const request = { input, reject, resolve };
+			try {
+				const slot = this.createSlot();
+				slot.activeRequest = request;
+				logPerf('table.parserWorker.dispatchImmediate', {
+					activeWorkerCount: this.slots.length,
+				}, { silent: true });
+				void this.dispatch(slot, request);
+			} catch (error) {
+				reject(toError(error));
+			}
 		});
 	}
 
@@ -79,9 +68,6 @@ export class TableStructureParserWorkerPool extends Disposable {
 		}
 		this.disposed = true;
 		const error = new Error('The table structure parser worker pool was disposed.');
-		for (const request of this.queuedRequests.splice(0)) {
-			request.reject(error);
-		}
 		for (const slot of this.slots) {
 			slot.activeRequest?.reject(error);
 			slot.activeRequest = null;
@@ -91,43 +77,13 @@ export class TableStructureParserWorkerPool extends Disposable {
 		super.dispose();
 	}
 
-	private flush(): void {
-		if (this.disposed) {
-			return;
-		}
-		while (this.queuedRequests.length) {
-			let slot: TableStructureParserWorkerSlot | null;
-			try {
-				slot = this.getAvailableSlot();
-			} catch (error) {
-				this.queuedRequests.shift()?.reject(toError(error));
-				continue;
-			}
-			if (!slot) {
-				return;
-			}
-			const request = this.queuedRequests.shift()!;
-			slot.activeRequest = request;
-			void this.dispatch(slot, request);
-		}
-	}
-
-	private getAvailableSlot(): TableStructureParserWorkerSlot | null {
-		const available = this.slots.find(slot => !slot.activeRequest);
-		if (available) {
-			return available;
-		}
-		if (this.slots.length >= this.concurrency) {
-			return null;
-		}
-
+	private createSlot(): TableStructureParserWorkerSlot {
 		const slot: TableStructureParserWorkerSlot = {
 			activeRequest: null,
 			worker: this.workerFactory(),
 		};
 		this.slots.push(slot);
 		logPerf('table.parserWorker.createWorker', {
-			concurrency: this.concurrency,
 			workerCount: this.slots.length,
 		}, { silent: true });
 		return slot;
@@ -139,7 +95,6 @@ export class TableStructureParserWorkerPool extends Disposable {
 	): Promise<void> {
 		const startedAt = getPerfNow();
 		let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
-		let timedOut = false;
 		try {
 			const buffer = await createWorkerBuffer(request.input);
 			if (slot.activeRequest !== request || this.disposed) {
@@ -152,7 +107,6 @@ export class TableStructureParserWorkerPool extends Disposable {
 			}], buffer.kind === 'bytes' ? [buffer.bytes] : []);
 			const output = await new Promise<Awaited<typeof workerRequest>>((resolve, reject) => {
 				timeout = globalThis.setTimeout(() => {
-					timedOut = true;
 					reject(new Error('The table structure parser worker timed out.'));
 				}, TABLE_STRUCTURE_PARSER_WORKER_TIMEOUT_MS);
 				workerRequest.then(resolve, reject);
@@ -170,9 +124,6 @@ export class TableStructureParserWorkerPool extends Disposable {
 		} catch (error) {
 			if (slot.activeRequest !== request || this.disposed) {
 				return;
-			}
-			if (timedOut || slot.worker.isClosed()) {
-				this.removeWorker(slot);
 			}
 			this.finish(slot, request, null, toError(error), startedAt);
 		} finally {
@@ -194,17 +145,17 @@ export class TableStructureParserWorkerPool extends Disposable {
 		}
 		slot.activeRequest = null;
 		logPerf('table.parserWorker.complete', {
+			activeWorkerCount: Math.max(0, this.slots.length - 1),
 			durationMs: getPerfNow() - startedAt,
 			format: request.input.format,
-			queueLength: this.queuedRequests.length,
 			success: Boolean(result),
 		}, { silent: true });
+		this.removeWorker(slot);
 		if (result) {
 			request.resolve(result);
 		} else {
 			request.reject(error ?? new Error('The table structure parser worker failed.'));
 		}
-		this.flush();
 	}
 
 	private removeWorker(slot: TableStructureParserWorkerSlot): void {

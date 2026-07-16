@@ -30,6 +30,7 @@ import {
   TableService,
 } from "src/cs/workbench/services/table/browser/tableService";
 import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
+import { DataResourceContentService } from "src/cs/workbench/services/dataResource/browser/dataResourceContentService";
 import { TableModelResolverService } from "src/cs/workbench/services/table/common/tableModelResolverService";
 import { parseTableStructure } from "src/cs/workbench/services/table/common/tableStructureParser";
 import type { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
@@ -1052,9 +1053,13 @@ const createTableServiceFixture = ({
     fileService,
     directTableStructureParserService,
   )) ?? new TableFileService(fileService, directTableStructureParserService);
-  const tableModelService = tableTestStore?.add(new TableModelResolverService(
+  const dataResourceContentService = tableTestStore?.add(new DataResourceContentService(
     tableFileService,
-  )) ?? new TableModelResolverService(tableFileService);
+  )) ?? new DataResourceContentService(tableFileService);
+  const tableModelService = tableTestStore?.add(new TableModelResolverService(
+    dataResourceContentService,
+    tableFileService,
+  )) ?? new TableModelResolverService(dataResourceContentService, tableFileService);
   const decorationsService = tableTestStore?.add(new DecorationsService())
     ?? new DecorationsService();
   const service = new TableService(

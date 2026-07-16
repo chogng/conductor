@@ -49,6 +49,11 @@ export type TableFileEditorModelResolveOptions = TableFileReadOptions & {
 	readonly xlsReader?: TableXlsReader;
 };
 
+export type TableFileEditorModelResolvedContent = {
+	readonly content: TableModelResolvedContent;
+	readonly stat: IFileStat;
+};
+
 export class TableFileEditorModel extends Disposable {
 	private readonly onDidChangeStateEmitter = this._register(new Emitter<TableFileEditorModel>());
 	public readonly onDidChangeState: Event<TableFileEditorModel> =
@@ -111,27 +116,32 @@ export class TableFileEditorModel extends Disposable {
 	}
 
 	public async resolve(options: TableFileEditorModelResolveOptions = {}): Promise<void> {
+		try {
+			const resolved = await this.resolveContent(options);
+			this.acceptResolvedContent(resolved);
+			await this.applyResolvedContent(resolved.content);
+		} catch (error) {
+			this.acceptResolveError(error);
+			await this.applyResolveError(error);
+		}
+	}
+
+	public async resolveContent(
+		options: TableFileEditorModelResolveOptions = {},
+	): Promise<TableFileEditorModelResolvedContent> {
 		mark("code/willResolveTableFileEditorModel");
 		const endResolvePerf = startPerf("table.fileEditor.resolve", {
 			resourceScheme: this.resource.scheme,
 			wasDirty: this.dirty,
 		}, { silent: true });
 		try {
-			await this.resolveFromDisk(options);
-			this.setLifecycleState({
-				conflict: false,
-				errorMessage: "",
-				orphaned: false,
-			});
+			const resolved = await this.resolveContentFromDisk(options);
 			endResolvePerf({
-				sourceVersion: this.sourceVersion,
+				sourceVersion: normalizeResourceSourceVersion(resolved.stat.mtime),
 				success: true,
 			});
+			return resolved;
 		} catch (error) {
-			this.setLifecycleState({
-				errorMessage: getErrorMessage(error),
-				orphaned: true,
-			});
 			endResolvePerf({
 				errorName: error instanceof Error ? error.name : "unknown",
 				success: false,
@@ -140,6 +150,39 @@ export class TableFileEditorModel extends Disposable {
 		} finally {
 			mark("code/didResolveTableFileEditorModel");
 		}
+	}
+
+	public acceptResolvedContent(resolved: TableFileEditorModelResolvedContent): void {
+		this.lastResolvedStat = resolved.stat;
+		this.sourceVersion = normalizeResourceSourceVersion(resolved.stat.mtime);
+		this.setLifecycleState({
+			conflict: this.dirty ? this.conflict : false,
+			errorMessage: "",
+			orphaned: false,
+		});
+	}
+
+	public acceptResolveError(error: unknown): void {
+		this.setLifecycleState({
+			errorMessage: getErrorMessage(error),
+			orphaned: true,
+		});
+	}
+
+	public async applyResolvedContent(content: TableModelResolvedContent): Promise<void> {
+		await this.model.resolve({
+			resolveContent: async () => content,
+		});
+		this.onDidChangeStateEmitter.fire(this);
+	}
+
+	public async applyResolveError(error: unknown): Promise<void> {
+		await this.model.resolve({
+			resolveContent: async () => {
+				throw error;
+			},
+		});
+		this.onDidChangeStateEmitter.fire(this);
 	}
 
 	public async reload(options: TableFileEditorModelResolveOptions = {}): Promise<void> {
@@ -185,7 +228,7 @@ export class TableFileEditorModel extends Disposable {
 				dirty: false,
 				orphaned: false,
 			});
-			await this.resolveFromDisk();
+			await this.resolve();
 		} catch (error) {
 			this.setLifecycleState({
 				errorMessage: getErrorMessage(error),
@@ -206,17 +249,9 @@ export class TableFileEditorModel extends Disposable {
 		await this.resolve();
 	}
 
-	private async resolveFromDisk(options: TableFileEditorModelResolveOptions = {}): Promise<void> {
-		await this.model.resolve({
-			resolveContent: () =>
-				this.resolveContentFromDisk(options),
-		});
-		this.onDidChangeStateEmitter.fire(this);
-	}
-
 	private async resolveContentFromDisk(
 		options: TableFileEditorModelResolveOptions,
-	): Promise<TableModelResolvedContent> {
+	): Promise<TableFileEditorModelResolvedContent> {
 		const endResolveContentPerf = startPerf("table.fileEditor.resolveContentFromDisk", {
 			resourceScheme: this.resource.scheme,
 		}, { silent: true });
@@ -226,16 +261,17 @@ export class TableFileEditorModel extends Disposable {
 			readResult = await readTableFile(this.resource, this.fileService, readOptions);
 		} catch (error) {
 			if (isTableFileReadDiagnosticError(error)) {
-				this.lastResolvedStat = error.stat;
-				this.sourceVersion = normalizeResourceSourceVersion(error.stat.mtime);
-				const resolvedContent = createResolvedContentFromReadDiagnostic(error);
+				const content = createResolvedContentFromReadDiagnostic(error);
 				endResolveContentPerf({
-					diagnosticsCount: resolvedContent.diagnostics?.length ?? 0,
+					diagnosticsCount: content.diagnostics?.length ?? 0,
 					fileSizeBytes: error.stat.size,
 					format: error.format,
 					success: false,
 				});
-				return resolvedContent;
+				return {
+					content,
+					stat: error.stat,
+				};
 			}
 			endResolveContentPerf({
 				errorName: error instanceof Error ? error.name : "unknown",
@@ -243,8 +279,6 @@ export class TableFileEditorModel extends Disposable {
 			});
 			throw error;
 		}
-		this.lastResolvedStat = readResult.stat;
-		this.sourceVersion = normalizeResourceSourceVersion(readResult.stat.mtime);
 		const parsedContent = await this.tableStructureParserService.parse({
 			buffer: readResult.buffer,
 			format: readResult.format,
@@ -261,7 +295,10 @@ export class TableFileEditorModel extends Disposable {
 			format: readResult.format,
 			success: resolvedContent.content !== null,
 		});
-		return resolvedContent;
+		return {
+			content: resolvedContent,
+			stat: readResult.stat,
+		};
 	}
 
 	private setLifecycleState(update: {

@@ -25,12 +25,14 @@ import {
 } from "src/cs/workbench/services/tableFile/common/tableFileEditorModelManager";
 import type {
 	ITableFileService,
+	TableFileResolvedContent,
 } from "src/cs/workbench/services/tableFile/common/tablefiles";
 
 export class TableFileService extends Disposable implements ITableFileService {
 	public declare readonly _serviceBrand: undefined;
 
 	private readonly tableFileEditorModelManager: TableFileEditorModelManager;
+	public readonly onDidChangeContent: Event<URI>;
 	public readonly onDidChangeModel: Event<ITableModel>;
 
 	public constructor(
@@ -43,6 +45,7 @@ export class TableFileService extends Disposable implements ITableFileService {
 			tableStructureParserService,
 			fileService,
 		));
+		this.onDidChangeContent = this.tableFileEditorModelManager.onDidChangeContent;
 		this.onDidChangeModel = this.tableFileEditorModelManager.onDidChangeModel;
 	}
 
@@ -62,6 +65,12 @@ export class TableFileService extends Disposable implements ITableFileService {
 		return this.tableFileEditorModelManager.get(resource);
 	}
 
+	public getResolvedContent(
+		resource: URI | null | undefined,
+	): TableFileResolvedContent | undefined {
+		return this.tableFileEditorModelManager.getResolvedContent(resource);
+	}
+
 	public getOrCreateFileEditorModel(
 		resource: URI,
 		source?: TableSource | null,
@@ -77,17 +86,38 @@ export class TableFileService extends Disposable implements ITableFileService {
 		model: TableFileEditorModel,
 		options: TableFileEditorModelManagerResolveOptions = {},
 	): Promise<void> {
-		await this.tableFileEditorModelManager.resolveModel(model, {
-			...options,
-			readMode: options.readMode ?? this.getReadMode(model.resource),
-		});
+		await this.tableFileEditorModelManager.resolveModel(
+			model,
+			this.normalizeResolveOptions(model, options),
+		);
+	}
+
+	public async resolveContent(
+		model: TableFileEditorModel,
+		options: TableFileEditorModelManagerResolveOptions = {},
+	): Promise<TableFileResolvedContent> {
+		return this.tableFileEditorModelManager.resolveContent(
+			model,
+			this.normalizeResolveOptions(model, options),
+		);
 	}
 
 	public resolve(resource: URI, source?: TableSource | null): void {
-		void this.resolveModel(this.getOrCreateFileEditorModel(resource, source));
+		void this.resolveModel(this.getOrCreateFileEditorModel(resource, source))
+			.catch(() => undefined);
 	}
 
 	public remove(resource: URI): void {
 		this.tableFileEditorModelManager.remove(resource);
+	}
+
+	protected normalizeResolveOptions(
+		model: TableFileEditorModel,
+		options: TableFileEditorModelManagerResolveOptions,
+	): TableFileEditorModelManagerResolveOptions {
+		return {
+			...options,
+			readMode: options.readMode ?? this.getReadMode(model.resource),
+		};
 	}
 }

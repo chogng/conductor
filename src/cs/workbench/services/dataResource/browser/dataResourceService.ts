@@ -9,12 +9,18 @@ import { parseFiniteNumber } from "src/cs/workbench/common/cellText";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
 	IDataResourceService,
-	type DataResourceLoadState,
 	type DataResourceStructuredContentResolution,
 	type DataResourceStructuredContentSnapshot,
 	type DataResourceStructuredContentTarget,
 	type IDataResourceStructuredContentReference,
 } from "src/cs/workbench/services/dataResource/common/dataResource";
+import {
+	type DataResourceContentSheetSnapshot,
+	type DataResourceContentSnapshot,
+	IDataResourceContentService,
+	type IDataResourceContentService as IDataResourceContentServiceType,
+	type IDataResourceContentReference,
+} from "src/cs/workbench/services/dataResource/common/dataResourceContentService";
 import {
 	createSemanticMatcher,
 	toSemanticTermKey,
@@ -60,21 +66,13 @@ import {
 } from "src/cs/workbench/services/settings/common/settings";
 import {
 	type TableModelContentSnapshot,
-	type TableModelLoadState,
-	type TableModelSheetSnapshot,
-	type TableModelSnapshot,
 	type TableParseDiagnostic,
 } from "src/cs/workbench/services/table/common/model";
-import type { TableSource } from "src/cs/workbench/services/table/common/table";
-import {
-	ITableModelService,
-	type ITableModelService as ITableModelServiceType,
-} from "src/cs/workbench/services/table/common/resolverService";
 
 type StructuredContentSheetResolution =
 	| {
 		readonly kind: "found";
-		readonly sheet: TableModelSheetSnapshot | null;
+		readonly sheet: DataResourceContentSheetSnapshot | null;
 	}
 	| {
 		readonly kind: "missing";
@@ -175,7 +173,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	private semanticSettingsFingerprint = "";
 
 	public constructor(
-		@ITableModelService private readonly tableModelService: ITableModelServiceType,
+		@IDataResourceContentService private readonly contentService: IDataResourceContentServiceType,
 		@ISettingsService private readonly settingsService: ISettingsService,
 		@IStructuredContentEvidenceService private readonly structuredContentEvidenceService: IStructuredContentEvidenceService,
 	) {
@@ -191,9 +189,16 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		this.semanticMatcher = semanticConfiguration.matcher;
 		this.semanticPatches = semanticConfiguration.patches;
 		this.semanticSettingsFingerprint = this.semanticMatcher.fingerprint;
-		this._register(this.tableModelService.onDidChangeModel(model => {
-			if (this.rememberStableStructuredContentSignature(model.getSnapshot())) {
-				this.onDidChangeResourceEmitter.fire(model.resource);
+		this._register(this.contentService.onDidChangeContent(resource => {
+			const snapshot = this.contentService.get(resource);
+			if (snapshot) {
+				if (this.rememberStableStructuredContentSignature(snapshot)) {
+					this.onDidChangeResourceEmitter.fire(resource);
+				}
+				return;
+			}
+			if (this.trackedResources.has(normalizeResourceIdentity(resource))) {
+				this.onDidChangeResourceEmitter.fire(resource);
 			}
 		}));
 		this._register(this.settingsService.onDidChangeConductorSettings(() => {
@@ -213,49 +218,66 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	}
 
 	public canHandleResource(resource: URI): boolean {
-		return this.tableModelService.canHandleResource(resource);
+		return this.contentService.canHandleResource(resource);
 	}
 
 	public async resolveStructuredContent(
 		target: DataResourceStructuredContentTarget,
 	): Promise<IDataResourceStructuredContentReference> {
 		this.trackResource(target.resource);
-		const reference = await this.tableModelService.createModelReference(
-			target.resource,
-			createStructuredContentSource(target),
-		);
-		let snapshot = reference.object.getSnapshot();
-		let resolution: DataResourceStructuredContentResolution;
-		while (true) {
-			this.rememberStableStructuredContentSignature(snapshot);
-			const semanticSettingsFingerprint = this.semanticSettingsFingerprint;
-			resolution = await createStructuredContentResolution(
-				snapshot,
-				target,
-				this.semanticPatches,
-				this.structuredContentEvidenceService,
-			);
-			const currentSnapshot = reference.object.getSnapshot();
-			if (
-				currentSnapshot.version === snapshot.version &&
-				currentSnapshot.sourceVersion === snapshot.sourceVersion &&
-				semanticSettingsFingerprint === this.semanticSettingsFingerprint
-			) {
-				break;
-			}
-			snapshot = currentSnapshot;
-		}
-		return {
-			object: resolution,
-			dispose: () => {
+		let reference: IDataResourceContentReference | null = null;
+		try {
+			reference = await this.contentService.createContentReference(target.resource);
+			let resolution: DataResourceStructuredContentResolution;
+			while (true) {
+				const snapshot = reference.object;
+				this.rememberStableStructuredContentSignature(snapshot);
+				const semanticSettingsFingerprint = this.semanticSettingsFingerprint;
+				resolution = await createStructuredContentResolution(
+					snapshot,
+					target,
+					this.semanticPatches,
+					this.structuredContentEvidenceService,
+				);
+				const currentSnapshot = this.contentService.get(target.resource);
+				if (
+					currentSnapshot?.version === snapshot.version &&
+					currentSnapshot.sourceVersion === snapshot.sourceVersion &&
+					semanticSettingsFingerprint === this.semanticSettingsFingerprint
+				) {
+					break;
+				}
+				const nextReference = await this.contentService.createContentReference(target.resource);
 				reference.dispose();
-			},
-		};
+				reference = nextReference;
+			}
+			const retainedReference = reference;
+			return {
+				object: resolution,
+				dispose: () => {
+					retainedReference.dispose();
+				},
+			};
+		} catch (error) {
+			reference?.dispose();
+			return {
+				object: {
+					kind: "loadError",
+					loadState: {
+						state: "error",
+						message: getErrorMessage(error),
+					},
+				},
+				dispose: () => undefined,
+			};
+		}
 	}
 
 	public resolve(target: DataResourceStructuredContentTarget): void {
 		this.trackResource(target.resource);
-		this.tableModelService.resolve(target.resource, createStructuredContentSource(target));
+		void this.resolveStructuredContent(target).then(reference => {
+			reference.dispose();
+		});
 	}
 
 	private createSettingsSemanticConfiguration(): {
@@ -276,7 +298,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		return resourceKey;
 	}
 
-	private rememberStableStructuredContentSignature(snapshot: TableModelSnapshot): boolean {
+	private rememberStableStructuredContentSignature(snapshot: DataResourceContentSnapshot): boolean {
 		const signature = createStableStructuredContentSignature(snapshot, this.semanticSettingsFingerprint);
 		if (!signature) {
 			this.trackResource(snapshot.resource);
@@ -288,30 +310,15 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		this.structuredContentSignaturesByResourceKey.set(resourceKey, signature);
 		return previousSignature !== undefined && previousSignature !== signature;
 	}
+
 }
 
 const createStructuredContentResolution = async (
-	snapshot: TableModelSnapshot,
+	snapshot: DataResourceContentSnapshot,
 	target: DataResourceStructuredContentTarget,
 	semanticPatches: TemplateSemanticPatches,
 	structuredContentEvidenceService: IStructuredContentEvidenceService,
 ): Promise<DataResourceStructuredContentResolution> => {
-	if (snapshot.loadState.state === "error") {
-		return {
-			kind: "loadError",
-			loadState: {
-				state: "error",
-				message: snapshot.loadState.message,
-			},
-		};
-	}
-	if (snapshot.loadState.state !== "ready") {
-		return {
-			kind: "pending",
-			loadState: toDataResourceLoadState(snapshot.loadState),
-		};
-	}
-
 	const sheetResolution = resolveStructuredContentSheet(snapshot, target.sheetId ?? null);
 	if (sheetResolution.kind === "missing") {
 		return { kind: "missingSheet" };
@@ -352,26 +359,15 @@ const createStructuredContentResolution = async (
 };
 
 const createStableStructuredContentSignature = (
-	snapshot: TableModelSnapshot,
+	snapshot: DataResourceContentSnapshot,
 	semanticSettingsFingerprint: string,
 ): string | null => {
-	const state = snapshot.loadState.state;
-	if (state !== "ready" && state !== "error") {
-		return null;
-	}
-
 	const builder = createSignatureBuilder();
-	builder.append(state);
 	builder.append(semanticSettingsFingerprint);
 	builder.append(snapshot.sourceVersion);
 	builder.append(snapshot.format ?? "");
 	builder.append(snapshot.defaultSheetId ?? "");
 	appendDiagnosticsSignature(builder, snapshot.diagnostics);
-	if (state === "error") {
-		builder.append(snapshot.loadState.message);
-		return builder.digest();
-	}
-
 	appendContentSignature(builder, snapshot.content);
 	builder.append(snapshot.sheets.length);
 	for (const sheet of snapshot.sheets) {
@@ -428,22 +424,6 @@ const appendContentSignature = (
 	}
 
 	builder.append(getStructuredContentFingerprint(content));
-};
-
-const toDataResourceLoadState = (
-	loadState: TableModelLoadState,
-): DataResourceLoadState => {
-	if (loadState.state === "error") {
-		return {
-			state: "error",
-			message: loadState.message,
-		};
-	}
-
-	return {
-		state: loadState.state,
-		...(loadState.message ? { message: loadState.message } : {}),
-	};
 };
 
 export const createStructuredContentEvidence = (
@@ -3382,7 +3362,7 @@ const toStructuredContentDiagnostic = (
 });
 
 const resolveStructuredContentSheet = (
-	snapshot: TableModelSnapshot,
+	snapshot: DataResourceContentSnapshot,
 	requestedSheetId: string | null,
 ): StructuredContentSheetResolution => {
 	if (requestedSheetId) {
@@ -3401,8 +3381,8 @@ const resolveStructuredContentSheet = (
 };
 
 const getStructuredContentDiagnostics = (
-	snapshot: TableModelSnapshot,
-	sheet: TableModelSheetSnapshot | null,
+	snapshot: DataResourceContentSnapshot,
+	sheet: DataResourceContentSheetSnapshot | null,
 ): readonly TableParseDiagnostic[] => [
 	...snapshot.diagnostics,
 	...(sheet?.diagnostics ?? []),
@@ -3410,7 +3390,7 @@ const getStructuredContentDiagnostics = (
 
 const getStructuredContentFileName = (
 	resource: URI,
-	sheet: TableModelSheetSnapshot | null,
+	sheet: DataResourceContentSheetSnapshot | null,
 ): string => {
 	const sheetName = normalizeText(sheet?.sheetName);
 	if (sheetName) {
@@ -3422,12 +3402,10 @@ const getStructuredContentFileName = (
 	return name || getResourceIdentityString(resource);
 };
 
-const createStructuredContentSource = (
-	target: DataResourceStructuredContentTarget,
-): TableSource => ({
-	resource: target.resource,
-	...(target.sheetId ? { sheetId: target.sheetId } : {}),
-});
+const getErrorMessage = (error: unknown): string =>
+	error instanceof Error && error.message.trim()
+		? error.message
+		: "The data resource could not be resolved.";
 
 const nearlyEqual = (
 	left: number,

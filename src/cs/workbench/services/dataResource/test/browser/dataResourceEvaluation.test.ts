@@ -19,13 +19,13 @@ import {
 } from "src/cs/workbench/services/table/common/model";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import type {
-	ITableModelContentProvider,
 	ITableModelReference,
 	ITableModelService,
 } from "src/cs/workbench/services/table/common/resolverService";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type { UserTemplateSnapshot } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
+import { TestDataResourceContentService } from "src/cs/workbench/services/dataResource/test/common/testDataResourceContentService";
 
 type EvaluationExpectation = {
 	readonly decision: ReviewResult["decision"]["kind"];
@@ -68,7 +68,7 @@ const evaluateSample = async (
 	const resource = URI.file(`/workspace/eval-${resourceCounter}.csv`);
 	const tableModelService = store.add(new TestTableModelService(resource, createTableContent(sample.rows)));
 	const service = store.add(new DataResourceService(
-		tableModelService,
+		store.add(new TestDataResourceContentService(tableModelService)),
 		settingsService,
 		testStructuredContentEvidenceService,
 	));
@@ -439,14 +439,6 @@ class TestTableModelService extends Disposable implements ITableModelService {
 		return resource && this.canHandleResource(resource)
 			? this.model
 			: undefined;
-	}
-
-	public registerContentProvider(provider: ITableModelContentProvider): { dispose(): void } {
-		return {
-			dispose: () => {
-				provider.dispose();
-			},
-		};
 	}
 
 	public resolve(resource: URI, source?: TableSource | null): void {

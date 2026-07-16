@@ -31,10 +31,10 @@ import {
 } from "src/cs/workbench/services/table/common/model";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import type {
-	ITableModelContentProvider,
 	ITableModelReference,
 	ITableModelService,
 } from "src/cs/workbench/services/table/common/resolverService";
+import { TestDataResourceContentService } from "src/cs/workbench/services/dataResource/test/common/testDataResourceContentService";
 import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
 
 suite("workbench/services/dataResource/test/browser/dataResourceService", () => {
@@ -53,7 +53,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			getConductorSettings: () => conductorSettings,
 		} as unknown as ISettingsService;
 		const service = store.add(new DataResourceService(
-			tableModelService,
+			store.add(new TestDataResourceContentService(tableModelService)),
 			settingsService,
 			testStructuredContentEvidenceService,
 		));
@@ -1008,7 +1008,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			]),
 		));
 		const service = store.add(new DataResourceService(
-			tableModelService,
+			store.add(new TestDataResourceContentService(tableModelService)),
 			settingsService,
 			testStructuredContentEvidenceService,
 		));
@@ -1044,7 +1044,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		));
 		const evidenceService = new ControlledStructuredContentEvidenceService();
 		const service = store.add(new DataResourceService(
-			tableModelService,
+			store.add(new TestDataResourceContentService(tableModelService)),
 			settingsService,
 			evidenceService,
 		));
@@ -1079,6 +1079,51 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		reference.dispose();
 	});
 
+	test("restarts evidence production when physical content changes in flight", async () => {
+		const resource = URI.file("/workspace/stale-content.csv");
+		const settingsService = {
+			onDidChangeConductorSettings: Event.None,
+			getConductorSettings: () => null,
+		} as unknown as ISettingsService;
+		const tableModelService = store.add(new ReResolvingTableModelService(
+			resource,
+			createTableContent([
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			]),
+		));
+		const evidenceService = new ControlledStructuredContentEvidenceService();
+		const service = store.add(new DataResourceService(
+			store.add(new TestDataResourceContentService(tableModelService)),
+			settingsService,
+			evidenceService,
+		));
+
+		const resolvingReference = service.resolveStructuredContent({ resource });
+		await waitFor(() => evidenceService.requestCount === 1);
+		await tableModelService.resolveWith(createTableContent([
+			["Vg", "Id"],
+			["0", "7"],
+			["1", "8"],
+		]), 2);
+		await evidenceService.resolveNext();
+		await waitFor(() => evidenceService.requestCount === 2);
+		await evidenceService.resolveNext();
+
+		const reference = await resolvingReference;
+		assert.equal(reference.object.kind, "ready");
+		if (reference.object.kind === "ready") {
+			assert.deepStrictEqual(reference.object.snapshot.content.rows, [
+				["Vg", "Id"],
+				["0", "7"],
+				["1", "8"],
+			]);
+			assert.equal(reference.object.snapshot.sourceVersion, 2);
+		}
+		reference.dispose();
+	});
+
 	test("does not publish resource changes when stable table content is unchanged", async () => {
 		const resource = URI.file("/workspace/reopened.csv");
 		const settingsService = {
@@ -1094,7 +1139,7 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			]),
 		));
 		const service = store.add(new DataResourceService(
-			tableModelService,
+			store.add(new TestDataResourceContentService(tableModelService)),
 			settingsService,
 			testStructuredContentEvidenceService,
 		));
@@ -1161,14 +1206,6 @@ class TestTableModelService extends Disposable implements ITableModelService {
 		return resource && this.canHandleResource(resource)
 			? this.model
 			: undefined;
-	}
-
-	public registerContentProvider(provider: ITableModelContentProvider): { dispose(): void } {
-		return {
-			dispose: () => {
-				provider.dispose();
-			},
-		};
 	}
 
 	public resolve(resource: URI, source?: TableSource | null): void {
@@ -1249,14 +1286,6 @@ class ReResolvingTableModelService extends Disposable implements ITableModelServ
 		return resource && this.canHandleResource(resource)
 			? this.model
 			: undefined;
-	}
-
-	public registerContentProvider(provider: ITableModelContentProvider): { dispose(): void } {
-		return {
-			dispose: () => {
-				provider.dispose();
-			},
-		};
 	}
 
 	public resolve(resource: URI, source?: TableSource | null): void {

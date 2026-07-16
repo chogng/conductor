@@ -46,10 +46,10 @@ import {
 } from "src/cs/workbench/services/table/common/model";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import type {
-	ITableModelContentProvider,
 	ITableModelReference,
 	ITableModelService,
 } from "src/cs/workbench/services/table/common/resolverService";
+import { TestDataResourceContentService } from "src/cs/workbench/services/dataResource/test/common/testDataResourceContentService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import { UserDataProfileResourceService } from "src/cs/workbench/services/userDataProfile/browser/userDataProfileResourceService";
@@ -83,7 +83,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		content: TableModelContentSnapshot = createTestTableModelContent(),
 		conductorSettings: Record<string, unknown> | null = null,
 	): IDataResourceService =>
-		store.add(new DataResourceService(store.add(new TestTableModelService(resource, diagnostics, fixedSheetId, content)), {
+		store.add(new DataResourceService(store.add(new TestDataResourceContentService(store.add(new TestTableModelService(resource, diagnostics, fixedSheetId, content)))), {
 			onDidChangeConductorSettings: Event.None,
 			getConductorSettings: () => conductorSettings,
 		} as unknown as ISettingsService, testStructuredContentEvidenceService));
@@ -1584,14 +1584,6 @@ class TestTableModelService extends Disposable implements ITableModelService {
 		return resource && this.canHandleResource(resource)
 			? this.model
 			: undefined;
-	}
-
-	public registerContentProvider(provider: ITableModelContentProvider): { dispose(): void } {
-		return {
-			dispose: () => {
-				provider.dispose();
-			},
-		};
 	}
 
 	public resolve(resource: URI, source?: TableSource | null): void {
