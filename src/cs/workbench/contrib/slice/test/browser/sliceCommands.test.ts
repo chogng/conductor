@@ -160,6 +160,59 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.deepEqual(confirmations, []);
 	});
 
+	test("uses the resource saved template selection when the bulk command is automatic", async () => {
+		const sliceService = new TestSliceService();
+		const resource = URI.file("/workspace/transfer.csv");
+		const reviewedTemplate = createReviewedTemplate();
+		const manualSelections: TemplateSelection[] = [];
+		sliceService.setTemplateSelection(resource, "sheet-a", {
+			kind: "saved",
+			templateId: "template-a",
+		});
+
+		runSliceWithTemplateHandler(createAccessor({
+			explorerFiles: [{
+				fileId: "file-a",
+				id: "file-a",
+				name: "transfer.csv",
+				resource,
+				sheetId: "sheet-a",
+			}],
+			reviewService: createReviewServiceForTest({
+				reviewResourceForExecution: async target => createReadyResourceExecution({
+					applicationKind: "userActionRequired",
+					reviewedTemplate,
+					reviewSignature: "review:manual",
+					target,
+				}),
+				reviewResourceManualTemplate: async input => {
+					manualSelections.push({
+						kind: "saved",
+						templateId: input.selection.templateId,
+					});
+					return {
+						kind: "ready",
+						reviewedTemplate,
+						suggestedActions: [],
+					};
+				},
+			}),
+			sliceService,
+			templateState: createTemplateState({
+				selectedTemplateId: null,
+			}),
+		}));
+
+		await waitForMicrotasks();
+
+		assert.deepEqual(manualSelections, [{
+			kind: "saved",
+			templateId: "template-a",
+		}]);
+		assert.equal(sliceService.resourceRequests.length, 1);
+		assert.equal(sliceService.resourceRequests[0]?.trigger.kind, "userCommand");
+	});
+
 	test("confirms manual resource reviewed templates before submitting slice requests", async () => {
 		const sliceService = new TestSliceService();
 		const resource = URI.file("/workspace/transfer.csv");
@@ -330,6 +383,7 @@ class TestSliceService implements ISliceService {
 	public readonly onDidChangeTemplateSelection = Event.None as Event<ResourceSheetIdentity>;
 	public readonly onDidChangeResourceSliceResult = Event.None as Event<ResourceSheetIdentity>;
 	public readonly resourceRequests: SliceResourceRequest[] = [];
+	private readonly templateSelections = new Map<string, TemplateSelection>();
 
 	public getState(): SliceState {
 		return {
@@ -346,8 +400,8 @@ class TestSliceService implements ISliceService {
 		return undefined;
 	}
 
-	public getTemplateSelection(): TemplateSelection {
-		return { kind: "auto" };
+	public getTemplateSelection(resource: URI, sheetId?: string | null): TemplateSelection {
+		return this.templateSelections.get(createResourceSheetKey(resource, sheetId)) ?? { kind: "auto" };
 	}
 
 	public submitResource(requests: readonly SliceResourceRequest[]): void {
@@ -355,8 +409,20 @@ class TestSliceService implements ISliceService {
 	}
 	public prioritizeResource(_resource: URI, _sheetId?: string | null): void {}
 	public cancelResource(_resources: readonly ResourceSheetIdentity[]): void {}
-	public setTemplateSelection(_resource: URI, _sheetId: string | null | undefined, _selection: TemplateSelection): void {}
+	public setTemplateSelection(resource: URI, sheetId: string | null | undefined, selection: TemplateSelection): void {
+		const key = createResourceSheetKey(resource, sheetId);
+		if (selection.kind === "auto") {
+			this.templateSelections.delete(key);
+		} else {
+			this.templateSelections.set(key, selection);
+		}
+	}
 }
+
+const createResourceSheetKey = (
+	resource: URI,
+	sheetId?: string | null,
+): string => `${resource.toString()}\u0000${String(sheetId ?? "").trim()}`;
 
 const createAccessor = ({
 	explorerFiles = [],

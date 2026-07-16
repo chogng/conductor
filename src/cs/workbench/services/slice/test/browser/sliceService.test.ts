@@ -5,8 +5,21 @@
 import assert from "assert";
 
 import { Emitter, Event } from "src/cs/base/common/event";
+import { Disposable } from "src/cs/base/common/lifecycle";
+import { joinPath } from "src/cs/base/common/resources";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import {
+	StorageScope,
+	type IStorageService,
+} from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
+import type {
+	IWorkspaceContextService,
+	IWorkspaceFoldersChangeEvent,
+	IWorkspaceFoldersWillChangeEvent,
+} from "src/cs/platform/workspace/common/workspace";
+import type { IAnyWorkspaceIdentifier } from "src/cs/platform/workspaces/common/workspaceIdentifier";
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
@@ -26,6 +39,10 @@ import type {
 	SliceResourceRequest,
 } from "src/cs/workbench/services/slice/common/slice";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
+import type {
+	IUserTemplateService,
+	UserTemplateChangeEvent,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
 import { TestDataResourceContentService } from "src/cs/workbench/services/dataResource/test/common/testDataResourceContentService";
 
@@ -92,6 +109,162 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			resource: resource.resource.toString(),
 			sheetId: "sheet-a",
 		}]);
+	});
+
+	test("persists saved template selections in the owning workspace", async () => {
+		const storageService = store.add(new TestSliceStorageService("workspace-a"));
+		const workspaceContextService = store.add(new TestSliceWorkspaceContextService(
+			URI.file("/workspace-a"),
+			storageService,
+		));
+		const sliceService = store.add(new SliceService(
+			undefined,
+			storageService,
+			workspaceContextService as unknown as IWorkspaceContextService,
+		));
+		const resourceA = URI.file("/workspace-a/file.csv");
+		const resourceB = URI.file("/workspace-b/file.csv");
+
+		sliceService.setTemplateSelection(resourceA, "sheet-a", {
+			kind: "saved",
+			templateId: "template-a",
+		});
+		assert.equal(
+			storageService.keys(StorageScope.WORKSPACE)
+				.filter(key => key.startsWith("slice.templateSelection.v1:")).length,
+			1,
+		);
+
+		await workspaceContextService.changeFolder(URI.file("/workspace-b"), "workspace-b");
+		assert.deepEqual(sliceService.getTemplateSelection(resourceA, "sheet-a"), { kind: "auto" });
+		sliceService.setTemplateSelection(resourceB, "sheet-a", {
+			kind: "saved",
+			templateId: "template-b",
+		});
+
+		await workspaceContextService.changeFolder(URI.file("/workspace-a"), "workspace-a");
+		assert.deepEqual(sliceService.getTemplateSelection(resourceA, "sheet-a"), {
+			kind: "saved",
+			templateId: "template-a",
+		});
+		assert.deepEqual(sliceService.getTemplateSelection(resourceB, "sheet-a"), { kind: "auto" });
+
+		sliceService.setTemplateSelection(resourceA, "sheet-a", { kind: "auto" });
+		assert.equal(
+			storageService.keys(StorageScope.WORKSPACE)
+				.filter(key => key.startsWith("slice.templateSelection.v1:")).length,
+			0,
+		);
+	});
+
+	test("removes saved selections when their user template is deleted", () => {
+		const storageService = store.add(new TestSliceStorageService("workspace-a"));
+		const workspaceContextService = store.add(new TestSliceWorkspaceContextService(
+			URI.file("/workspace-a"),
+			storageService,
+		));
+		const onDidChangeUserTemplatesEmitter = store.add(new Emitter<UserTemplateChangeEvent>());
+		const templateIds = new Set(["template-a"]);
+		const userTemplateService = {
+			onDidChangeUserTemplates: onDidChangeUserTemplatesEmitter.event,
+			getTemplate: (templateId: string) =>
+				templateIds.has(templateId) ? { id: templateId } : undefined,
+		} as unknown as IUserTemplateService;
+		const sliceService = store.add(new SliceService(
+			undefined,
+			storageService,
+			workspaceContextService as unknown as IWorkspaceContextService,
+			userTemplateService,
+		));
+		const resource = URI.file("/workspace-a/file.csv");
+		sliceService.setTemplateSelection(resource, null, {
+			kind: "saved",
+			templateId: "template-a",
+		});
+
+		templateIds.delete("template-a");
+		onDidChangeUserTemplatesEmitter.fire({
+			version: 2,
+			effectiveFingerprint: "",
+		});
+
+		assert.deepEqual(sliceService.getTemplateSelection(resource), { kind: "auto" });
+		assert.equal(
+			storageService.keys(StorageScope.WORKSPACE)
+				.filter(key => key.startsWith("slice.templateSelection.v1:")).length,
+			0,
+		);
+	});
+
+	test("isolates in-flight queue work across workspace changes", async () => {
+		const resourceA = URI.file("/workspace-a/source.csv");
+		const resourceB = URI.file("/workspace-b/source.csv");
+		const content: TableModelContentSnapshot = {
+			columnCount: 2,
+			maxCellLengths: [2, 2],
+			rowCount: 3,
+			rows: [
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			],
+		};
+		const tableModelService = store.add(new DeferredTableModelService());
+		const storageService = store.add(new TestSliceStorageService("workspace-a"));
+		const workspaceContextService = store.add(new TestSliceWorkspaceContextService(
+			URI.file("/workspace-a"),
+			storageService,
+		));
+		const sliceService = store.add(new SliceService(
+			createDataResourceServiceForTest(tableModelService),
+			storageService,
+			workspaceContextService as unknown as IWorkspaceContextService,
+		));
+		const targetA = { resource: resourceA, sheetId: "sheet-a" };
+		const targetB = { resource: resourceB, sheetId: "sheet-a" };
+
+		sliceService.submitResource([createResourceSliceRequest(targetA)]);
+		await waitUntil(() => sliceService.getResourceState(targetA.resource, targetA.sheetId)?.state === "processing");
+		await workspaceContextService.changeFolder(URI.file("/workspace-b"), "workspace-b");
+		sliceService.submitResource([createResourceSliceRequest(targetB)]);
+		await waitUntil(() => sliceService.getResourceState(targetB.resource, targetB.sheetId)?.state === "processing");
+		tableModelService.resolveNextReference({
+			content,
+			defaultSheetId: "sheet-a",
+			diagnostics: [],
+			format: "csv",
+			loadState: { state: "ready", message: "" },
+			resource: resourceA,
+			sheets: [{
+				content,
+				diagnostics: [],
+				sheetId: "sheet-a",
+				sheetName: "Sheet A",
+			}],
+			sourceVersion: 1,
+			version: 1,
+		});
+		tableModelService.resolveNextReference({
+			content,
+			defaultSheetId: "sheet-a",
+			diagnostics: [],
+			format: "csv",
+			loadState: { state: "ready", message: "" },
+			resource: resourceB,
+			sheets: [{
+				content,
+				diagnostics: [],
+				sheetId: "sheet-a",
+				sheetName: "Sheet A",
+			}],
+			sourceVersion: 1,
+			version: 1,
+		});
+		await waitUntil(() => sliceService.getResourceState(targetB.resource, targetB.sheetId)?.state === "ready");
+
+		assert.equal(sliceService.getResourceResult(targetA.resource, targetA.sheetId), null);
+		assert.equal(sliceService.getResourceState(targetA.resource, targetA.sheetId), undefined);
+		assert.ok(sliceService.getResourceResult(targetB.resource, targetB.sheetId));
 	});
 
 	test("cleans queued resource state when the table model resource changes", async () => {
@@ -255,6 +428,10 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		const listener = sliceService.onDidChangeResourceSliceResult(changedResource => {
 			changedResources.push(changedResource);
 		});
+		sliceService.setTemplateSelection(target.resource, target.sheetId, {
+			kind: "saved",
+			templateId: "template-a",
+		});
 
 		sliceService.submitResource([createResourceSliceRequest(target)]);
 		await waitUntil(() => sliceService.getResourceState(target.resource, target.sheetId)?.state === "ready");
@@ -268,6 +445,10 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			resource.toString(),
 		]);
 		assert.equal(sliceService.getResourceResult(target.resource, target.sheetId), null);
+		assert.deepEqual(sliceService.getTemplateSelection(target.resource, target.sheetId), {
+			kind: "saved",
+			templateId: "template-a",
+		});
 	});
 
 	test("does not fall back to the default sheet when a resource slice sheet target is missing", async () => {
@@ -310,6 +491,115 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(sliceService.getResourceResult(target.resource, target.sheetId), null);
 	});
 });
+
+class TestSliceStorageService extends AbstractStorageService {
+	private readonly values = new Map<string, string>();
+
+	public constructor(
+		private workspaceId: string,
+	) {
+		super();
+	}
+
+	public override async switchWorkspace(workspace: IAnyWorkspaceIdentifier): Promise<void> {
+		this.workspaceId = workspace.id;
+	}
+
+	protected readValue(key: string, scope: StorageScope): string | undefined {
+		return this.values.get(this.storageKey(key, scope));
+	}
+
+	protected writeValue(key: string, scope: StorageScope, value: string): void {
+		this.values.set(this.storageKey(key, scope), value);
+	}
+
+	protected deleteValue(key: string, scope: StorageScope): void {
+		this.values.delete(this.storageKey(key, scope));
+	}
+
+	protected readKeys(scope: StorageScope): string[] {
+		const prefix = this.storageKey("", scope);
+		return [...this.values.keys()]
+			.filter(key => key.startsWith(prefix))
+			.map(key => key.slice(prefix.length));
+	}
+
+	private storageKey(key: string, scope: StorageScope): string {
+		const namespace = scope === StorageScope.WORKSPACE
+			? this.workspaceId
+			: "global";
+		return `${namespace}:${scope}:${key}`;
+	}
+}
+
+class TestSliceWorkspaceContextService extends Disposable {
+	public declare readonly _serviceBrand: undefined;
+
+	private readonly onWillChangeWorkspaceFoldersEmitter =
+		this._register(new Emitter<IWorkspaceFoldersWillChangeEvent>());
+	public readonly onWillChangeWorkspaceFolders =
+		this.onWillChangeWorkspaceFoldersEmitter.event;
+	private readonly onDidChangeWorkspaceFoldersEmitter =
+		this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
+	public readonly onDidChangeWorkspaceFolders =
+		this.onDidChangeWorkspaceFoldersEmitter.event;
+
+	public constructor(
+		private folder: URI,
+		private readonly storageService: IStorageService,
+	) {
+		super();
+	}
+
+	public getWorkspaceRelativePath(resource: URI): string | null {
+		const folderPath = this.folder.path.replace(/\/+$/, "");
+		const resourcePath = URI.revive(resource).path;
+		if (
+			resource.scheme !== this.folder.scheme ||
+			resource.authority !== this.folder.authority ||
+			!resourcePath.startsWith(`${folderPath}/`)
+		) {
+			return null;
+		}
+
+		return resourcePath.slice(folderPath.length + 1);
+	}
+
+	public resolveWorkspaceRelativePath(relativePath: string): URI | null {
+		const normalizedPath = relativePath.trim().replaceAll("\\", "/");
+		if (
+			!normalizedPath ||
+			normalizedPath === ".." ||
+			normalizedPath.startsWith("../") ||
+			normalizedPath.startsWith("/")
+		) {
+			return null;
+		}
+
+		return joinPath(this.folder, normalizedPath);
+	}
+
+	public async changeFolder(folder: URI, workspaceId: string): Promise<void> {
+		const changes: IWorkspaceFoldersChangeEvent = {
+			added: [],
+			removed: [],
+			changed: [],
+		};
+		const joins: Promise<void>[] = [];
+		this.onWillChangeWorkspaceFoldersEmitter.fire({
+			changes,
+			fromCache: false,
+			join: promise => joins.push(promise),
+		});
+		await Promise.all(joins);
+		await this.storageService.switchWorkspace({
+			id: workspaceId,
+			uri: folder,
+		} as IAnyWorkspaceIdentifier);
+		this.folder = folder;
+		this.onDidChangeWorkspaceFoldersEmitter.fire(changes);
+	}
+}
 
 const createTemplate = (
 	options: {
@@ -446,6 +736,45 @@ class BlockingTableModelService implements ITableModelService {
 
 	public dispose(): void {
 		this.onDidChangeModelEmitter.dispose();
+	}
+}
+
+class DeferredTableModelService implements ITableModelService {
+	public declare readonly _serviceBrand: undefined;
+	public readonly onDidChangeModel = Event.None as ITableModelService["onDidChangeModel"];
+	private readonly pendingModelReferenceResolvers:
+		Array<(reference: ITableModelReference) => void> = [];
+
+	public canHandleResource(): boolean {
+		return true;
+	}
+
+	public createModelReference(): Promise<ITableModelReference> {
+		return new Promise(resolve => {
+			this.pendingModelReferenceResolvers.push(resolve);
+		});
+	}
+
+	public get(): ITableModel | undefined {
+		return undefined;
+	}
+
+	public resolve(_resource: URI, _source?: TableSource | null): void {}
+
+	public resolveNextReference(snapshot: TableModelSnapshot): void {
+		const resolveModelReference = this.pendingModelReferenceResolvers.shift();
+		assert.ok(resolveModelReference);
+		resolveModelReference({
+			object: {
+				resource: snapshot.resource,
+				getSnapshot: () => snapshot,
+			} as ITableModel,
+			dispose: () => undefined,
+		});
+	}
+
+	public dispose(): void {
+		this.pendingModelReferenceResolvers.length = 0;
 	}
 }
 

@@ -14,6 +14,9 @@ review template quality, or decide whether the system should apply a template.
 
 - per-resource `TemplateSelection` state as the current template slot for a
   `{ resource, sheetId? }` identity;
+- workspace-scoped persistence of saved per-resource template overrides through
+  `IStorageService`; automatic selection remains the implicit default and is not
+  persisted as a duplicate record;
 - `SliceResourceRequest` queue entries from resource review execution controllers
   or user commands;
 - resource/sheet state, priority, cancellation, and queue draining;
@@ -106,6 +109,8 @@ Bulk command flow:
 ```txt
 slice.runWithTemplate / slice.runWithTemplateIncremental command
   -> collect `{ resource, sheetId? }` identities from Explorer state
+  -> explicit saved Template selection in the Template view overrides the batch
+  -> otherwise read each resource/sheet TemplateSelection slot
   -> ReviewService.reviewResourceForExecution({ resource, sheetId }) for each resource/sheet
   -> resources use Review's execution projection and manual Template review
   -> ISliceService.submitResource(...) for resource/sheet identities
@@ -128,6 +133,13 @@ Cleanup flow:
 ```txt
 Data-resource content/evidence/materialization changed
   -> SliceService removes matching resource/sheet queue entries and results
+  -> saved TemplateSelection remains attached to the resource/sheet
+  -> the next execution revalidates that selection against current data through Review
+
+Workspace folder changed
+  -> flush workspace storage
+  -> clear Slice queue/result/progress state
+  -> restore saved TemplateSelection records from the new workspace storage
 
 User cancel resource/all
   -> ISliceService.cancelResource([{ resource, sheetId? }, ...])

@@ -150,6 +150,9 @@ const runResourcesWithTemplate = async ({
 }): Promise<void> => {
 	const requests: SliceResourceRequest[] = [];
 	for (const resource of resources) {
+		const resourceSelection = selection.kind === "saved"
+			? selection
+			: sliceService.getTemplateSelection(resource.resource, resource.sheetId);
 		const reviewExecution = await reviewService.reviewResourceForExecution({
 			resource: resource.resource,
 			sheetId: resource.sheetId ?? null,
@@ -158,9 +161,9 @@ const runResourcesWithTemplate = async ({
 			continue;
 		}
 
-		const reviewedTemplate = selection.kind === "auto"
+		const reviewedTemplate = resourceSelection.kind === "auto"
 			? reviewExecution.systemRecommendedReviewedTemplate ?? null
-			: await getManualReviewedTemplate(reviewService, reviewExecution, selection);
+			: await getManualReviewedTemplate(reviewService, reviewExecution, resourceSelection);
 		if (!reviewedTemplate) {
 			continue;
 		}
@@ -169,14 +172,14 @@ const runResourcesWithTemplate = async ({
 			review: reviewExecution,
 			reviewedTemplate,
 			resource,
-			selection,
+			selection: resourceSelection,
 		});
 		if (request) {
 			await confirmManualReviewedTemplate({
 				review: reviewExecution,
 				reviewedTemplate,
 				reviewService,
-				selection,
+				selection: resourceSelection,
 			});
 			requests.push(request);
 		}

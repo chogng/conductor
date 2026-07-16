@@ -8,6 +8,16 @@ import type { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
 import {
+	IStorageService,
+	StorageScope,
+	StorageTarget,
+	type IStorageService as IStorageServiceType,
+} from "src/cs/platform/storage/common/storage";
+import {
+	IWorkspaceContextService,
+	type IWorkspaceContextService as IWorkspaceContextServiceType,
+} from "src/cs/platform/workspace/common/workspace";
+import {
 	ISliceService,
 	type ISliceService as ISliceServiceType,
 	type SliceExecutionResult,
@@ -43,6 +53,10 @@ import {
 	type TemplateSelection,
 	type TemplateResourceSelection,
 } from "src/cs/workbench/services/slice/common/templateSelection";
+import {
+	IUserTemplateService,
+	type IUserTemplateService as IUserTemplateServiceType,
+} from "src/cs/workbench/services/userTemplate/common/userTemplate";
 
 type SliceResourceIdentity = {
 	readonly resource: URI;
@@ -53,6 +67,7 @@ type ResourceSliceQueueEntry = {
 	readonly kind: "resource";
 	readonly request: SliceResourceRequest;
 	readonly plan: SlicePlan;
+	readonly workspaceGeneration: number;
 };
 
 type SliceQueueEntry = ResourceSliceQueueEntry;
@@ -61,6 +76,16 @@ type ResolvedResourceSliceRows = {
 	readonly content: StructuredContentGridSnapshot;
 	readonly sourceModelVersion: number;
 	readonly sourceVersion: number;
+};
+
+const PersistedTemplateSelectionVersion = 1;
+const PersistedTemplateSelectionStoragePrefix = "slice.templateSelection.v1:";
+
+type PersistedTemplateSelection = {
+	readonly version: typeof PersistedTemplateSelectionVersion;
+	readonly relativePath: string;
+	readonly sheetId: string | null;
+	readonly templateId: string;
 };
 
 export class SliceService extends Disposable implements ISliceServiceType {
@@ -78,11 +103,16 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private readonly queue: SliceQueueEntry[] = [];
 	private readonly resourceResultsByCacheKey = new Map<string, SliceResourceResult>();
 	private readonly templateSelectionsByResource = new Map<string, TemplateResourceSelection>();
+	private readonly runningSliceQueueGenerations = new Set<number>();
 	private activeQueueKey: string | null = null;
-	private isSliceQueueRunning = false;
+	private isChangingWorkspace = false;
+	private workspaceGeneration = 0;
 
 	public constructor(
 		@IDataResourceService private readonly dataResourceService?: IDataResourceServiceType,
+		@IStorageService private readonly storageService?: IStorageServiceType,
+		@IWorkspaceContextService private readonly workspaceContextService?: IWorkspaceContextServiceType,
+		@IUserTemplateService private readonly userTemplateService?: IUserTemplateServiceType,
 	) {
 		super();
 		if (this.dataResourceService) {
@@ -90,6 +120,26 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				this.removeResourceResultsForResource(resource);
 			}));
 		}
+		if (this.workspaceContextService) {
+			this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(event => {
+				this.isChangingWorkspace = true;
+				event.join(this.storageService?.flush() ?? Promise.resolve());
+			}));
+			this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => {
+				this.clearWorkspaceState();
+				this.restorePersistedTemplateSelections();
+				this.isChangingWorkspace = false;
+				this.fireSliceStateChange();
+			}));
+		}
+		if (this.userTemplateService) {
+			this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
+				if (!this.isChangingWorkspace) {
+					this.removeMissingTemplateSelections();
+				}
+			}));
+		}
+		this.restorePersistedTemplateSelections();
 	}
 
 	public getState(): SliceState {
@@ -135,7 +185,12 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				continue;
 			}
 
-			this.enqueueSliceEntry({ kind: "resource", request, plan });
+			this.enqueueSliceEntry({
+				kind: "resource",
+				request,
+				plan,
+				workspaceGeneration: this.workspaceGeneration,
+			});
 			didChange = this.setResourceState(cacheKey, { state: "queued" }) || didChange;
 		}
 		if (didChange) {
@@ -206,17 +261,22 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		const nextSelection = normalizeTemplateSelection(selection);
 		const cacheKey = createSliceResourceCacheKey(normalizedResource.resource, normalizedResource.sheetId);
 		if (areTemplateSelectionsEqual(
-			this.templateSelectionsByResource.get(cacheKey)?.selection,
+			this.templateSelectionsByResource.get(cacheKey)?.selection ?? { kind: "auto" },
 			nextSelection,
 		)) {
 			return;
 		}
 
-		this.templateSelectionsByResource.set(cacheKey, {
-			resource: normalizedResource.resource,
-			sheetId: normalizedResource.sheetId ?? null,
-			selection: nextSelection,
-		});
+		if (nextSelection.kind === "auto") {
+			this.templateSelectionsByResource.delete(cacheKey);
+		} else {
+			this.templateSelectionsByResource.set(cacheKey, {
+				resource: normalizedResource.resource,
+				sheetId: normalizedResource.sheetId ?? null,
+				selection: nextSelection,
+			});
+		}
+		this.persistTemplateSelection(normalizedResource, nextSelection);
 		this.onDidChangeTemplateSelectionEmitter.fire(normalizedResource);
 		this.fireSliceStateChange();
 	}
@@ -241,11 +301,16 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	}
 
 	private startSliceQueue(): void {
-		if (this.isSliceQueueRunning || !this.queue.length || !this.canProcessQueuedSlices()) {
+		const workspaceGeneration = this.workspaceGeneration;
+		if (
+			this.runningSliceQueueGenerations.has(workspaceGeneration) ||
+			!this.queue.length ||
+			!this.canProcessQueuedSlices()
+		) {
 			return;
 		}
 
-		void this.drainSliceQueue();
+		void this.drainSliceQueue(workspaceGeneration);
 	}
 
 	private enqueueSliceEntry(entry: SliceQueueEntry): void {
@@ -259,14 +324,18 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.queue[index] = entry;
 	}
 
-	private async drainSliceQueue(): Promise<void> {
-		if (this.isSliceQueueRunning || !this.canProcessQueuedSlices()) {
+	private async drainSliceQueue(workspaceGeneration: number): Promise<void> {
+		if (
+			workspaceGeneration !== this.workspaceGeneration ||
+			this.runningSliceQueueGenerations.has(workspaceGeneration) ||
+			!this.canProcessQueuedSlices()
+		) {
 			return;
 		}
 
-		this.isSliceQueueRunning = true;
+		this.runningSliceQueueGenerations.add(workspaceGeneration);
 		try {
-			while (this.queue.length) {
+			while (workspaceGeneration === this.workspaceGeneration && this.queue.length) {
 				const entry = this.queue.shift();
 				if (!entry) {
 					continue;
@@ -283,8 +352,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				await this.processResourceSliceEntry(entry);
 			}
 		} finally {
-			this.isSliceQueueRunning = false;
-			if (this.queue.length) {
+			this.runningSliceQueueGenerations.delete(workspaceGeneration);
+			if (workspaceGeneration === this.workspaceGeneration && this.queue.length) {
 				this.startSliceQueue();
 			}
 		}
@@ -297,6 +366,9 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private async processResourceSliceEntry(entry: ResourceSliceQueueEntry): Promise<void> {
 		const cacheKey = createSliceResourceCacheKey(entry.request.resource, entry.request.sheetId);
 		const resolved = await this.readRowsForResourceRequest(entry.request);
+		if (entry.workspaceGeneration !== this.workspaceGeneration) {
+			return;
+		}
 		if (!resolved) {
 			this.setResourceState(cacheKey, {
 				state: "failed",
@@ -479,6 +551,131 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 	}
 
+	private clearWorkspaceState(): void {
+		this.workspaceGeneration += 1;
+		const resultTargets = [...this.resourceResultsByCacheKey.values()]
+			.map(result => normalizeSliceResource(result.resource, result.sheetId));
+		const selectionTargets = [...this.templateSelectionsByResource.values()]
+			.map(selection => normalizeSliceResource(selection.resource, selection.sheetId));
+		this.queue.length = 0;
+		this.activeQueueKey = null;
+		this.resourceStatesByCacheKey.clear();
+		this.resourcesByCacheKey.clear();
+		this.resourceResultsByCacheKey.clear();
+		this.templateSelectionsByResource.clear();
+		for (const target of resultTargets) {
+			this.fireResourceSliceResultChange(target.resource, target.sheetId);
+		}
+		for (const target of selectionTargets) {
+			this.onDidChangeTemplateSelectionEmitter.fire(target);
+		}
+	}
+
+	private restorePersistedTemplateSelections(): void {
+		if (!this.storageService || !this.workspaceContextService) {
+			return;
+		}
+
+		for (const storageKey of this.storageService.keys(StorageScope.WORKSPACE)) {
+			if (!storageKey.startsWith(PersistedTemplateSelectionStoragePrefix)) {
+				continue;
+			}
+
+			const persisted = this.storageService.getObject<PersistedTemplateSelection>(
+				storageKey,
+				StorageScope.WORKSPACE,
+			);
+			const selection = normalizePersistedTemplateSelection(persisted);
+			const resource = selection
+				? this.workspaceContextService.resolveWorkspaceRelativePath(selection.relativePath)
+				: null;
+			if (
+				!selection ||
+				!resource ||
+				storageKey !== createPersistedTemplateSelectionStorageKey(
+					selection.relativePath,
+					selection.sheetId,
+				) ||
+				(this.userTemplateService && !this.userTemplateService.getTemplate(selection.templateId))
+			) {
+				this.storageService.remove(storageKey, StorageScope.WORKSPACE);
+				continue;
+			}
+
+			const normalizedResource = normalizeSliceResource(resource, selection.sheetId);
+			this.templateSelectionsByResource.set(
+				createSliceResourceCacheKey(normalizedResource.resource, normalizedResource.sheetId),
+				{
+					...normalizedResource,
+					selection: {
+						kind: "saved",
+						templateId: selection.templateId,
+					},
+				},
+			);
+			this.onDidChangeTemplateSelectionEmitter.fire(normalizedResource);
+		}
+	}
+
+	private persistTemplateSelection(
+		resource: SliceResourceIdentity,
+		selection: TemplateSelection,
+	): void {
+		if (!this.storageService || !this.workspaceContextService) {
+			return;
+		}
+
+		const relativePath = this.workspaceContextService.getWorkspaceRelativePath(resource.resource);
+		if (!relativePath) {
+			return;
+		}
+
+		const storageKey = createPersistedTemplateSelectionStorageKey(
+			relativePath,
+			resource.sheetId,
+		);
+		if (selection.kind === "auto") {
+			this.storageService.remove(storageKey, StorageScope.WORKSPACE);
+			return;
+		}
+
+		this.storageService.store(
+			storageKey,
+			{
+				version: PersistedTemplateSelectionVersion,
+				relativePath,
+				sheetId: normalizeText(resource.sheetId) || null,
+				templateId: selection.templateId,
+			} satisfies PersistedTemplateSelection,
+			StorageScope.WORKSPACE,
+			StorageTarget.USER,
+		);
+	}
+
+	private removeMissingTemplateSelections(): void {
+		if (!this.userTemplateService) {
+			return;
+		}
+
+		let didChange = false;
+		for (const [cacheKey, resourceSelection] of this.templateSelectionsByResource) {
+			if (
+				resourceSelection.selection.kind !== "saved" ||
+				this.userTemplateService.getTemplate(resourceSelection.selection.templateId)
+			) {
+				continue;
+			}
+
+			this.templateSelectionsByResource.delete(cacheKey);
+			this.persistTemplateSelection(resourceSelection, { kind: "auto" });
+			this.onDidChangeTemplateSelectionEmitter.fire(resourceSelection);
+			didChange = true;
+		}
+		if (didChange) {
+			this.fireSliceStateChange();
+		}
+	}
+
 	private fireSliceStateChange(): void {
 		this.onDidChangeSliceStateEmitter.fire(undefined);
 	}
@@ -598,6 +795,45 @@ const createTemplateSelectionFromReviewedTemplate = (
 
 	return { kind: "auto" };
 };
+
+const normalizePersistedTemplateSelection = (
+	value: PersistedTemplateSelection | undefined,
+): PersistedTemplateSelection | null => {
+	if (
+		!value ||
+		value.version !== PersistedTemplateSelectionVersion ||
+		typeof value.relativePath !== "string" ||
+		(value.sheetId !== null && typeof value.sheetId !== "string") ||
+		typeof value.templateId !== "string"
+	) {
+		return null;
+	}
+
+	const relativePath = value.relativePath.trim().replaceAll("\\", "/");
+	const templateId = value.templateId.trim();
+	if (
+		!relativePath ||
+		relativePath === ".." ||
+		relativePath.startsWith("../") ||
+		relativePath.startsWith("/") ||
+		!templateId
+	) {
+		return null;
+	}
+
+	return {
+		version: PersistedTemplateSelectionVersion,
+		relativePath,
+		sheetId: normalizeText(value.sheetId) || null,
+		templateId,
+	};
+};
+
+const createPersistedTemplateSelectionStorageKey = (
+	relativePath: string,
+	sheetId?: string | null,
+): string =>
+	`${PersistedTemplateSelectionStoragePrefix}${encodeURIComponent(relativePath)}:${encodeURIComponent(normalizeText(sheetId))}`;
 
 const getSliceQueueEntryStateKey = (
 	entry: SliceQueueEntry,
