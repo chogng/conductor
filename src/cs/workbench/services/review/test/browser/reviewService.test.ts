@@ -15,6 +15,7 @@ import {
 } from "src/cs/platform/files/common/files";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
+import type { IWorkspaceContextService } from "src/cs/platform/workspace/common/workspace";
 import { DataResourceContentService } from "src/cs/workbench/services/dataResource/browser/dataResourceContentService";
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
 import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
@@ -83,10 +84,16 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		userTemplateService: IUserTemplateService,
 		dataResourceService?: IDataResourceService,
 		schemaProfileService?: ISchemaProfileService,
+		storageService?: TestStorageService,
+		workspaceContextService?: IWorkspaceContextService,
+		fileService?: IFileService,
 	) => store.add(new ReviewService(
 		userTemplateService,
 		dataResourceService,
 		schemaProfileService,
+		storageService,
+		workspaceContextService,
+		fileService,
 	));
 	const createDataResourceServiceForTest = (
 		resource: URI,
@@ -103,6 +110,71 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		resource: URI.file(`/workspace/${fileName}`),
 		modelVersion: 1,
 		sourceVersion: 1,
+	});
+
+	test("restores a current Review result from workspace storage without rerunning DataResource", async () => {
+		const resource = URI.file("/workspace/Transfer.csv");
+		const userTemplateService = createUserTemplateServiceForTest();
+		const storageService = store.add(new TestStorageService());
+		const workspaceContextService = createWorkspaceContextServiceStub(resource);
+		const fileService = createReviewFileServiceStub(100, 2048);
+		const firstDataResourceService = createDataResourceServiceForTest(resource);
+		const first = createReviewServiceForTest(
+			userTemplateService,
+			firstDataResourceService,
+			undefined,
+			storageService,
+			workspaceContextService,
+			fileService,
+		);
+
+		const initial = await first.resolveReviewSummary({ resource });
+		await flushReviewPersistence(first);
+
+		const secondDataResourceService = store.add(new ResolvingDataResourceService());
+		const second = createReviewServiceForTest(
+			userTemplateService,
+			secondDataResourceService,
+			undefined,
+			storageService,
+			workspaceContextService,
+			fileService,
+		);
+		const restored = await second.resolveReviewSummary({ resource });
+
+		assert.deepEqual(restored, initial);
+		assert.equal(secondDataResourceService.resolveStructuredContentCalls, 0);
+	});
+
+	test("rejects a persisted Review result when the source file metadata changes", async () => {
+		const resource = URI.file("/workspace/Transfer.csv");
+		const userTemplateService = createUserTemplateServiceForTest();
+		const storageService = store.add(new TestStorageService());
+		const workspaceContextService = createWorkspaceContextServiceStub(resource);
+		const first = createReviewServiceForTest(
+			userTemplateService,
+			createDataResourceServiceForTest(resource),
+			undefined,
+			storageService,
+			workspaceContextService,
+			createReviewFileServiceStub(100, 2048),
+		);
+		await first.resolveReviewSummary({ resource });
+		await flushReviewPersistence(first);
+
+		const changedDataResourceService = store.add(new ResolvingDataResourceService());
+		const second = createReviewServiceForTest(
+			userTemplateService,
+			changedDataResourceService,
+			undefined,
+			storageService,
+			workspaceContextService,
+			createReviewFileServiceStub(101, 2048),
+		);
+		const resolved = await second.resolveReviewSummary({ resource });
+
+		assert.equal(resolved?.state, "invalid");
+		assert.equal(changedDataResourceService.resolveStructuredContentCalls, 1);
 	});
 
 	test("derives DataResource review candidates into a system-recommended review decision", () => {
@@ -1098,6 +1170,43 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready", 40, 5);
 	});
 
+	test("does not commit an active Review after the workspace changes", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/Transfer.csv");
+		const dataResourceService = store.add(new ControlledDataResourceService());
+		const storageService = store.add(new TestStorageService());
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			dataResourceService,
+			undefined,
+			storageService,
+			createWorkspaceContextServiceStub(resource),
+			createReviewFileServiceStub(100, 2048),
+		);
+		const readyReference = store.add(
+			await createDataResourceServiceForTest(resource).resolveStructuredContent({
+				resource,
+				sheetId: "table-a",
+			}),
+		);
+
+		const review = service.resolveReviewSummary({
+			resource,
+			sheetId: "table-a",
+		});
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
+		(service as unknown as { clearUriReviewState(): void }).clearUriReviewState();
+		dataResourceService.resolveNext(readyReference.object);
+
+		assert.equal(await review, null);
+		await flushReviewPersistence(service);
+		assert.deepEqual(
+			storageService.keys(StorageScope.WORKSPACE)
+				.filter(key => key.startsWith("review.result.v1:")),
+			[],
+		);
+	});
+
 	test("keeps cached Review results when more than 512 targets are tracked", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
@@ -1609,6 +1718,40 @@ class ResolvingDataResourceService extends Disposable implements IDataResourceSe
 	}
 
 	public resolve(): void {}
+}
+
+function createWorkspaceContextServiceStub(
+	resource: URI,
+): IWorkspaceContextService {
+	return {
+		onDidChangeWorkspaceFolders: Event.None,
+		onWillChangeWorkspaceFolders: Event.None,
+		getWorkspaceRelativePath: (candidate: URI) =>
+			candidate.toString() === resource.toString()
+				? resource.path.split("/").pop() ?? null
+				: null,
+	} as unknown as IWorkspaceContextService;
+}
+
+function createReviewFileServiceStub(
+	mtime: number,
+	size: number,
+): IFileService {
+	return {
+		stat: async (resource: URI) => ({
+			ctime: mtime,
+			mtime,
+			path: resource.fsPath,
+			size,
+			type: FileType.File,
+		}),
+	} as unknown as IFileService;
+}
+
+async function flushReviewPersistence(service: ReviewService): Promise<void> {
+	await (service as unknown as {
+		flushPendingPersistence(): Promise<void>;
+	}).flushPendingPersistence();
 }
 
 class ControlledDataResourceService extends Disposable implements IDataResourceService {

@@ -9,6 +9,7 @@ import { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
 import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
 import { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
+import { IWorkspaceContextService } from "src/cs/platform/workspace/common/workspace";
 import {
   BaseExplorerViewPane,
   type ExplorerViewPaneSurfaceOptions,
@@ -58,6 +59,7 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
     @IUserTemplateService userTemplateService: IUserTemplateServiceType,
     @IReviewService reviewService: IReviewServiceType,
     @IUriIdentityService uriIdentityService: IUriIdentityService,
+    @IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
   ) {
     super(
       ThumbnailViewPaneSurface,
@@ -77,6 +79,7 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
       userTemplateService,
       reviewService,
       uriIdentityService,
+      workspaceContextService,
     );
   }
 }

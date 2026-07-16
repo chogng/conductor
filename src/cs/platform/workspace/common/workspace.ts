@@ -8,6 +8,7 @@ import { basenameOrAuthority, ExtUri, extname as resourceExtname, joinPath } fro
 import { URI } from "../../../base/common/uri.js";
 import { createDecorator } from "../../instantiation/common/instantiation.js";
 import type {
+  IAnyWorkspaceIdentifier,
   ISingleFolderWorkspaceIdentifier,
   IWorkspaceIdentifier,
 } from "../../workspaces/common/workspaceIdentifier.js";
@@ -36,6 +37,9 @@ export interface IWorkspaceContextService {
    * An event which fires on workspace folders change.
    */
   readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
+
+  openFolder(folder: URI): Promise<void>;
+  closeFolder(): Promise<void>;
 
   /**
    * Provides access to the complete workspace object.
@@ -71,6 +75,9 @@ export interface IWorkspaceContextService {
    * Return true if the current workspace has data that can be sent to the extension host.
    */
   hasWorkspaceData(): boolean;
+
+  getWorkspaceRelativePath(resource: URI): string | null;
+  resolveWorkspaceRelativePath(relativePath: string): URI | null;
 }
 
 export interface IResolvedWorkspace extends IWorkspaceIdentifier, IBaseWorkspace {

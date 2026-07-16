@@ -17,6 +17,7 @@ import type { IFileService } from "src/cs/platform/files/common/files";
 import { FileService } from "src/cs/platform/files/common/fileService";
 import type { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
 import { UriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentityService";
+import type { IWorkspaceContextService } from "src/cs/platform/workspace/common/workspace";
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
 import { ExplorerView } from "src/cs/workbench/contrib/files/browser/views/explorerView";
 import { ExplorerViewer } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
@@ -261,6 +262,10 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     createUserTemplateService(),
     reviewService,
     uriIdentityService,
+    {
+      closeFolder: async () => undefined,
+      openFolder: async () => undefined,
+    } as unknown as IWorkspaceContextService,
   );
   const disposePane = pane.dispose.bind(pane);
   let disposed = false;

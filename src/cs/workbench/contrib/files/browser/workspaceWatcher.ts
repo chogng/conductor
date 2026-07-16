@@ -7,6 +7,8 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { URI } from "src/cs/base/common/uri";
 import type { IFileChange, IFileService } from "src/cs/platform/files/common/files";
 import type { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
+import { joinPath } from "src/cs/base/common/resources";
+import { WORKSPACE_STORAGE_FOLDER_NAME } from "src/cs/platform/storage/common/storage";
 
 const FOLDER_CHANGE_REACT_DELAY = 500;
 
@@ -64,6 +66,13 @@ export class WorkspaceWatcher implements IDisposable {
       return false;
     }
 
-    return changes.some(change => this.uriIdentityService.extUri.isEqualOrParent(change.resource, folder));
+    const storageFolder = joinPath(folder, WORKSPACE_STORAGE_FOLDER_NAME);
+    return changes.some(change =>
+      this.uriIdentityService.extUri.isEqualOrParent(change.resource, folder) &&
+      !this.uriIdentityService.extUri.isEqualOrParent(
+        change.resource,
+        storageFolder,
+      )
+    );
   }
 }

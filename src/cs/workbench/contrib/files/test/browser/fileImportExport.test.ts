@@ -188,6 +188,28 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(await (await result.files[0].loadFile()).text(), "Vg,Id\n0,1");
   });
 
+  test("collectFolderImportFiles excludes the workspace storage directory", async () => {
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("transfer.csv", "Vg,Id\n0,1"),
+        createDirectoryHandle({
+          children: [
+            createFileHandle("internal.csv", "private,state\n1,2"),
+          ],
+          name: ".conductor",
+        }),
+      ],
+      name: "selected-folder",
+    });
+
+    const result = await collectBrowserFolderFiles(root);
+
+    assert.deepEqual(
+      result.files.map(file => file.relativePath),
+      ["selected-folder/transfer.csv"],
+    );
+  });
+
   test("collectFolderImportFiles keeps raw percent signs in browser file names", async () => {
     const root = createDirectoryHandle({
       children: [

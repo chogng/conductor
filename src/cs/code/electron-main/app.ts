@@ -73,10 +73,10 @@ import { IThemeMainService } from "../../platform/theme/electron-main/themeMainS
 import { ThemeMainService } from "../../platform/theme/electron-main/themeMainServiceImpl.js";
 import {
   DEFAULT_SANDBOX_PROFILE_ID,
-  DEFAULT_SANDBOX_WORKSPACE_ID,
   nativeHostBootstrapIpcChannels,
   workbenchBootstrapIpcChannels,
 } from "../../base/parts/sandbox/common/sandboxTypes.js";
+import { UNKNOWN_EMPTY_WINDOW_WORKSPACE } from "../../platform/workspaces/common/workspaceIdentifier.js";
 import { isNativeWindowCommand } from "../../platform/window/common/window.js";
 import {
   resolveRustProcessingPoolSize,
@@ -717,7 +717,7 @@ const mainConfigurationService = new ConfigurationService(
 const mainStorageService = createStorageMainService({
   getHomeDir: getConductorPersistenceHomeDir,
   profileId: DEFAULT_SANDBOX_PROFILE_ID,
-  workspaceId: DEFAULT_SANDBOX_WORKSPACE_ID,
+  workspace: UNKNOWN_EMPTY_WINDOW_WORKSPACE,
   logWarning: (message, error) => console.warn(message, error),
 });
 const mainServices = new ServiceCollection();
@@ -992,7 +992,7 @@ function handleWorkbenchBootstrapStorageGet(event) {
   );
   event.returnValue = {
     profileId: DEFAULT_SANDBOX_PROFILE_ID,
-    workspaceId: DEFAULT_SANDBOX_WORKSPACE_ID,
+    workspaceId: mainStorageService.workspace.id,
     initial: {
       application: {},
       profile: sidebarWidth === undefined

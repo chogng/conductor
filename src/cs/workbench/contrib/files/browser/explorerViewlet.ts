@@ -15,6 +15,7 @@ import { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
 import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
 import { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
+import { IWorkspaceContextService } from "src/cs/platform/workspace/common/workspace";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { ViewContainerLocation } from "src/cs/workbench/common/views";
@@ -134,6 +135,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
     @IReviewService private readonly reviewService: IReviewServiceType,
     @IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+    @IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
   ) {
     super({
       id: options.id,
@@ -163,6 +165,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       getSelectedRelativePath: () => this.getSelectedRelativePath(),
       isDisposed: () => this.disposed,
       notificationService: this.notificationService,
+      onWillOpenFolder: folder => this.workspaceContextService.openFolder(folder),
       uriIdentityService: this.uriIdentityService,
       onAppendExplorerFiles: entries => this.appendExplorerFiles(entries),
       onAppendPendingSourceFiles: pendingFiles => this.appendPendingSourceFiles(pendingFiles),
@@ -794,7 +797,8 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     this.syncView();
   };
 
-  public closeFolder(): void {
+  public async closeFolder(): Promise<void> {
+    await this.workspaceContextService.closeFolder();
     this.sourceWorkflow.closeImportedSources();
     this.isDragging = false;
 
@@ -1126,6 +1130,7 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
     @IUserTemplateService userTemplateService: IUserTemplateServiceType,
     @IReviewService reviewService: IReviewServiceType,
     @IUriIdentityService uriIdentityService: IUriIdentityService,
+    @IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
   ) {
     super(
       ExplorerViewPaneSurface,
@@ -1145,6 +1150,7 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
       userTemplateService,
       reviewService,
       uriIdentityService,
+      workspaceContextService,
     );
   }
 }

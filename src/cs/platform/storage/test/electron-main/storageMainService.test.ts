@@ -6,21 +6,26 @@ import * as assert from "assert";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
+import { URI } from "src/cs/base/common/uri";
 import {
 	StorageScope,
 	StorageTarget,
 } from "src/cs/platform/storage/common/storage";
 import { createStorageMainService } from "src/cs/platform/storage/electron-main/storageMainService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import {
+	UNKNOWN_EMPTY_WINDOW_WORKSPACE,
+	type IAnyWorkspaceIdentifier,
+} from "src/cs/platform/workspaces/common/workspaceIdentifier";
 
 const PROFILE_ID = "default";
-const WORKSPACE_ID = "empty-window";
 
 suite("platform/storage/electron-main/storageMainService", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("persists values in separate JSON files by scope", async () => {
+	test("keeps application and profile JSON while empty workspace stays in memory", async () => {
 		const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-test-"));
 		const first = createTestStorageService(homeDir);
 		await first.initialize();
@@ -62,17 +67,9 @@ suite("platform/storage/electron-main/storageMainService", () => {
 			PROFILE_ID,
 			"state.json",
 		);
-		const workspacePath = path.join(
-			homeDir,
-			"workspaceStorage",
-			WORKSPACE_ID,
-			"state.json",
-		);
-
 		assert.deepStrictEqual({
 			applicationExists: fs.existsSync(applicationPath),
 			profileExists: fs.existsSync(profilePath),
-			workspaceExists: fs.existsSync(workspacePath),
 			applicationVersion: readStorageVersion(applicationPath),
 			profileTargets: readStorageTargets(profilePath),
 			applicationTargets: readStorageTargets(applicationPath),
@@ -92,7 +89,6 @@ suite("platform/storage/electron-main/storageMainService", () => {
 		}, {
 			applicationExists: true,
 			profileExists: true,
-			workspaceExists: true,
 			applicationVersion: 1,
 			profileTargets: {
 				"window.trayMinimizeHintShown": StorageTarget.USER,
@@ -103,14 +99,72 @@ suite("platform/storage/electron-main/storageMainService", () => {
 			profileHint: true,
 			applicationHint: undefined,
 			width: 1200,
-			columns: { widths: [120, 240] },
+			columns: undefined,
 			profileKeys: ["window.trayMinimizeHintShown"],
 			applicationKeys: ["window.width"],
-			workspaceKeys: ["table.columns"],
+			workspaceKeys: [],
 		});
 
 		await second.close();
 		second.dispose();
+	});
+
+	test("persists workspace values inside the opened folder SQLite database", async () => {
+		const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-home-"));
+		const folderPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-folder-"));
+		const workspace = createFolderWorkspace(folderPath);
+		const first = createTestStorageService(homeDir, workspace);
+		await first.initialize();
+
+		first.store(
+			"review.result.v1:data.csv",
+			{ state: "ready" },
+			StorageScope.WORKSPACE,
+			StorageTarget.MACHINE,
+		);
+		await first.close();
+		first.dispose();
+
+		const databasePath = path.join(folderPath, ".conductor", "state.vscdb");
+		assert.equal(fs.existsSync(databasePath), true);
+		assert.equal(
+			fs.readFileSync(path.join(folderPath, ".conductor", ".gitignore"), "utf8"),
+			"# Conductor workspace state\n*\n",
+		);
+		assert.deepStrictEqual(
+			readSqliteItems(databasePath).get("review.result.v1:data.csv"),
+			JSON.stringify({ state: "ready" }),
+		);
+
+		const second = createTestStorageService(homeDir, workspace);
+		await second.initialize();
+		assert.deepStrictEqual(
+			second.getObject("review.result.v1:data.csv", StorageScope.WORKSPACE),
+			{ state: "ready" },
+		);
+		await second.close();
+		second.dispose();
+	});
+
+	test("switches workspace databases without leaking values between folders", async () => {
+		const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-switch-"));
+		const firstFolder = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-first-"));
+		const secondFolder = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-second-"));
+		const service = createTestStorageService(homeDir, createFolderWorkspace(firstFolder));
+		await service.initialize();
+
+		service.store("review", "first", StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		await service.flush();
+		await service.switchWorkspace(createFolderWorkspace(secondFolder));
+		assert.equal(service.get("review", StorageScope.WORKSPACE), undefined);
+
+		service.store("review", "second", StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		await service.flush();
+		await service.switchWorkspace(createFolderWorkspace(firstFolder));
+		assert.equal(service.get("review", StorageScope.WORKSPACE), "first");
+
+		await service.close();
+		service.dispose();
 	});
 
 	test("persists large values", async () => {
@@ -161,7 +215,7 @@ suite("platform/storage/electron-main/storageMainService", () => {
 		const second = createStorageMainService({
 			getHomeDir: () => homeDir,
 			profileId: PROFILE_ID,
-			workspaceId: WORKSPACE_ID,
+			workspace: UNKNOWN_EMPTY_WINDOW_WORKSPACE,
 			logWarning: message => warnings.push(message),
 		});
 		await second.initialize();
@@ -174,12 +228,36 @@ suite("platform/storage/electron-main/storageMainService", () => {
 
 });
 
-function createTestStorageService(homeDir: string) {
+function createTestStorageService(
+	homeDir: string,
+	workspace: IAnyWorkspaceIdentifier = UNKNOWN_EMPTY_WINDOW_WORKSPACE,
+) {
 	return createStorageMainService({
 		getHomeDir: () => homeDir,
 		profileId: PROFILE_ID,
-		workspaceId: WORKSPACE_ID,
+		workspace,
 	});
+}
+
+function createFolderWorkspace(folderPath: string): IAnyWorkspaceIdentifier {
+	return {
+		id: `folder:${folderPath}`,
+		uri: URI.file(folderPath),
+	};
+}
+
+function readSqliteItems(storagePath: string): Map<string, string> {
+	const database = new DatabaseSync(storagePath, { readOnly: true });
+	try {
+		return new Map(
+			(database.prepare("SELECT key, value FROM ItemTable").all() as Array<{
+				readonly key: string;
+				readonly value: string;
+			}>).map(row => [row.key, row.value]),
+		);
+	} finally {
+		database.close();
+	}
 }
 
 function readStorageVersion(storagePath: string): number | undefined {

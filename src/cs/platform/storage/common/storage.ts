@@ -1,9 +1,12 @@
 import { type Event as EventType } from "../../../base/common/event.js";
 import { DisposableStore } from "../../../base/common/lifecycle.js";
 import { createDecorator } from "../../instantiation/common/instantiation.js";
+import type { IAnyWorkspaceIdentifier } from "../../workspaces/common/workspaceIdentifier.js";
 
 export const IStorageService = createDecorator<IStorageService>("storageService");
 export const STORAGE_TARGET_KEY = "__$__targetStorageMarker";
+export const WORKSPACE_STORAGE_FOLDER_NAME = ".conductor";
+export const WORKSPACE_STORAGE_FILENAME = "state.vscdb";
 
 export const enum StorageScope {
   APPLICATION = -1,
@@ -30,6 +33,7 @@ export interface IStorageService {
   readonly _serviceBrand: undefined;
 
   initialize(): Promise<void>;
+  switchWorkspace(workspace: IAnyWorkspaceIdentifier): Promise<void>;
 
   onDidChangeValue(
     scope: StorageScope,

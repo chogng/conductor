@@ -20,8 +20,11 @@ import {
 import {
 	StorageDatabaseClient,
 	STORAGE_CHANNEL_NAME,
+	switchStorageChannelWorkspace,
 } from "src/cs/platform/storage/common/storageIpc";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
+import type { IChannel } from "src/cs/base/parts/ipc/common/ipc";
+import type { IAnyWorkspaceIdentifier } from "src/cs/platform/workspaces/common/workspaceIdentifier";
 import {
 	ILifecycleService,
 	type ILifecycleService as ILifecycleServiceType,
@@ -38,6 +41,8 @@ export class NativeWorkbenchStorageService
 	implements IStorageServiceType {
 	private readonly storages = new Map<StorageScope, IStorage>();
 	private readonly disposables = new DisposableStore();
+	private readonly workspaceDisposables = new DisposableStore();
+	private readonly channel: IChannel;
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
@@ -45,10 +50,13 @@ export class NativeWorkbenchStorageService
 	) {
 		super();
 
-		const channel = mainProcessService.getChannel(STORAGE_CHANNEL_NAME);
-		for (const scope of ALL_STORAGE_SCOPES) {
+		this.channel = mainProcessService.getChannel(STORAGE_CHANNEL_NAME);
+		for (const scope of [
+			StorageScope.APPLICATION,
+			StorageScope.PROFILE,
+		] as const) {
 			const database = this.disposables.add(new StorageDatabaseClient(
-				channel,
+				this.channel,
 				scope,
 			));
 			const storage = this.disposables.add(new Storage(database));
@@ -60,6 +68,10 @@ export class NativeWorkbenchStorageService
 				);
 			}));
 		}
+		this.storages.set(
+			StorageScope.WORKSPACE,
+			this.createWorkspaceStorage(),
+		);
 
 		this.disposables.add(lifecycleService.onWillShutdown(event => {
 			event.join(this.close(), {
@@ -106,6 +118,21 @@ export class NativeWorkbenchStorageService
 		}
 	}
 
+	public override async switchWorkspace(
+		workspace: IAnyWorkspaceIdentifier,
+	): Promise<void> {
+		const oldStorage = this.getStorage(StorageScope.WORKSPACE);
+		const oldItems = new Map(oldStorage.items);
+		await oldStorage.close();
+		this.workspaceDisposables.clear();
+
+		await switchStorageChannelWorkspace(this.channel, workspace);
+		const newStorage = this.createWorkspaceStorage();
+		this.storages.set(StorageScope.WORKSPACE, newStorage);
+		await newStorage.init();
+		this.switchData(StorageScope.WORKSPACE, oldItems, newStorage.items);
+	}
+
 	protected readValue(key: string, scope: StorageScope): string | undefined {
 		return this.getStorage(scope).get(key);
 	}
@@ -136,8 +163,24 @@ export class NativeWorkbenchStorageService
 
 	public override dispose(): void {
 		this.storages.clear();
+		this.workspaceDisposables.dispose();
 		this.disposables.dispose();
 		super.dispose();
+	}
+
+	private createWorkspaceStorage(): IStorage {
+		const database = this.workspaceDisposables.add(new StorageDatabaseClient(
+			this.channel,
+			StorageScope.WORKSPACE,
+		));
+		const storage = this.workspaceDisposables.add(new Storage(database));
+		this.workspaceDisposables.add(database.onDidChangeValueExternal(event => {
+			this.fireDidChangeValueExternal(
+				event.targetChanged ? STORAGE_TARGET_KEY : event.key,
+				StorageScope.WORKSPACE,
+			);
+		}));
+		return storage;
 	}
 
 	private getStorage(scope: StorageScope): IStorage {

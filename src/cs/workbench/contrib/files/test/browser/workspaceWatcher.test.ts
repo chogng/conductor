@@ -68,6 +68,28 @@ suite("workbench/contrib/files/browser/workspaceWatcher", () => {
     assert.equal(watcher.isWatching(folder), false);
     assert.equal(filesService.disposedWatchCount, 1);
   });
+
+  test("ignores changes from the workspace storage database", async () => {
+    const filesService = new TestFileService();
+    let changeCount = 0;
+    const uriIdentityFileService = store.add(new FileService());
+    const watcher = store.add(new WorkspaceWatcher(
+      filesService,
+      store.add(new UriIdentityService(uriIdentityFileService)),
+      () => changeCount += 1,
+      { changeReactDelay: 0 },
+    ));
+    const folder = URI.file("C:/workspace/data");
+
+    watcher.watch(folder);
+    filesService.fire([{
+      resource: URI.file("C:/workspace/data/.conductor/state.vscdb-wal"),
+      type: FileChangeType.UPDATED,
+    }]);
+    await timeout(0);
+
+    assert.equal(changeCount, 0);
+  });
 });
 
 class TestFileService implements Pick<IFileService, "onDidFilesChange" | "watch"> {

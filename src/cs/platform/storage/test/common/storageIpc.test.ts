@@ -6,6 +6,7 @@ import * as assert from "assert";
 
 import { Emitter, Event, type Event as EventType } from "src/cs/base/common/event";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import type { IChannel } from "src/cs/base/parts/ipc/common/ipc";
 import {
 	InMemoryStorageDatabase,
@@ -165,11 +166,27 @@ suite("platform/storage/common/storageIpc", () => {
 		}]);
 		client.dispose();
 	});
+
+	test("switches the workspace through the storage channel", async () => {
+		const storageService = new TestStorageServer();
+		await storageService.initialize();
+		const server = new StorageChannel(storageService);
+
+		await server.call("", "switchWorkspace", {
+			id: "folder:test",
+			uri: URI.file("C:/workspace/data"),
+		});
+
+		assert.equal(storageService.workspaceId, "folder:test");
+		await storageService.close();
+		storageService.dispose();
+	});
 });
 
 class TestStorageServer extends AbstractStorageService {
 	private readonly storage = new Storage(new InMemoryStorageDatabase());
 	private readonly disposables = new DisposableStore();
+	public workspaceId: string | undefined;
 
 	constructor() {
 		super();
@@ -183,6 +200,12 @@ class TestStorageServer extends AbstractStorageService {
 	public getStorage(scope: StorageScope): IStorage {
 		assert.strictEqual(scope, StorageScope.PROFILE);
 		return this.storage;
+	}
+
+	public override async switchWorkspace(
+		workspace: { readonly id: string },
+	): Promise<void> {
+		this.workspaceId = workspace.id;
 	}
 
 	protected override async doInitialize(): Promise<void> {

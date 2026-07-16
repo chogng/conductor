@@ -54,6 +54,7 @@ import {
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import { WorkspaceWatcher } from "src/cs/workbench/contrib/files/browser/workspaceWatcher";
 import type { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
+import { WORKSPACE_STORAGE_FOLDER_NAME } from "src/cs/platform/storage/common/storage";
 import { resolveWorkspaceExternalChanges } from "src/cs/workbench/services/workspaces/common/externalChanges";
 import {
   ADD_WORKSPACE_FOLDER_COMMAND_ID,
@@ -247,6 +248,7 @@ export type FileSourceWorkflowOptions = {
   readonly getSelectedRelativePath: () => string | null;
   readonly isDisposed: () => boolean;
   readonly notificationService: INotificationService;
+  readonly onWillOpenFolder?: (folder: URI) => Promise<void>;
   readonly uriIdentityService: IUriIdentityService;
   readonly onAppendExplorerFiles: (entries: readonly ExplorerFileEntry[]) => void;
   readonly onAppendPendingSourceFiles?: (pendingFiles: readonly PendingImportFile[]) => void;
@@ -442,6 +444,11 @@ export class FileSourceWorkflow implements IDisposable {
     try {
       selectedFolder = (await this.options.commandService.executeCommand<URI | null>(ADD_WORKSPACE_FOLDER_COMMAND_ID)) ?? null;
       if (!selectedFolder || this.options.isDisposed()) {
+        return;
+      }
+
+      await this.options.onWillOpenFolder?.(selectedFolder);
+      if (this.options.isDisposed()) {
         return;
       }
 
@@ -2090,9 +2097,13 @@ const collectBrowserDroppedFiles = async (
         continue;
       }
 
+      const relativePath = getDroppedFileRelativePath(item.file);
+      if (isWorkspaceStoragePath(relativePath)) {
+        continue;
+      }
       droppedFiles.push({
         file: item.file,
-        relativePath: getDroppedFileRelativePath(item.file),
+        relativePath,
       });
     }
   }
@@ -2110,6 +2121,9 @@ const collectBrowserDroppedFiles = async (
     }
 
     const relativePath = getDroppedFileRelativePath(file);
+    if (isWorkspaceStoragePath(relativePath)) {
+      continue;
+    }
     const key = getDroppedFileKey(file, relativePath);
     if (seenFiles.has(key)) {
       continue;
@@ -2385,6 +2399,9 @@ async function collectFileSystemHandleFiles(
   if (!WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
     return;
   }
+  if (isWorkspaceStorageDirectoryName(handle.name)) {
+    return;
+  }
 
   for (const child of await readDirectoryHandleChildren(handle)) {
     await collectFileSystemHandleFiles(child, files, relativePath);
@@ -2454,6 +2471,9 @@ async function collectWebkitEntryFiles(
   }
 
   if (!entry.isDirectory) {
+    return;
+  }
+  if (isWorkspaceStorageDirectoryName(entry.name)) {
     return;
   }
 
@@ -2668,6 +2688,9 @@ async function collectFolderFilesAt(
     const relativePath = `${relativeFolderPath}/${name}`;
 
     if ((type & FileType.Directory) === FileType.Directory) {
+      if (isWorkspaceStorageDirectoryName(name)) {
+        continue;
+      }
       folderTasks.push({
         relativePath,
         resource: child,
@@ -2744,6 +2767,17 @@ async function collectFolderFilesAt(
       canUseNativePath,
     );
   }
+}
+
+function isWorkspaceStorageDirectoryName(name: string): boolean {
+  return name.toLowerCase() === WORKSPACE_STORAGE_FOLDER_NAME;
+}
+
+function isWorkspaceStoragePath(relativePath: string): boolean {
+  return relativePath
+    .replaceAll("\\", "/")
+    .split("/")
+    .some(segment => isWorkspaceStorageDirectoryName(segment));
 }
 
 function compareFolderTasks(

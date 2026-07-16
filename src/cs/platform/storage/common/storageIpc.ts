@@ -20,6 +20,10 @@ import {
 	StorageScope,
 	STORAGE_TARGET_KEY,
 } from "./storage.js";
+import {
+	reviveIdentifier,
+	type IAnyWorkspaceIdentifier,
+} from "../../workspaces/common/workspaceIdentifier.js";
 
 export const STORAGE_CHANNEL_NAME = "storage";
 export const STORAGE_ITEMS_CHANGE_EVENT = "onDidChangeItems";
@@ -97,6 +101,10 @@ export class StorageChannel implements IServerChannel<string> {
 				await storage.optimize();
 				return undefined as T;
 			}
+			case "switchWorkspace": {
+				await this.storageServer.switchWorkspace(toWorkspaceIdentifier(arg));
+				return undefined as T;
+			}
 			default:
 				throw new Error(`Unknown storage command '${command}'.`);
 		}
@@ -136,6 +144,13 @@ export class StorageChannel implements IServerChannel<string> {
 			return store;
 		};
 	}
+}
+
+export async function switchStorageChannelWorkspace(
+	channel: IChannel,
+	workspace: IAnyWorkspaceIdentifier,
+): Promise<void> {
+	await channel.call("switchWorkspace", workspace);
 }
 
 export class StorageDatabaseClient extends Disposable implements IStorageDatabase {
@@ -283,6 +298,19 @@ function toStorageScope(value: unknown): StorageScope {
 		default:
 			throw new Error(`Invalid storage scope '${String(value)}'.`);
 	}
+}
+
+function toWorkspaceIdentifier(value: unknown): IAnyWorkspaceIdentifier {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error("Invalid workspace storage identifier.");
+	}
+
+	const workspace = reviveIdentifier(value as never);
+	if (!workspace) {
+		throw new Error("Invalid workspace storage identifier.");
+	}
+
+	return workspace;
 }
 
 function addDisposable(

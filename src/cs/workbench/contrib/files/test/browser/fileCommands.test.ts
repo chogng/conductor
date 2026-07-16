@@ -117,7 +117,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       openFolderImport: () => {
         importRequests += 1;
       },
-      closeFolder: () => {
+      closeFolder: async () => {
         closeRequests += 1;
       },
     });
@@ -149,7 +149,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       openFolderImport: () => {
         importRequests += 1;
       },
-      closeFolder: () => {
+      closeFolder: async () => {
         closeRequests += 1;
       },
       closeFile: target => {
@@ -275,7 +275,7 @@ function createViewsServiceStub(explorerView: ExplorerViewPane): IViewsService {
 function createExplorerViewStub(methods: Partial<ExplorerViewPane>): ExplorerViewPane {
   return {
     openFolderImport: () => undefined,
-    closeFolder: () => undefined,
+    closeFolder: async () => undefined,
     closeFile: () => undefined,
     deleteFile: () => Promise.resolve(),
     ...methods,

@@ -180,11 +180,18 @@ display type comes from `ReviewSummary.reviewedType` after Review has made a
 decision. Explorer must not infer that type from template names, file names,
 families, roles, or raw evidence.
 
-This summary cache is service-local. It is invalidated by content version
-changes, evidence fingerprint changes, DataResource semantic-rules/evidence
-fingerprint changes, UserTemplate changes, review policy changes, and optional
-materialization-version changes. Explorer must not fall back to Session
-raw-table records for URI-backed semantic decorations.
+The live summary cache and its persistence format are Review-owned. Completed
+URI-backed results may be restored through `IStorageService` at
+`StorageScope.WORKSPACE`; Storage owns only the workspace database lifecycle
+and generic key/value durability. Review owns persisted keys, payload version,
+validation, and invalidation. Persisted results are accepted only when the
+folder-relative resource, file metadata, Review engine/policy,
+UserTemplate snapshot, and SchemaProfile version still match. The cache is
+invalidated by content version changes, evidence fingerprint changes,
+DataResource semantic-rules/evidence fingerprint changes, UserTemplate changes,
+review policy changes, and optional materialization-version changes. Explorer
+must not fall back to Session raw-table records for URI-backed semantic
+decorations.
 
 Missing or stale URI summaries are not refreshed by Explorer decoration reads.
 Explorer may receive a missing, stale, or active-pending summary and must keep

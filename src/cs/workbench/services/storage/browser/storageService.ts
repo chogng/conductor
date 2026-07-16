@@ -20,6 +20,8 @@ import {
 	type IStorageService as IStorageServiceType,
 } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
+import type { IAnyWorkspaceIdentifier } from "src/cs/platform/workspaces/common/workspaceIdentifier";
+import { UNKNOWN_EMPTY_WINDOW_WORKSPACE } from "src/cs/platform/workspaces/common/workspaceIdentifier";
 import {
 	ILifecycleService,
 	type ILifecycleService as ILifecycleServiceType,
@@ -37,20 +39,29 @@ export class BrowserStorageService
 	implements IStorageServiceType {
 	private readonly storages = new Map<StorageScope, IStorage>();
 	private readonly disposables = new DisposableStore();
+	private readonly workspaceDisposables = new DisposableStore();
+	private readonly localStorage = getLocalStorage();
+	private workspace = UNKNOWN_EMPTY_WINDOW_WORKSPACE as IAnyWorkspaceIdentifier;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleServiceType,
 	) {
 		super();
 
-		const localStorage = getLocalStorage();
-		for (const scope of ALL_STORAGE_SCOPES) {
+		for (const scope of [
+			StorageScope.APPLICATION,
+			StorageScope.PROFILE,
+		] as const) {
 			const storage = this.disposables.add(new BaseStorage(
-				new LocalStorageDatabase(localStorage, getStorageKeyPrefix(scope)),
+				new LocalStorageDatabase(this.localStorage, getStorageKeyPrefix(scope)),
 				{ hint: StorageHint.STORAGE_IN_MEMORY },
 			));
 			this.storages.set(scope, storage);
 		}
+		this.storages.set(
+			StorageScope.WORKSPACE,
+			this.createWorkspaceStorage(this.workspace),
+		);
 
 		this.disposables.add(lifecycleService.onWillShutdown(event => {
 			event.join(this.close(), {
@@ -62,6 +73,25 @@ export class BrowserStorageService
 
 	protected override async doInitialize(): Promise<void> {
 		await Promise.all(ALL_STORAGE_SCOPES.map(scope => this.getStorage(scope).init()));
+	}
+
+	public override async switchWorkspace(
+		workspace: IAnyWorkspaceIdentifier,
+	): Promise<void> {
+		if (this.workspace.id === workspace.id) {
+			return;
+		}
+
+		const oldStorage = this.getStorage(StorageScope.WORKSPACE);
+		const oldItems = new Map(oldStorage.items);
+		await oldStorage.close();
+		this.workspaceDisposables.clear();
+
+		this.workspace = workspace;
+		const newStorage = this.createWorkspaceStorage(workspace);
+		this.storages.set(StorageScope.WORKSPACE, newStorage);
+		await newStorage.init();
+		this.switchData(StorageScope.WORKSPACE, oldItems, newStorage.items);
 	}
 
 	protected readValue(key: string, scope: StorageScope): string | undefined {
@@ -94,8 +124,19 @@ export class BrowserStorageService
 
 	public override dispose(): void {
 		this.storages.clear();
+		this.workspaceDisposables.dispose();
 		this.disposables.dispose();
 		super.dispose();
+	}
+
+	private createWorkspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorage {
+		return this.workspaceDisposables.add(new BaseStorage(
+			new LocalStorageDatabase(
+				this.localStorage,
+				getStorageKeyPrefix(StorageScope.WORKSPACE, workspace.id),
+			),
+			{ hint: StorageHint.STORAGE_IN_MEMORY },
+		));
 	}
 
 	private getStorage(scope: StorageScope): IStorage {
@@ -161,8 +202,11 @@ class LocalStorageDatabase implements IStorageDatabase {
 	public async close(): Promise<void> {}
 }
 
-function getStorageKeyPrefix(scope: StorageScope): string {
-	return `${STORAGE_KEY_PREFIX}.${scope}.`;
+function getStorageKeyPrefix(scope: StorageScope, workspaceId?: string): string {
+	const identity = scope === StorageScope.WORKSPACE
+		? `.${encodeURIComponent(workspaceId ?? UNKNOWN_EMPTY_WINDOW_WORKSPACE.id)}`
+		: "";
+	return `${STORAGE_KEY_PREFIX}.${scope}${identity}.`;
 }
 
 function getLocalStorage(): Storage | null {

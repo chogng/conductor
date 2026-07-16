@@ -4,6 +4,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import { Event, type Event as EventType } from "../../../common/event.js";
 import {
@@ -13,6 +14,8 @@ import {
 } from "../common/storage.js";
 
 const STORAGE_FORMAT_VERSION = 1;
+const SQLITE_ITEM_TABLE = "ItemTable";
+const SQLITE_SCHEMA_VERSION = 1;
 
 type JsonStorageDocument = {
 	readonly version: typeof STORAGE_FORMAT_VERSION;
@@ -155,6 +158,145 @@ export class JsonStorageDatabase implements IStorageDatabase {
 			this.hasValidPrimary = true;
 		} catch (error) {
 			await fs.promises.rm(temporaryPath, { force: true });
+			throw error;
+		}
+	}
+
+	private warn(message: string, error?: unknown): void {
+		(this.options.logWarning ?? console.warn)(message, error);
+	}
+}
+
+export type SQLiteStorageDatabaseOptions = {
+	readonly path: string;
+	readonly logWarning?: (message: string, error?: unknown) => void;
+};
+
+export class SQLiteStorageDatabase implements IStorageDatabase {
+	public readonly onDidChangeItemsExternal =
+		Event.None as EventType<IStorageItemsChangeEvent>;
+
+	private database: DatabaseSync | undefined;
+	private writeFailed = false;
+
+	constructor(private readonly options: SQLiteStorageDatabaseOptions) {
+		if (!path.isAbsolute(options.path)) {
+			throw new Error("SQLite storage path must be absolute.");
+		}
+	}
+
+	public async getItems(): Promise<Map<string, string>> {
+		const rows = this.getDatabase()
+			.prepare(`SELECT key, value FROM ${SQLITE_ITEM_TABLE}`)
+			.all() as Array<{ readonly key?: unknown; readonly value?: unknown }>;
+		const items = new Map<string, string>();
+		for (const row of rows) {
+			if (typeof row.key === "string" && typeof row.value === "string") {
+				items.set(row.key, row.value);
+			}
+		}
+
+		return items;
+	}
+
+	public async updateItems(request: IUpdateRequest): Promise<void> {
+		const database = this.getDatabase();
+		try {
+			database.exec("BEGIN TRANSACTION");
+			const insert = request.insert?.size
+				? database.prepare(
+					`INSERT INTO ${SQLITE_ITEM_TABLE} (key, value) VALUES (?, ?)
+					 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+				)
+				: undefined;
+			request.insert?.forEach((value, key) => insert?.run(key, value));
+
+			const remove = request.delete?.size
+				? database.prepare(`DELETE FROM ${SQLITE_ITEM_TABLE} WHERE key = ?`)
+				: undefined;
+			request.delete?.forEach(key => remove?.run(key));
+			database.exec("COMMIT");
+			this.writeFailed = false;
+		} catch (error) {
+			this.writeFailed = true;
+			try {
+				database.exec("ROLLBACK");
+			} catch {
+				// Preserve the original write failure.
+			}
+			throw error;
+		}
+	}
+
+	public async optimize(): Promise<void> {
+		this.getDatabase().exec("PRAGMA optimize");
+	}
+
+	public async close(recovery?: () => Map<string, string>): Promise<void> {
+		if (this.writeFailed && recovery) {
+			const items = recovery();
+			await this.replaceItems(items);
+		}
+
+		this.database?.close();
+		this.database = undefined;
+		this.writeFailed = false;
+	}
+
+	private getDatabase(): DatabaseSync {
+		if (this.database) {
+			return this.database;
+		}
+
+		fs.mkdirSync(path.dirname(this.options.path), { recursive: true });
+		const database = new DatabaseSync(this.options.path);
+		try {
+			database.exec("PRAGMA journal_mode = WAL");
+			database.exec("PRAGMA busy_timeout = 2000");
+			database.exec(`
+				CREATE TABLE IF NOT EXISTS ${SQLITE_ITEM_TABLE} (
+					key TEXT PRIMARY KEY,
+					value TEXT NOT NULL
+				)
+			`);
+			const currentVersion = Number(
+				database.prepare("PRAGMA user_version").get()?.user_version ?? 0,
+			);
+			if (
+				!Number.isInteger(currentVersion) ||
+				currentVersion > SQLITE_SCHEMA_VERSION
+			) {
+				throw new Error(
+					`Unsupported SQLite storage schema version: ${String(currentVersion)}`,
+				);
+			}
+			database.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`);
+		} catch (error) {
+			database.close();
+			this.warn(`Failed to initialize SQLite storage '${this.options.path}'.`, error);
+			throw error;
+		}
+
+		this.database = database;
+		return database;
+	}
+
+	private async replaceItems(items: Map<string, string>): Promise<void> {
+		const database = this.getDatabase();
+		try {
+			database.exec("BEGIN TRANSACTION");
+			database.exec(`DELETE FROM ${SQLITE_ITEM_TABLE}`);
+			const insert = database.prepare(
+				`INSERT INTO ${SQLITE_ITEM_TABLE} (key, value) VALUES (?, ?)`,
+			);
+			items.forEach((value, key) => insert.run(key, value));
+			database.exec("COMMIT");
+		} catch (error) {
+			try {
+				database.exec("ROLLBACK");
+			} catch {
+				// Preserve the original recovery failure.
+			}
 			throw error;
 		}
 	}

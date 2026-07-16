@@ -12,6 +12,7 @@ import {
 	StorageTarget,
 	type StorageValue,
 } from "./storage.js";
+import type { IAnyWorkspaceIdentifier } from "../../workspaces/common/workspaceIdentifier.js";
 
 export abstract class AbstractStorageService implements IStorageService, IDisposable {
 	declare readonly _serviceBrand: undefined;
@@ -26,6 +27,8 @@ export abstract class AbstractStorageService implements IStorageService, IDispos
 		this.initializePromise ??= this.doInitialize();
 		return this.initializePromise;
 	}
+
+	public async switchWorkspace(_workspace: IAnyWorkspaceIdentifier): Promise<void> {}
 
 	public onDidChangeValue(
 		scope: StorageScope,
@@ -194,6 +197,37 @@ export abstract class AbstractStorageService implements IStorageService, IDispos
 		}
 
 		this.fireDidChangeValue(key, scope, this.getTarget(key, scope), true);
+	}
+
+	protected switchData(
+		scope: StorageScope,
+		oldItems: ReadonlyMap<string, string>,
+		newItems: ReadonlyMap<string, string>,
+	): void {
+		const previousTargets = new Map(this.getTargets(scope));
+		this.loadedTargetScopes.delete(scope);
+		this.targets.delete(scope);
+		const currentTargets = this.getTargets(scope);
+		const changedKeys = new Set([
+			...oldItems.keys(),
+			...newItems.keys(),
+			...previousTargets.keys(),
+			...currentTargets.keys(),
+		]);
+		changedKeys.delete(STORAGE_TARGET_KEY);
+
+		for (const key of changedKeys) {
+			const targetChanged = previousTargets.get(key) !== currentTargets.get(key);
+			if (oldItems.get(key) !== newItems.get(key) || targetChanged) {
+				this.fireDidChangeValue(
+					key,
+					scope,
+					currentTargets.get(key),
+					true,
+					targetChanged,
+				);
+			}
+		}
 	}
 
 	protected initializeTargets(scope: StorageScope): void {
