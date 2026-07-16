@@ -8,6 +8,7 @@ import { workbenchIpcChannels } from "../../../../workbench/common/ipcChannels.j
 import { createSandboxConfiguration } from "./sandboxConfiguration.js";
 import {
   type ISandboxConfiguration,
+  type ISandboxMemoryInfo,
 } from "../common/sandboxTypes.js";
 
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: unknown[]) => void;
@@ -260,6 +261,23 @@ function exposeConductorGlobals(configuration: ISandboxConfiguration): void {
       },
       type: "renderer",
       cwd: () => "",
+      async memoryInfo(): Promise<ISandboxMemoryInfo> {
+        const [processMemory, heapMemory] = await Promise.all([
+          process.getProcessMemoryInfo(),
+          Promise.resolve(process.getHeapStatistics()),
+        ]);
+        const systemMemory = process.getSystemMemoryInfo();
+        return {
+          heapLimitBytes: heapMemory.heapSizeLimit * 1024,
+          heapUsedBytes: heapMemory.usedHeapSize * 1024,
+          processPrivateBytes: processMemory.private * 1024,
+          ...(processMemory.residentSet > 0
+            ? { processResidentSetBytes: processMemory.residentSet * 1024 }
+            : {}),
+          systemFreeBytes: systemMemory.free * 1024,
+          systemTotalBytes: systemMemory.total * 1024,
+        };
+      },
     },
     webUtils: {
       getPathForFile(file: File) {

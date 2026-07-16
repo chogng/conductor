@@ -16,6 +16,7 @@ import {
 	type IFileService,
 } from "src/cs/platform/files/common/files";
 import { DataResourceContentService } from "src/cs/workbench/services/dataResource/browser/dataResourceContentService";
+import { DataResourceContentMemoryGate } from "src/cs/workbench/services/dataResource/browser/dataResourceContentMemoryGate";
 import type { IDataResourceContentProvider } from "src/cs/workbench/services/dataResource/common/dataResourceContentService";
 import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
 import { TableFileEditorModelManager } from "src/cs/workbench/services/tableFile/common/tableFileEditorModelManager";
@@ -39,12 +40,18 @@ const directTableStructureParserService: ITableStructureParserService = {
 
 suite("workbench/services/table/test/browser/tableModel", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const createResolverFixture = (fileService: IFileService = createFileServiceStub()) => {
+	const createResolverFixture = (
+		fileService: IFileService = createFileServiceStub(),
+		memoryGate?: DataResourceContentMemoryGate,
+	) => {
 		const tableFileService = store.add(new TableFileService(
 			fileService,
 			directTableStructureParserService,
 		));
-		const contentService = store.add(new DataResourceContentService(tableFileService));
+		const contentService = store.add(new DataResourceContentService(
+			tableFileService,
+			memoryGate,
+		));
 		return {
 			contentService,
 			service: store.add(new TableModelResolverService(contentService, tableFileService)),
@@ -512,6 +519,79 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 
 		modelReference.dispose();
 		contentReference.dispose();
+	});
+
+	test("starts every physical content read immediately when memory metrics are unavailable", async () => {
+		const pendingReads: Array<(content: ReturnType<typeof textFileContent>) => void> = [];
+		const fileService = createFileServiceStub({
+			readFile: async () => new Promise(resolve => {
+				pendingReads.push(resolve);
+			}),
+		});
+		const memoryGate = new DataResourceContentMemoryGate({
+			retryDelayMs: 0,
+			sample: () => ({}),
+		});
+		const { contentService } = createResolverFixture(fileService, memoryGate);
+
+		const firstReferencePromise = contentService.createContentReference(
+			URI.file("/workspace/data/unlimited-a.csv"),
+		);
+		const secondReferencePromise = contentService.createContentReference(
+			URI.file("/workspace/data/unlimited-b.csv"),
+		);
+		await waitForTestCondition(() => pendingReads.length === 2);
+
+		pendingReads[0]!(textFileContent("A,B\n1,2"));
+		pendingReads[1]!(textFileContent("A,B\n3,4"));
+		const references = await Promise.all([
+			firstReferencePromise,
+			secondReferencePromise,
+		]);
+		for (const reference of references) {
+			reference.dispose();
+		}
+	});
+
+	test("backs off physical content reads only when projected memory is unsafe", async () => {
+		const mebibyte = 1024 * 1024;
+		const pendingReads: Array<(content: ReturnType<typeof textFileContent>) => void> = [];
+		const fileService = createFileServiceStub({
+			readFile: async () => new Promise(resolve => {
+				pendingReads.push(resolve);
+			}),
+		});
+		const memoryGate = new DataResourceContentMemoryGate({
+			retryDelayMs: 0,
+			sample: () => ({
+				heapLimitBytes: 100 * mebibyte,
+				heapUsedBytes: 60 * mebibyte,
+				systemFreeBytes: 2 * 1024 * mebibyte,
+				systemTotalBytes: 4 * 1024 * mebibyte,
+			}),
+		});
+		const { contentService } = createResolverFixture(fileService, memoryGate);
+
+		const firstReferencePromise = contentService.createContentReference(
+			URI.file("/workspace/data/pressured-a.csv"),
+		);
+		const secondReferencePromise = contentService.createContentReference(
+			URI.file("/workspace/data/pressured-b.csv"),
+		);
+		await waitForTestCondition(() => pendingReads.length === 1);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.equal(pendingReads.length, 1);
+
+		pendingReads[0]!(textFileContent("A,B\n1,2"));
+		await waitForTestCondition(() => pendingReads.length === 2);
+		pendingReads[1]!(textFileContent("A,B\n3,4"));
+		const references = await Promise.all([
+			firstReferencePromise,
+			secondReferencePromise,
+		]);
+		for (const reference of references) {
+			reference.dispose();
+		}
 	});
 
 	test("keeps file changes from materializing a Review-only idle table model", async () => {

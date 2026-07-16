@@ -6,6 +6,7 @@ import type { Event } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
+import type { IFileStat } from "src/cs/platform/files/common/files";
 import type {
 	ITableModel,
 	TableModelResolvedContent,
@@ -55,4 +56,5 @@ export interface ITableFileService extends IDisposable {
 	): Promise<TableFileResolvedContent>;
 	resolve(resource: URI, source?: TableSource | null): void;
 	remove(resource: URI): void;
+	stat(resource: URI): Promise<IFileStat>;
 }

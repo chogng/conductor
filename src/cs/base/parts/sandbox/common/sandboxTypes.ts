@@ -13,6 +13,15 @@ export interface ISandboxConfiguration {
     readonly initialWorkbenchSettings?: Record<string, unknown> | null;
 }
 
+export interface ISandboxMemoryInfo {
+    readonly heapLimitBytes: number;
+    readonly heapUsedBytes: number;
+    readonly processPrivateBytes: number;
+    readonly processResidentSetBytes?: number;
+    readonly systemFreeBytes: number;
+    readonly systemTotalBytes: number;
+}
+
 export const workbenchBootstrapIpcChannels = {
     settingsGet: "conductor:workbench-bootstrap:settings:get",
     uiReady: "conductor:workbench-bootstrap:ui-ready",

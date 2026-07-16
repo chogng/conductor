@@ -5,7 +5,10 @@
 import type { Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
-import type { IFileService } from "src/cs/platform/files/common/files";
+import type {
+	IFileService,
+	IFileStat,
+} from "src/cs/platform/files/common/files";
 import type {
 	ITableModel,
 } from "src/cs/workbench/services/table/common/model";
@@ -36,7 +39,7 @@ export class TableFileService extends Disposable implements ITableFileService {
 	public readonly onDidChangeModel: Event<ITableModel>;
 
 	public constructor(
-		fileService: IFileService,
+		private readonly fileService: IFileService,
 		tableStructureParserService: ITableStructureParserService,
 	) {
 		super();
@@ -109,6 +112,10 @@ export class TableFileService extends Disposable implements ITableFileService {
 
 	public remove(resource: URI): void {
 		this.tableFileEditorModelManager.remove(resource);
+	}
+
+	public stat(resource: URI): Promise<IFileStat> {
+		return this.fileService.stat(resource);
 	}
 
 	protected normalizeResolveOptions(

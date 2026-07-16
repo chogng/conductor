@@ -6,6 +6,10 @@ import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import {
+	DataResourceContentMemoryEstimator,
+	DataResourceContentMemoryGate,
+} from "src/cs/workbench/services/dataResource/browser/dataResourceContentMemoryGate";
+import {
 	type DataResourceContentKind,
 	type DataResourceContentProviderResult,
 	type DataResourceContentSnapshot,
@@ -13,6 +17,7 @@ import {
 	type IDataResourceContentProvider,
 	type IDataResourceContentReference,
 } from "src/cs/workbench/services/dataResource/common/dataResourceContentService";
+import { tableFormatService } from "src/cs/workbench/services/table/common/tableFormatService";
 import {
 	ITableFileService,
 	type ITableFileService as ITableFileServiceType,
@@ -32,6 +37,7 @@ export class DataResourceContentService extends Disposable implements IDataResou
 		readonly resolved: TableFileResolvedContent;
 		readonly snapshot: DataResourceContentSnapshot;
 	}>();
+	private readonly pendingFileResolves = new Map<string, Promise<DataResourceContentSnapshot>>();
 	private readonly pendingProviderResolves = new Map<string, Promise<DataResourceContentSnapshot>>();
 	private readonly providerSnapshots = new Map<string, DataResourceContentSnapshot>();
 	private readonly referenceCounts = new Map<string, {
@@ -39,11 +45,15 @@ export class DataResourceContentService extends Disposable implements IDataResou
 		readonly kind: DataResourceContentKind;
 		readonly resource: URI;
 	}>();
+	private readonly memoryEstimator = new DataResourceContentMemoryEstimator();
+	private readonly memoryGate: DataResourceContentMemoryGate;
 
 	public constructor(
 		@ITableFileService private readonly tableFileService: ITableFileServiceType,
+		memoryGate?: DataResourceContentMemoryGate,
 	) {
 		super();
+		this.memoryGate = this._register(memoryGate ?? new DataResourceContentMemoryGate());
 		this._register(this.tableFileService.onDidChangeContent(resource => {
 			const key = resource.toString();
 			this.fileErrorSnapshots.delete(key);
@@ -122,13 +132,72 @@ export class DataResourceContentService extends Disposable implements IDataResou
 	}
 
 	private async resolveFileContent(resource: URI): Promise<DataResourceContentSnapshot> {
+		const key = resource.toString();
+		const cached = this.tableFileService.getResolvedContent(resource);
+		if (cached) {
+			return this.getOrCreateFileSnapshot(resource, cached);
+		}
+		const pending = this.pendingFileResolves.get(key);
+		if (pending) {
+			return pending;
+		}
+
+		const pendingResolve = this.resolveUncachedFileContent(resource)
+			.finally(() => {
+				if (this.pendingFileResolves.get(key) === pendingResolve) {
+					this.pendingFileResolves.delete(key);
+				}
+			});
+		this.pendingFileResolves.set(key, pendingResolve);
+		return pendingResolve;
+	}
+
+	private async resolveUncachedFileContent(
+		resource: URI,
+	): Promise<DataResourceContentSnapshot> {
 		const model = this.tableFileService.getOrCreateFileEditorModel(resource);
+		let lease: IDisposable | null = null;
 		try {
+			let stat = await this.tableFileService.stat(resource);
+			const format = tableFormatService.resolveFormat(resource);
+			let estimatedBytes = this.memoryEstimator.estimate(stat.size, format);
+			lease = await this.memoryGate.acquire(estimatedBytes);
+
+			// Recheck after waiting. If the file grew materially while queued,
+			// reacquire using the new estimate before starting the heavy read.
+			stat = await this.tableFileService.stat(resource);
+			const currentEstimate = this.memoryEstimator.estimate(stat.size, format);
+			if (currentEstimate > estimatedBytes) {
+				lease.dispose();
+				lease = null;
+				estimatedBytes = currentEstimate;
+				lease = await this.memoryGate.acquire(estimatedBytes);
+			}
+
+			const canCalibrate =
+				this.memoryEstimator.canObserve(stat.size) &&
+				this.memoryGate.getSnapshot().activeLeaseCount === 1;
+			const memoryBefore = canCalibrate
+				? await this.memoryGate.sampleMemory()
+				: null;
 			const resolved = await this.tableFileService.resolveContent(model);
+			if (
+				memoryBefore &&
+				this.memoryGate.getSnapshot().activeLeaseCount === 1
+			) {
+				this.memoryEstimator.observe(
+					format,
+					stat.size,
+					memoryBefore,
+					await this.memoryGate.sampleMemory(),
+				);
+			}
 			this.fileErrorSnapshots.delete(resource.toString());
 			return this.getOrCreateFileSnapshot(resource, resolved);
 		} catch (error) {
 			return this.storeFileErrorSnapshot(resource, error);
+		} finally {
+			lease?.dispose();
 		}
 	}
 
@@ -210,6 +279,7 @@ export class DataResourceContentService extends Disposable implements IDataResou
 		this.contentVersions.delete(key);
 		this.fileErrorSnapshots.delete(key);
 		this.fileSnapshots.delete(key);
+		this.pendingFileResolves.delete(key);
 		this.providerSnapshots.delete(key);
 		this.pendingProviderResolves.delete(key);
 		if (reference?.kind === "file") {

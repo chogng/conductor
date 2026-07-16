@@ -8,6 +8,16 @@ declare function test(name: string, callback: MochaTestCallback): void;
 interface Window {
   conductor?: {
     ipcRenderer?: unknown;
+    process?: {
+      memoryInfo?: () => Promise<{
+        heapLimitBytes: number;
+        heapUsedBytes: number;
+        processPrivateBytes: number;
+        processResidentSetBytes?: number;
+        systemFreeBytes: number;
+        systemTotalBytes: number;
+      }>;
+    };
     webUtils?: unknown;
     context?: {
       configuration?: () => {

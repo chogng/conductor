@@ -8,6 +8,11 @@ import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import {
+	DataResourceContentMemoryEstimator,
+	DataResourceContentMemoryGate,
+	estimateDataResourceContentMemoryBytes,
+} from "src/cs/workbench/services/dataResource/browser/dataResourceContentMemoryGate";
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
 import {
 	builtinRules,
@@ -1165,6 +1170,185 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 			["2", "3"],
 		]), 2);
 		assert.deepEqual(changedResources.map(changedResource => changedResource.toString()), [resource.toString()]);
+	});
+
+	test("estimates physical content memory by table format", () => {
+		const mebibyte = 1024 * 1024;
+
+		assert.deepStrictEqual({
+			csvFloor: estimateDataResourceContentMemoryBytes(1, "csv"),
+			csvScaled: estimateDataResourceContentMemoryBytes(10 * mebibyte, "csv"),
+			xlsFloor: estimateDataResourceContentMemoryBytes(1, "xls"),
+			xlsxFloor: estimateDataResourceContentMemoryBytes(1, "xlsx"),
+			xlsxScaled: estimateDataResourceContentMemoryBytes(10 * mebibyte, "xlsx"),
+		}, {
+			csvFloor: 16 * mebibyte,
+			csvScaled: 60 * mebibyte,
+			xlsFloor: 32 * mebibyte,
+			xlsxFloor: 64 * mebibyte,
+			xlsxScaled: 200 * mebibyte,
+		});
+	});
+
+	test("calibrates format estimates from isolated observed memory growth", () => {
+		const mebibyte = 1024 * 1024;
+		const estimator = new DataResourceContentMemoryEstimator();
+		const fileSize = 10 * mebibyte;
+
+		estimator.observe(
+			"csv",
+			fileSize,
+			{ processPrivateBytes: 100 * mebibyte },
+			{ processPrivateBytes: 200 * mebibyte },
+		);
+
+		assert.equal(
+			Math.round(estimator.estimate(fileSize, "csv") / mebibyte),
+			68,
+		);
+	});
+
+	test("admits every request immediately when memory metrics are unavailable", async () => {
+		const gate = store.add(new DataResourceContentMemoryGate({
+			retryDelayMs: 0,
+			sample: () => ({}),
+		}));
+		const leases = await Promise.all(Array.from({ length: 64 }, () =>
+			gate.acquire(64 * 1024 * 1024)
+		));
+
+		assert.deepStrictEqual(gate.getSnapshot(), {
+			activeEstimatedBytes: 64 * 64 * 1024 * 1024,
+			activeLeaseCount: 64,
+			pressure: "green",
+			queuedCount: 0,
+		});
+		for (const lease of leases) {
+			lease.dispose();
+		}
+	});
+
+	test("admits all projected work at once while measured capacity is healthy", async () => {
+		const mebibyte = 1024 * 1024;
+		const gate = store.add(new DataResourceContentMemoryGate({
+			sample: () => ({
+				heapLimitBytes: 4 * 1024 * mebibyte,
+				heapUsedBytes: 512 * mebibyte,
+				processPrivateBytes: 1024 * mebibyte,
+				systemFreeBytes: 8 * 1024 * mebibyte,
+				systemTotalBytes: 16 * 1024 * mebibyte,
+			}),
+		}));
+		const leases = await Promise.all(Array.from({ length: 64 }, () =>
+			gate.acquire(16 * mebibyte)
+		));
+
+		assert.deepStrictEqual(gate.getSnapshot(), {
+			activeEstimatedBytes: 1024 * mebibyte,
+			activeLeaseCount: 64,
+			pressure: "green",
+			queuedCount: 0,
+		});
+		for (const lease of leases) {
+			lease.dispose();
+		}
+	});
+
+	test("queues only when projected work exceeds current memory capacity", async () => {
+		const mebibyte = 1024 * 1024;
+		const gate = store.add(new DataResourceContentMemoryGate({
+			retryDelayMs: 0,
+			sample: () => ({
+				heapLimitBytes: 100 * mebibyte,
+				heapUsedBytes: 60 * mebibyte,
+				systemFreeBytes: 2 * 1024 * mebibyte,
+				systemTotalBytes: 4 * 1024 * mebibyte,
+			}),
+		}));
+
+		const firstLease = await gate.acquire(20 * mebibyte);
+		const secondLeasePromise = gate.acquire(20 * mebibyte);
+		await waitFor(() => gate.getSnapshot().queuedCount === 1);
+
+		assert.deepStrictEqual(gate.getSnapshot(), {
+			activeEstimatedBytes: 20 * mebibyte,
+			activeLeaseCount: 1,
+			pressure: "green",
+			queuedCount: 1,
+		});
+
+		firstLease.dispose();
+		const secondLease = await secondLeasePromise;
+		assert.equal(gate.getSnapshot().activeLeaseCount, 1);
+		secondLease.dispose();
+	});
+
+	test("runs one task exclusively under red pressure and recovers with hysteresis", async () => {
+		const mebibyte = 1024 * 1024;
+		let heapUsedBytes = 85 * mebibyte;
+		const gate = store.add(new DataResourceContentMemoryGate({
+			retryDelayMs: 0,
+			sample: () => ({
+				heapLimitBytes: 100 * mebibyte,
+				heapUsedBytes,
+				systemFreeBytes: 2 * 1024 * mebibyte,
+				systemTotalBytes: 4 * 1024 * mebibyte,
+			}),
+		}));
+
+		const firstLease = await gate.acquire(10 * mebibyte);
+		const secondLeasePromise = gate.acquire(10 * mebibyte);
+		await waitFor(() => gate.getSnapshot().queuedCount === 1);
+		assert.equal(gate.getSnapshot().pressure, "red");
+
+		heapUsedBytes = 60 * mebibyte;
+		firstLease.dispose();
+		const secondLease = await secondLeasePromise;
+		secondLease.dispose();
+		const thirdLease = await gate.acquire(10 * mebibyte);
+		assert.equal(gate.getSnapshot().pressure, "green");
+		thirdLease.dispose();
+	});
+
+	test("pauses hard-critical work until memory pressure recovers", async () => {
+		const mebibyte = 1024 * 1024;
+		let heapUsedBytes = 95 * mebibyte;
+		const gate = store.add(new DataResourceContentMemoryGate({
+			retryDelayMs: 0,
+			sample: () => ({
+				heapLimitBytes: 100 * mebibyte,
+				heapUsedBytes,
+				systemFreeBytes: 2 * 1024 * mebibyte,
+				systemTotalBytes: 4 * 1024 * mebibyte,
+			}),
+		}));
+
+		const leasePromise = gate.acquire(10 * mebibyte);
+		await waitFor(() => gate.getSnapshot().queuedCount === 1);
+		assert.equal(gate.getSnapshot().activeLeaseCount, 0);
+
+		heapUsedBytes = 60 * mebibyte;
+		const lease = await leasePromise;
+		assert.equal(gate.getSnapshot().pressure, "red");
+		lease.dispose();
+		const recoveredLease = await gate.acquire(10 * mebibyte);
+		assert.equal(gate.getSnapshot().pressure, "green");
+		recoveredLease.dispose();
+	});
+
+	test("rejects a task that cannot fit even when running alone", async () => {
+		const mebibyte = 1024 * 1024;
+		const gate = store.add(new DataResourceContentMemoryGate({
+			sample: () => ({
+				heapLimitBytes: 100 * mebibyte,
+				heapUsedBytes: 10 * mebibyte,
+			}),
+		}));
+
+		await assert.rejects(
+			() => gate.acquire(90 * mebibyte),
+			/exceeding the current safe capacity of 85 MiB/,
+		);
 	});
 });
 

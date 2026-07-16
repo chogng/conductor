@@ -40,7 +40,9 @@ registerSingleton(
 
 registerSingleton(
 	IDataResourceContentService,
-	DataResourceContentService,
+	DataResourceContentService as unknown as new (
+		...services: BrandedService[]
+	) => IDataResourceContentService,
 	InstantiationType.Delayed,
 );
 
