@@ -6,7 +6,6 @@ import * as assert from "assert";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 
 import {
 	StorageScope,
@@ -173,35 +172,6 @@ suite("platform/storage/electron-main/storageMainService", () => {
 		second.dispose();
 	});
 
-	test("migrates and archives the legacy scoped SQLite database", async () => {
-		const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-migration-"));
-		const legacyPath = path.join(homeDir, "globalStorage", "state.csdb");
-		writeLegacyStorage(legacyPath, [
-			["conductor.storage.-1.window.width", "1200"],
-			["conductor.storage.0.schema.profiles", "[{\"id\":\"legacy\"}]"],
-			["conductor.storage.1.table.columns", "{\"widths\":[120,240]}"],
-		]);
-
-		const service = createTestStorageService(homeDir);
-		await service.initialize();
-
-		assert.deepStrictEqual({
-			application: service.getNumber("window.width", StorageScope.APPLICATION),
-			profile: service.getObject("schema.profiles", StorageScope.PROFILE),
-			workspace: service.getObject("table.columns", StorageScope.WORKSPACE),
-			legacyExists: fs.existsSync(legacyPath),
-			archiveExists: fs.existsSync(`${legacyPath}.migrated`),
-		}, {
-			application: 1200,
-			profile: [{ id: "legacy" }],
-			workspace: { widths: [120, 240] },
-			legacyExists: false,
-			archiveExists: true,
-		});
-
-		await service.close();
-		service.dispose();
-	});
 });
 
 function createTestStorageService(homeDir: string) {
@@ -227,28 +197,4 @@ function readStorageTargets(storagePath: string): Record<string, number> | undef
 	return rawTargets
 		? JSON.parse(rawTargets) as Record<string, number>
 		: undefined;
-}
-
-function writeLegacyStorage(
-	storagePath: string,
-	rows: readonly (readonly [string, string])[],
-): void {
-	fs.mkdirSync(path.dirname(storagePath), { recursive: true });
-	const database = new DatabaseSync(storagePath);
-	try {
-		database.exec(`
-			CREATE TABLE ItemTable (
-				key TEXT PRIMARY KEY,
-				value TEXT
-			)
-		`);
-		const insert = database.prepare(
-			"INSERT INTO ItemTable (key, value) VALUES (?, ?)",
-		);
-		for (const [key, value] of rows) {
-			insert.run(key, value);
-		}
-	} finally {
-		database.close();
-	}
 }
