@@ -28,7 +28,10 @@ import {
 } from "../../platform/window/electron-main/window.js";
 import { ITrayMainService } from "../../platform/windows/electron-main/trayMainService.js";
 import { TrayMainService } from "../../platform/windows/electron-main/trayMainServiceImpl.js";
-import { IStorageService } from "../../platform/storage/common/storage.js";
+import {
+  IStorageService,
+  StorageScope,
+} from "../../platform/storage/common/storage.js";
 import { createStorageMainService } from "../../platform/storage/electron-main/storageMainService.js";
 import {
   StorageMainChannel,
@@ -65,6 +68,8 @@ import { registerContextMenuListener } from "../../base/parts/contextmenu/electr
 import { IThemeMainService } from "../../platform/theme/electron-main/themeMainService.js";
 import { ThemeMainService } from "../../platform/theme/electron-main/themeMainServiceImpl.js";
 import {
+  DEFAULT_SANDBOX_PROFILE_ID,
+  DEFAULT_SANDBOX_WORKSPACE_ID,
   nativeHostBootstrapIpcChannels,
   workbenchBootstrapIpcChannels,
 } from "../../base/parts/sandbox/common/sandboxTypes.js";
@@ -707,6 +712,9 @@ const mainConfigurationService = new ConfigurationService(
 );
 const mainStorageService = createStorageMainService({
   getHomeDir: getConductorPersistenceHomeDir,
+  profileId: DEFAULT_SANDBOX_PROFILE_ID,
+  workspaceId: DEFAULT_SANDBOX_WORKSPACE_ID,
+  logWarning: (message, error) => console.warn(message, error),
 });
 const mainServices = new ServiceCollection();
 mainServices.set(IConfigurationService, mainConfigurationService);
@@ -965,6 +973,73 @@ function handleWorkbenchBootstrapSettingsGet(event) {
     console.warn("[boot] Failed to load initial desktop settings:", error?.message || error);
     event.returnValue = null;
   }
+}
+
+function handleWorkbenchBootstrapStorageGet(event) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) {
+    event.returnValue = null;
+    return;
+  }
+
+  const sidebarWidth = mainStorageService.get(
+    "workbench.sidebar.width",
+    StorageScope.PROFILE,
+  );
+  event.returnValue = {
+    profileId: DEFAULT_SANDBOX_PROFILE_ID,
+    workspaceId: DEFAULT_SANDBOX_WORKSPACE_ID,
+    initial: {
+      application: {},
+      profile: sidebarWidth === undefined
+        ? {}
+        : { "workbench.sidebar.width": sidebarWidth },
+      workspace: {},
+    },
+  };
+}
+
+function flushRendererStorageBeforeQuit() {
+  const win = mainWindow;
+  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>(resolve => {
+    let didComplete = false;
+    const complete = () => {
+      if (didComplete) {
+        return;
+      }
+
+      didComplete = true;
+      clearTimeout(timeout);
+      ipcMain.removeListener(
+        workbenchBootstrapIpcChannels.storageFlushComplete,
+        handleComplete,
+      );
+      resolve();
+    };
+    const handleComplete = event => {
+      if (event.sender === win.webContents) {
+        complete();
+      }
+    };
+    const timeout = setTimeout(() => {
+      console.warn("Timed out waiting for renderer storage to flush before quit.");
+      complete();
+    }, 5000);
+
+    ipcMain.on(
+      workbenchBootstrapIpcChannels.storageFlushComplete,
+      handleComplete,
+    );
+    try {
+      win.webContents.send(workbenchBootstrapIpcChannels.storageFlushRequest);
+    } catch {
+      complete();
+    }
+  });
 }
 
 function createSharedProcessContributionContext() {
@@ -1615,7 +1690,10 @@ if (hasSingleInstanceLock) {
   }
   configureRuntimeCachePath();
   configureCodeCachePath();
-  await mainConfigurationService.initialize();
+  await Promise.all([
+    mainConfigurationService.initialize(),
+    mainStorageService.initialize(),
+  ]);
   trayMainService.createTray();
   updateService = createUpdateService();
   mainProcessServer.registerChannel(
@@ -1641,6 +1719,7 @@ if (hasSingleInstanceLock) {
   ipcMain.on(nativeHostBootstrapIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
   ipcMain.on(workbenchBootstrapIpcChannels.settingsGet, handleWorkbenchBootstrapSettingsGet);
+  ipcMain.on(workbenchBootstrapIpcChannels.storageGet, handleWorkbenchBootstrapStorageGet);
   ipcMain.handle(workbenchBootstrapIpcChannels.uiReady, handleWorkbenchBootstrapUiReady);
   ipcMain.handle(ipcChannels.desktopAutoUpdateCheck, () =>
     updateService?.checkForUpdates({ manual: true }),
@@ -1707,9 +1786,27 @@ app.on("window-all-closed", () => {
   app.quit();
 });
 
-app.on("before-quit", () => {
+let storageClosedForQuit = false;
+let storageClosePromise: Promise<void> | null = null;
+
+app.on("before-quit", event => {
   trayMainService.markQuitRequested();
   stopAllRustEngines();
+
+  if (storageClosedForQuit) {
+    return;
+  }
+
+  event.preventDefault();
+  storageClosePromise ??= flushRendererStorageBeforeQuit()
+    .then(() => mainStorageService.close())
+    .catch(error => {
+      console.error("Failed to close main storage before quit.", error);
+    })
+    .finally(() => {
+      storageClosedForQuit = true;
+      app.quit();
+    });
 });
 
 app.on("will-quit", () => {
@@ -1734,6 +1831,7 @@ app.on("will-quit", () => {
     handleDesktopAutoUpdateStatusGet,
   );
   ipcMain.removeListener(workbenchBootstrapIpcChannels.settingsGet, handleWorkbenchBootstrapSettingsGet);
+  ipcMain.removeListener(workbenchBootstrapIpcChannels.storageGet, handleWorkbenchBootstrapStorageGet);
   ipcMain.removeHandler(workbenchBootstrapIpcChannels.uiReady);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheck);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheckAndInstall);

@@ -20,6 +20,7 @@ import {
   Extensions,
   type IWorkbenchContributionsRegistry,
 } from "src/cs/workbench/common/contributions";
+import { IStorageService } from "src/cs/platform/storage/common/storage";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 import {
@@ -32,7 +33,6 @@ import {
   applyWorkbenchAppearance,
 } from "src/cs/workbench/services/themes/browser/themeService";
 import { installWindowDeveloperKeybindings } from "src/cs/workbench/browser/actions/windowActions";
-import { getStorageKey, StorageScope } from "src/cs/platform/storage/common/storage";
 import {
   bootstrapWorkbenchTheme,
   showWorkbenchSplash,
@@ -57,10 +57,6 @@ const DEFAULT_SIDEBAR_WIDTH = 250;
 const MIN_SIDEBAR_WIDTH = 170;
 const MAX_SIDEBAR_WIDTH = Number.POSITIVE_INFINITY;
 const WORKBENCH_SIDEBAR_WIDTH_STORAGE_KEY = "workbench.sidebar.width";
-const SIDEBAR_STORAGE_KEY = getStorageKey(
-  WORKBENCH_SIDEBAR_WIDTH_STORAGE_KEY,
-  StorageScope.PROFILE,
-);
 
 const getBootNowMs = () =>
   typeof performance !== "undefined" && typeof performance.now === "function"
@@ -146,7 +142,9 @@ const applyBootSidebarWidth = () => {
   let width = DEFAULT_SIDEBAR_WIDTH;
 
   try {
-    const raw = window.localStorage?.getItem(SIDEBAR_STORAGE_KEY);
+    const raw = window.conductor?.context?.configuration?.()?.storage?.initial.profile[
+      WORKBENCH_SIDEBAR_WIDTH_STORAGE_KEY
+    ];
     const parsed = Number.parseInt(String(raw ?? ""), 10);
     if (
       Number.isFinite(parsed) &&
@@ -315,9 +313,13 @@ const prepareWorkbench = (logBoot: BootLogger, isBootProfileEnabled: boolean) =>
   logInitialRenderDiagnostics(logBoot);
 };
 
-function startWorkbench(): void {
+async function startWorkbench(): Promise<void> {
   const serviceCollection = new ServiceCollection();
   const instantiationService = new InstantiationService(serviceCollection);
+  const storageService = instantiationService.invokeFunction(
+    accessor => accessor.get(IStorageService),
+  );
+  await storageService.initialize();
   const lifecycleService = instantiationService.invokeFunction<ILifecycleServiceType>(
     accessor => {
       accessor.get(IWorkbenchEnvironmentService);
@@ -348,7 +350,7 @@ const logBoot = createBootLogger("renderer", startMs, () => isBootProfileEnabled
 const bootstrapWorkbench = async (): Promise<void> => {
   prepareWorkbench(logBoot, isBootProfileEnabled);
   await import("src/cs/workbench/workbench.desktop.main.ts");
-  startWorkbench();
+  await startWorkbench();
 };
 
 void bootstrapWorkbench();

@@ -17,6 +17,7 @@ import {
   Extensions,
   type IWorkbenchContributionsRegistry,
 } from "src/cs/workbench/common/contributions";
+import { IStorageService } from "src/cs/platform/storage/common/storage";
 import {
   ILifecycleService,
   LifecyclePhase,
@@ -138,9 +139,13 @@ function startBrowserWorkbenchBoot(
   logBoot("theme:applied", `(theme=${DEFAULT_THEME})`);
 }
 
-function startWorkbench(): void {
+async function startWorkbench(): Promise<void> {
   const serviceCollection = new ServiceCollection();
   const instantiationService = new InstantiationService(serviceCollection);
+  const storageService = instantiationService.invokeFunction(
+    accessor => accessor.get(IStorageService),
+  );
+  await storageService.initialize();
   const fileSystemProviderStore = new DisposableStore();
   const lifecycleService = instantiationService.invokeFunction<ILifecycleServiceType>(
     accessor => accessor.get(ILifecycleService),
@@ -174,7 +179,7 @@ const logBoot = createBootLogger("browser", startMs, () => isBootProfileEnabled)
 const bootstrapWorkbench = async (): Promise<void> => {
   startBrowserWorkbenchBoot(logBoot, isBootProfileEnabled);
   await import("src/cs/workbench/workbench.web.main.ts");
-  startWorkbench();
+  await startWorkbench();
 };
 
 void bootstrapWorkbench();

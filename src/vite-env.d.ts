@@ -22,6 +22,15 @@ interface Window {
     context?: {
       configuration?: () => {
         initialWorkbenchSettings?: Record<string, unknown> | null;
+        storage?: {
+          profileId: string;
+          workspaceId: string;
+          initial: {
+            application: Record<string, string>;
+            profile: Record<string, string>;
+            workspace: Record<string, string>;
+          };
+        };
       } | undefined;
     };
   };

@@ -3,8 +3,6 @@ import { DisposableStore } from "../../../base/common/lifecycle.js";
 import { createDecorator } from "../../instantiation/common/instantiation.js";
 
 export const IStorageService = createDecorator<IStorageService>("storageService");
-export const STORAGE_VALUE_MAX_LENGTH = 16 * 1024;
-export const STORAGE_KEY_PREFIX = "conductor.storage";
 
 export const enum StorageScope {
   APPLICATION = -1,
@@ -17,22 +15,19 @@ export const enum StorageTarget {
   MACHINE,
 }
 
-export const getStorageKeyPrefix = (scope: StorageScope): string =>
-  `${STORAGE_KEY_PREFIX}.${scope}.`;
-
-export const getStorageKey = (key: string, scope: StorageScope): string =>
-  `${getStorageKeyPrefix(scope)}${key}`;
-
 export type StorageValue = string | boolean | number | undefined | null | object;
 
 export interface IStorageValueChangeEvent {
   readonly key: string;
   readonly scope: StorageScope;
   readonly target: StorageTarget | undefined;
+  readonly external?: boolean;
 }
 
 export interface IStorageService {
   readonly _serviceBrand: undefined;
+
+  initialize(): Promise<void>;
 
   onDidChangeValue(
     scope: StorageScope,
@@ -53,4 +48,7 @@ export interface IStorageService {
   remove(key: string, scope: StorageScope): void;
   keys(scope: StorageScope): string[];
   removeByPrefix(prefix: string, scope: StorageScope): void;
+
+  flush(): Promise<void>;
+  close(): Promise<void>;
 }

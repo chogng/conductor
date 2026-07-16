@@ -1,3 +1,16 @@
+export const DEFAULT_SANDBOX_PROFILE_ID = "default";
+export const DEFAULT_SANDBOX_WORKSPACE_ID = "empty-window";
+
+export interface ISandboxStorageConfiguration {
+    readonly profileId: string;
+    readonly workspaceId: string;
+    readonly initial: {
+        readonly application: Record<string, string>;
+        readonly profile: Record<string, string>;
+        readonly workspace: Record<string, string>;
+    };
+}
+
 export interface ISandboxConfiguration {
     readonly windowId: number;
     readonly appRoot: string;
@@ -11,6 +24,7 @@ export interface ISandboxConfiguration {
     };
     readonly cssModules?: string[];
     readonly initialWorkbenchSettings?: Record<string, unknown> | null;
+    readonly storage?: ISandboxStorageConfiguration;
 }
 
 export interface ISandboxMemoryInfo {
@@ -24,6 +38,9 @@ export interface ISandboxMemoryInfo {
 
 export const workbenchBootstrapIpcChannels = {
     settingsGet: "conductor:workbench-bootstrap:settings:get",
+    storageGet: "conductor:workbench-bootstrap:storage:get",
+    storageFlushRequest: "conductor:workbench-bootstrap:storage:flush-request",
+    storageFlushComplete: "conductor:workbench-bootstrap:storage:flush-complete",
     uiReady: "conductor:workbench-bootstrap:ui-ready",
 } as const;
 

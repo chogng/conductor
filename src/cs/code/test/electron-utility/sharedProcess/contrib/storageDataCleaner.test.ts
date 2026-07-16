@@ -24,7 +24,7 @@ suite("code/electron-utility/sharedProcess/contrib/storageDataCleaner", () => {
 			const nonEmptyWorkspace = path.join(workspaceStorageHome, "active-window");
 			fs.mkdirSync(emptyWorkspace, { recursive: true });
 			fs.mkdirSync(nonEmptyWorkspace, { recursive: true });
-			fs.writeFileSync(path.join(nonEmptyWorkspace, "state.csdb"), "", "utf8");
+			fs.writeFileSync(path.join(nonEmptyWorkspace, "state.json"), "", "utf8");
 
 			const deleted = deleteEmptyWorkspaceStorageFolders(workspaceStorageHome)
 				.map(filePath => path.basename(filePath));

@@ -1,9 +1,6 @@
 import assert from "assert";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import {
-  getStorageKey,
-  getStorageKeyPrefix,
-  STORAGE_VALUE_MAX_LENGTH,
   StorageScope,
   StorageTarget,
 } from "src/cs/platform/storage/common/storage";
@@ -43,17 +40,6 @@ class TestStorageService extends AbstractStorageService {
 
 suite("platform/storage/common/storageService", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
-  test("creates scoped physical storage keys", () => {
-    assert.equal(
-      getStorageKeyPrefix(StorageScope.PROFILE),
-      "conductor.storage.0.",
-    );
-    assert.equal(
-      getStorageKey("workbench.sidebar.width", StorageScope.PROFILE),
-      "conductor.storage.0.workbench.sidebar.width",
-    );
-  });
-
   test("stores typed values by scope", () => {
     const store = new TestStorageService();
 
@@ -113,27 +99,35 @@ suite("platform/storage/common/storageService", () => {
     store.dispose();
   });
 
-  test("skips values above the storage size limit", () => {
+  test("stores values larger than the previous global size limit", () => {
     const store = new TestStorageService();
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (message?: unknown) => {
-      warnings.push(String(message));
-    };
+    const largeValue = "x".repeat(64 * 1024);
 
-    try {
-      store.store(
-        "large.value",
-        "x".repeat(STORAGE_VALUE_MAX_LENGTH + 1),
-        StorageScope.PROFILE,
-        StorageTarget.USER,
-      );
-    } finally {
-      console.warn = originalWarn;
-    }
+    store.store(
+      "large.value",
+      largeValue,
+      StorageScope.PROFILE,
+      StorageTarget.USER,
+    );
 
-    assert.equal(store.get("large.value", StorageScope.PROFILE), undefined);
-    assert.equal(warnings.length, 1);
+    assert.equal(store.get("large.value", StorageScope.PROFILE), largeValue);
+    store.dispose();
+  });
+
+  test("does not emit when value and target are unchanged", () => {
+    const store = new TestStorageService();
+    const disposables = new DisposableStore();
+    let changes = 0;
+
+    store.onDidChangeValue(StorageScope.PROFILE, "sidebar.width", disposables)(
+      () => changes += 1,
+    );
+
+    store.store("sidebar.width", 320, StorageScope.PROFILE, StorageTarget.USER);
+    store.store("sidebar.width", 320, StorageScope.PROFILE, StorageTarget.USER);
+
+    assert.equal(changes, 1);
+    disposables.dispose();
     store.dispose();
   });
 });

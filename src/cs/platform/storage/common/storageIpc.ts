@@ -2,60 +2,54 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, type Event as EventType } from "../../../base/common/event.js";
-import { DisposableStore, type IDisposable } from "../../../base/common/lifecycle.js";
+import { Event, Emitter, type Event as EventType } from "../../../base/common/event.js";
+import { Disposable } from "../../../base/common/lifecycle.js";
+import type {
+	IStorage,
+	IStorageDatabase,
+	IStorageItemsChangeEvent,
+	IUpdateRequest,
+} from "../../../base/parts/storage/common/storage.js";
 import type { IChannel, IServerChannel } from "../../../base/parts/ipc/common/ipc.js";
-import {
-	type IStorageService,
-	type IStorageValueChangeEvent,
-	StorageScope,
-	StorageTarget,
-	type StorageValue,
-} from "./storage.js";
+import { StorageScope } from "./storage.js";
 
 export const STORAGE_CHANNEL_NAME = "storage";
-export const STORAGE_VALUE_CHANGE_EVENT = "onDidChangeValue";
+export const STORAGE_ITEMS_CHANGE_EVENT = "onDidChangeItems";
 
-export type StorageValueChangeListenRequest = {
-	readonly scope: StorageScope;
-	readonly key?: string;
+type StorageItemsChangeDto = {
+	readonly changed?: readonly (readonly [string, string])[];
+	readonly deleted?: readonly string[];
 };
 
-export interface IStorageChannelClient {
-	onDidChangeValue(
-		scope: StorageScope,
-		key?: string,
-	): EventType<IStorageValueChangeEvent>;
+type StorageUpdateRequestDto = {
+	readonly scope: StorageScope;
+	readonly insert?: readonly (readonly [string, string])[];
+	readonly delete?: readonly string[];
+};
 
-	get(key: string, scope: StorageScope, fallbackValue: string): Promise<string>;
-	get(key: string, scope: StorageScope, fallbackValue?: string): Promise<string | undefined>;
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): Promise<boolean>;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): Promise<boolean | undefined>;
-	getNumber(key: string, scope: StorageScope, fallbackValue: number): Promise<number>;
-	getNumber(key: string, scope: StorageScope, fallbackValue?: number): Promise<number | undefined>;
-	getObject<T extends object>(key: string, scope: StorageScope, fallbackValue: T): Promise<T>;
-	getObject<T extends object>(key: string, scope: StorageScope, fallbackValue?: T): Promise<T | undefined>;
-
-	store(key: string, value: StorageValue, scope: StorageScope, target: StorageTarget): Promise<void>;
-	remove(key: string, scope: StorageScope): Promise<void>;
-	keys(scope: StorageScope): Promise<string[]>;
-	removeByPrefix(prefix: string, scope: StorageScope): Promise<void>;
+export interface IStorageProvider {
+	getStorage(scope: StorageScope): IStorage;
 }
 
 export class StorageChannel implements IServerChannel<string> {
-	constructor(private readonly storageService: IStorageService) { }
+	constructor(private readonly storageProvider: IStorageProvider) {}
 
 	public listen<T>(
 		_ctx: string,
 		event: string,
 		arg?: unknown,
 	): EventType<T> {
-		if (event === STORAGE_VALUE_CHANGE_EVENT) {
-			const request = toValueChangeListenRequest(arg);
-			return this.onDidChangeValue(request.scope, request.key) as EventType<T>;
+		if (event !== STORAGE_ITEMS_CHANGE_EVENT) {
+			return Event.None as EventType<T>;
 		}
 
-		return Event.None as EventType<T>;
+		const storage = this.storageProvider.getStorage(toStorageScope(arg));
+		return Event.map(storage.onDidChangeStorage, change => {
+			const value = storage.get(change.key);
+			return value === undefined
+				? { deleted: [change.key] }
+				: { changed: [[change.key, value]] };
+		}) as EventType<T>;
 	}
 
 	public async call<T>(
@@ -63,142 +57,143 @@ export class StorageChannel implements IServerChannel<string> {
 		command: string,
 		arg?: unknown,
 	): Promise<T> {
-		const args = Array.isArray(arg) ? arg : [];
-
 		switch (command) {
-			case "get":
-				return this.storageService.get(
-					toKey(args[0]),
-					toStorageScope(args[1]),
-					args[2] === undefined ? undefined : String(args[2]),
-				) as T;
-			case "getBoolean":
-				return this.storageService.getBoolean(
-					toKey(args[0]),
-					toStorageScope(args[1]),
-					toOptionalBoolean(args[2]),
-				) as T;
-			case "getNumber":
-				return this.storageService.getNumber(
-					toKey(args[0]),
-					toStorageScope(args[1]),
-					toOptionalNumber(args[2]),
-				) as T;
-			case "getObject":
-				return this.storageService.getObject(
-					toKey(args[0]),
-					toStorageScope(args[1]),
-					toOptionalObject(args[2]),
-				) as T;
-			case "store":
-				this.storageService.store(
-					toKey(args[0]),
-					args[1] as StorageValue,
-					toStorageScope(args[2]),
-					toStorageTarget(args[3]),
-				);
+			case "getItems": {
+				const storage = this.storageProvider.getStorage(toStorageScope(arg));
+				return Array.from(storage.items) as T;
+			}
+			case "updateItems": {
+				const request = toStorageUpdateRequest(arg);
+				const storage = this.storageProvider.getStorage(request.scope);
+				await Promise.all([
+					...(request.insert?.map(([key, value]) => storage.set(key, value, true)) ?? []),
+					...(request.delete?.map(key => storage.delete(key, true)) ?? []),
+				]);
 				return undefined as T;
-			case "remove":
-				this.storageService.remove(toKey(args[0]), toStorageScope(args[1]));
+			}
+			case "optimize": {
+				const storage = this.storageProvider.getStorage(toStorageScope(arg));
+				await storage.optimize();
 				return undefined as T;
-			case "keys":
-				return this.storageService.keys(toStorageScope(args[0])) as T;
-			case "removeByPrefix":
-				this.storageService.removeByPrefix(
-					toKey(args[0]),
-					toStorageScope(args[1]),
-				);
-				return undefined as T;
+			}
 			default:
 				throw new Error(`Unknown storage command '${command}'.`);
 		}
 	}
-
-	private onDidChangeValue(
-		scope: StorageScope,
-		key: string | undefined,
-	): EventType<IStorageValueChangeEvent> {
-		return (listener, thisArgs, disposables) => {
-			const store = new DisposableStore();
-			this.storageService.onDidChangeValue(scope, key, store)(listener, thisArgs);
-			addDisposable(store, disposables);
-			return store;
-		};
-	}
 }
 
-export class StorageChannelClient implements IStorageChannelClient {
-	constructor(private readonly channel: IChannel) { }
+export class StorageDatabaseClient extends Disposable implements IStorageDatabase {
+	private readonly onDidChangeItemsExternalEmitter =
+		this._register(new Emitter<IStorageItemsChangeEvent>());
+	public readonly onDidChangeItemsExternal =
+		this.onDidChangeItemsExternalEmitter.event;
 
-	public onDidChangeValue(
-		scope: StorageScope,
-		key?: string,
-	): EventType<IStorageValueChangeEvent> {
-		return this.channel.listen<IStorageValueChangeEvent>(
-			STORAGE_VALUE_CHANGE_EVENT,
-			{ scope, key } satisfies StorageValueChangeListenRequest,
+	private didGetItems = false;
+	private readonly pendingChanges: StorageItemsChangeDto[] = [];
+
+	constructor(
+		private readonly channel: IChannel,
+		private readonly scope: StorageScope,
+	) {
+		super();
+		this._register(this.channel.listen<StorageItemsChangeDto>(
+			STORAGE_ITEMS_CHANGE_EVENT,
+			scope,
+		)(event => {
+			if (!this.didGetItems) {
+				this.pendingChanges.push(event);
+				return;
+			}
+
+			this.emitChange(event);
+		}));
+	}
+
+	public async getItems(): Promise<Map<string, string>> {
+		const items = await this.channel.call<readonly (readonly [string, string])[]>(
+			"getItems",
+			this.scope,
 		);
+		const result = new Map(items);
+		for (const change of this.pendingChanges.splice(0)) {
+			change.changed?.forEach(([key, value]) => result.set(key, value));
+			change.deleted?.forEach(key => result.delete(key));
+		}
+		this.didGetItems = true;
+		return result;
 	}
 
-	public get(key: string, scope: StorageScope, fallbackValue: string): Promise<string>;
-	public get(key: string, scope: StorageScope, fallbackValue?: string): Promise<string | undefined>;
-	public get(key: string, scope: StorageScope, fallbackValue?: string): Promise<string | undefined> {
-		return this.channel.call("get", [key, scope, fallbackValue]);
+	public async updateItems(request: IUpdateRequest): Promise<void> {
+		await this.channel.call("updateItems", {
+			scope: this.scope,
+			insert: request.insert ? Array.from(request.insert) : undefined,
+			delete: request.delete ? Array.from(request.delete) : undefined,
+		} satisfies StorageUpdateRequestDto);
 	}
 
-	public getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): Promise<boolean>;
-	public getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): Promise<boolean | undefined>;
-	public getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): Promise<boolean | undefined> {
-		return this.channel.call("getBoolean", [key, scope, fallbackValue]);
+	public async optimize(): Promise<void> {
+		await this.channel.call("optimize", this.scope);
 	}
 
-	public getNumber(key: string, scope: StorageScope, fallbackValue: number): Promise<number>;
-	public getNumber(key: string, scope: StorageScope, fallbackValue?: number): Promise<number | undefined>;
-	public getNumber(key: string, scope: StorageScope, fallbackValue?: number): Promise<number | undefined> {
-		return this.channel.call("getNumber", [key, scope, fallbackValue]);
-	}
+	public async close(): Promise<void> {}
 
-	public getObject<T extends object>(key: string, scope: StorageScope, fallbackValue: T): Promise<T>;
-	public getObject<T extends object>(key: string, scope: StorageScope, fallbackValue?: T): Promise<T | undefined>;
-	public getObject<T extends object>(key: string, scope: StorageScope, fallbackValue?: T): Promise<T | undefined> {
-		return this.channel.call("getObject", [key, scope, fallbackValue]);
-	}
-
-	public store(
-		key: string,
-		value: StorageValue,
-		scope: StorageScope,
-		target: StorageTarget,
-	): Promise<void> {
-		return this.channel.call("store", [key, value, scope, target]);
-	}
-
-	public remove(key: string, scope: StorageScope): Promise<void> {
-		return this.channel.call("remove", [key, scope]);
-	}
-
-	public keys(scope: StorageScope): Promise<string[]> {
-		return this.channel.call("keys", [scope]);
-	}
-
-	public removeByPrefix(prefix: string, scope: StorageScope): Promise<void> {
-		return this.channel.call("removeByPrefix", [prefix, scope]);
+	private emitChange(event: StorageItemsChangeDto): void {
+		this.onDidChangeItemsExternalEmitter.fire({
+			changed: event.changed ? new Map(event.changed) : undefined,
+			deleted: event.deleted ? new Set(event.deleted) : undefined,
+		});
 	}
 }
 
-function toValueChangeListenRequest(arg: unknown): StorageValueChangeListenRequest {
-	if (isObject(arg)) {
-		return {
-			scope: toStorageScope(arg.scope),
-			key: typeof arg.key === "string" ? arg.key : undefined,
-		};
+function toStorageUpdateRequest(value: unknown): StorageUpdateRequestDto {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error("Invalid storage update request.");
 	}
 
-	return { scope: StorageScope.PROFILE };
+	const request = value as {
+		readonly scope?: unknown;
+		readonly insert?: unknown;
+		readonly delete?: unknown;
+	};
+	return {
+		scope: toStorageScope(request.scope),
+		insert: toStorageEntries(request.insert),
+		delete: toStorageKeys(request.delete),
+	};
 }
 
-function toKey(value: unknown): string {
-	return String(value ?? "");
+function toStorageEntries(
+	value: unknown,
+): readonly (readonly [string, string])[] | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (!Array.isArray(value)) {
+		throw new Error("Invalid storage insert entries.");
+	}
+
+	return value.map(entry => {
+		if (
+			!Array.isArray(entry) ||
+			entry.length !== 2 ||
+			typeof entry[0] !== "string" ||
+			typeof entry[1] !== "string"
+		) {
+			throw new Error("Invalid storage insert entry.");
+		}
+		return [entry[0], entry[1]] as const;
+	});
+}
+
+function toStorageKeys(value: unknown): readonly string[] | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (!Array.isArray(value) || !value.every(key => typeof key === "string")) {
+		throw new Error("Invalid storage delete entries.");
+	}
+
+	return value;
 }
 
 function toStorageScope(value: unknown): StorageScope {
@@ -208,52 +203,8 @@ function toStorageScope(value: unknown): StorageScope {
 		case StorageScope.WORKSPACE:
 			return StorageScope.WORKSPACE;
 		case StorageScope.PROFILE:
-		default:
 			return StorageScope.PROFILE;
+		default:
+			throw new Error(`Invalid storage scope '${String(value)}'.`);
 	}
-}
-
-function toStorageTarget(value: unknown): StorageTarget {
-	return value === StorageTarget.MACHINE ? StorageTarget.MACHINE : StorageTarget.USER;
-}
-
-function toOptionalBoolean(value: unknown): boolean | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
-
-	return value === true;
-}
-
-function toOptionalNumber(value: unknown): number | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
-
-	const numberValue = Number(value);
-	return Number.isFinite(numberValue) ? numberValue : undefined;
-}
-
-function toOptionalObject(value: unknown): object | undefined {
-	return isObject(value) ? value : undefined;
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function addDisposable(
-	disposable: IDisposable,
-	disposables?: IDisposable[] | DisposableStore,
-): void {
-	if (!disposables) {
-		return;
-	}
-
-	if (Array.isArray(disposables)) {
-		disposables.push(disposable);
-		return;
-	}
-
-	disposables.add(disposable);
 }

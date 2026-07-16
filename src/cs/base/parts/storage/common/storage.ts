@@ -1,6 +1,6 @@
-import { Delayer } from "src/cs/base/common/async";
-import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import { Emitter, Event } from "src/cs/base/common/event";
+import { Delayer } from "../../../common/async.js";
+import { Emitter, Event } from "../../../common/event.js";
+import { Disposable, type IDisposable } from "../../../common/lifecycle.js";
 
 export const enum StorageHint {
     STORAGE_DOES_NOT_EXIST,
@@ -119,6 +119,7 @@ export class Storage extends Disposable implements IStorage {
     private state = StorageState.None;
     private cache = new Map<string, string>();
     private readonly flushDelayer = this._register(new Delayer<void>(Storage.DEFAULT_FLUSH_DELAY));
+    private flushQueue = Promise.resolve();
     private pendingDeletes = new Set<string>();
     private pendingInserts = new Map<string, string>();
     private pendingClose: Promise<void> | undefined;
@@ -319,7 +320,16 @@ export class Storage extends Disposable implements IStorage {
             return this.flushPending();
         }
 
-        return this.flushDelayer.trigger(() => this.flushPending(), delay);
+        return this.flushDelayer.trigger(() => this.queueFlush(), delay);
+    }
+
+    private queueFlush(): Promise<void> {
+        const flush = this.flushQueue.then(
+            () => this.flushPending(),
+            () => this.flushPending(),
+        );
+        this.flushQueue = flush.catch(() => undefined);
+        return flush;
     }
 
     private async flushPending(): Promise<void> {
@@ -331,7 +341,21 @@ export class Storage extends Disposable implements IStorage {
         this.pendingDeletes = new Set<string>();
         this.pendingInserts = new Map<string, string>();
 
-        await this.database.updateItems(request);
+        try {
+            await this.database.updateItems(request);
+        } catch (error) {
+            request.insert?.forEach((value, key) => {
+                if (!this.pendingInserts.has(key) && !this.pendingDeletes.has(key)) {
+                    this.pendingInserts.set(key, value);
+                }
+            });
+            request.delete?.forEach(key => {
+                if (!this.pendingInserts.has(key) && !this.pendingDeletes.has(key)) {
+                    this.pendingDeletes.add(key);
+                }
+            });
+            throw error;
+        }
 
         if (!this.hasPending) {
             while (this.whenFlushedCallbacks.length) {
