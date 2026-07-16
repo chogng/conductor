@@ -234,6 +234,18 @@ The component that creates a DOM node owns that node's classes and state.
 - Feature roots provide CSS scope and layout context.
 - Base/platform primitives must not know feature-specific classes.
 - Do not add wrapper elements, alias classes, or compatibility DOM hooks to preserve old selectors.
+- Follow the upstream trait shape for reusable selection/focus state: the DOM
+  owner toggles a semantic class such as `.selected` or `.focused`. Do not use a
+  boolean `[data-x="true"]` selector merely as a substitute for an owner-managed
+  trait class. Reserve `data-*` attributes for values or explicitly defined DOM
+  contracts that are not adequately represented by a class.
+- CSS selectors that depend on an owned DOM skeleton should express that
+  skeleton. Use `>` when the rule applies to an immediate child; do not broaden
+  it to an arbitrary descendant selector.
+- If feature CSS needs to distinguish states already known by a base primitive,
+  add the missing trait to the base-owned node. Do not compensate with an
+  ancestor proxy class, a feature-written hook on private base DOM, or a
+  relational selector that infers the missing state.
 
 ```ts
 // Good

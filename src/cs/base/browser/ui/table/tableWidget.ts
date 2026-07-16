@@ -20,6 +20,8 @@ import "src/cs/base/browser/ui/table/table.css";
 
 const TABLE_WIDGET_RESIZING_COLUMN_CLASS = "table_view--resizing_column";
 const TABLE_WIDGET_COLUMN_RESIZE_HANDLE_CLASS = "table_view_column_resize_handle";
+const TABLE_WIDGET_COLUMN_SELECTED_CLASS = "column-selected";
+const TABLE_WIDGET_SELECTED_CLASS = "selected";
 const TABLE_WIDGET_BASE_FONT_SIZE = 12;
 const TABLE_WIDGET_BASE_CELL_INLINE_PADDING = 8;
 const TABLE_WIDGET_COLUMN_CELL_BORDER_WIDTH = 1;
@@ -56,6 +58,7 @@ type AppliedTableCellState = {
 
 class TableBodyCellTraits {
 	private appliedActive?: boolean;
+	private appliedColumnSelected?: boolean;
 	private appliedDecoration?: string;
 	private appliedHighlighted?: boolean;
 	private appliedHoverContent?: IManagedHoverContent;
@@ -68,6 +71,7 @@ class TableBodyCellTraits {
 
 	public set(state: Table.ITableBodyCellTraitState): void {
 		this.setActive(state.active);
+		this.setColumnSelected(state.columnSelected);
 		this.setDecoration(state.decoration);
 		this.setSelected(state.selected);
 		this.setHighlighted(state.highlighted);
@@ -128,12 +132,21 @@ class TableBodyCellTraits {
 		this.appliedDecoration = decoration;
 	}
 
+	private setColumnSelected(columnSelected: boolean): void {
+		if (this.appliedColumnSelected === columnSelected) {
+			return;
+		}
+
+		this.element.classList.toggle(TABLE_WIDGET_COLUMN_SELECTED_CLASS, columnSelected);
+		this.appliedColumnSelected = columnSelected;
+	}
+
 	private setSelected(selected: boolean): void {
 		if (this.appliedSelected === selected) {
 			return;
 		}
 
-		this.element.dataset.selected = selected ? "true" : "false";
+		this.element.classList.toggle(TABLE_WIDGET_SELECTED_CLASS, selected);
 		this.appliedSelected = selected;
 	}
 
@@ -162,6 +175,7 @@ class TableBodyCellTraits {
 }
 
 class TableColumnHeaderTraits {
+	private appliedColumnSelected?: boolean;
 	private appliedHighlighted?: boolean;
 	private appliedHovered?: boolean;
 	private appliedSelected?: boolean;
@@ -169,6 +183,7 @@ class TableColumnHeaderTraits {
 	public constructor(private readonly element: HTMLElement) {}
 
 	public set(state: Table.ITableColumnHeaderTraitState): void {
+		this.setColumnSelected(state.columnSelected);
 		this.setSelected(state.selected);
 		this.setHighlighted(state.highlighted);
 	}
@@ -182,12 +197,21 @@ class TableColumnHeaderTraits {
 		this.appliedHovered = hovered;
 	}
 
+	private setColumnSelected(columnSelected: boolean): void {
+		if (this.appliedColumnSelected === columnSelected) {
+			return;
+		}
+
+		this.element.classList.toggle(TABLE_WIDGET_COLUMN_SELECTED_CLASS, columnSelected);
+		this.appliedColumnSelected = columnSelected;
+	}
+
 	private setSelected(selected: boolean): void {
 		if (this.appliedSelected === selected) {
 			return;
 		}
 
-		this.element.dataset.selected = selected ? "true" : "false";
+		this.element.classList.toggle(TABLE_WIDGET_SELECTED_CLASS, selected);
 		this.element.querySelector<HTMLButtonElement>("button")?.setAttribute("aria-pressed", selected ? "true" : "false");
 		this.appliedSelected = selected;
 	}
@@ -1368,6 +1392,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 			}
 
 			this.setColumnHeaderTraits(header, {
+				columnSelected: state.selectedColumns.has(colIndex),
 				highlighted: state.highlightedColumns.has(colIndex),
 				selected: state.selectedColumns.has(colIndex),
 			});
@@ -1381,6 +1406,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.forEachBodyCellInRanges(ranges, (templateData, descriptor) => {
 			this.setBodyCellTraits(templateData, {
 				active: state.selectedRanges.length === 0 && isActiveCell(state.activeCell, descriptor.rowIndex, descriptor.colIndex),
+				columnSelected: state.selectedColumns.has(descriptor.colIndex),
 				decoration: getCellDecoration(descriptor.rowIndex, descriptor.colIndex, state.decorationRanges),
 				highlighted: state.highlightedColumns.has(descriptor.colIndex),
 				selected: isSelectedCell(descriptor.rowIndex, descriptor.colIndex, state),
@@ -1421,6 +1447,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 
 		this.setBodyCellTraits(cell, {
 			active: active && state.selectedRanges.length === 0,
+			columnSelected: state.selectedColumns.has(activeCell.colIndex),
 			decoration: getCellDecoration(activeCell.rowIndex, activeCell.colIndex, state.decorationRanges),
 			highlighted: state.highlightedColumns.has(activeCell.colIndex),
 			selected: isSelectedCell(activeCell.rowIndex, activeCell.colIndex, state),

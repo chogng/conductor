@@ -313,8 +313,26 @@ suite("workbench/services/table/browser/tableService", () => {
       source: { resource },
     });
 
+    model.setSelection({
+      activeCell: {
+        colIndex: 1,
+        rowIndex: 1,
+        sheetId: null,
+      },
+      ranges: [{
+        startRow: 0,
+        endRow: 1,
+        startCol: 0,
+        endCol: 1,
+        sheetId: null,
+      }],
+    });
     assert.equal(model.selectAllColumns(), true);
-    assert.deepEqual(model.getSelection().selectedColumns, [0, 1, 2]);
+    assert.deepEqual(model.getSelection(), {
+      activeCell: null,
+      ranges: [],
+      selectedColumns: [0, 1, 2],
+    });
   });
 
   test("publishes table view input from the current resource source", async () => {
@@ -836,7 +854,11 @@ suite("workbench/services/table/browser/tableService", () => {
       kind: "columns",
       columns: [2, 0, 2],
     }), true);
-    assert.deepEqual(model.getSelection().selectedColumns, [0, 2]);
+    assert.deepEqual(model.getSelection(), {
+      activeCell: null,
+      ranges: [],
+      selectedColumns: [0, 2],
+    });
 
     assert.equal(service.select({
       kind: "cell",
@@ -858,7 +880,7 @@ suite("workbench/services/table/browser/tableService", () => {
 
     assert.equal(service.select(null), true);
     assert.deepEqual(service.getSelection(), normalizeTableSelection(null));
-    assert.equal(events.length, 5);
+    assert.equal(events.length, 4);
 
     disposable.dispose();
     service.dispose();

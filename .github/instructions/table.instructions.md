@@ -1,6 +1,6 @@
 ---
 description: Table service - raw/block table preview, row paging, selection, focus, highlight, reveal, and table widget boundaries.
-applyTo: 'src/cs/workbench/services/table/**,src/cs/workbench/contrib/table/**'
+applyTo: 'src/cs/base/browser/ui/table/**,src/cs/base/test/browser/ui/table/**,src/cs/workbench/services/table/**,src/cs/workbench/contrib/table/**'
 ---
 # Table
 
@@ -232,11 +232,30 @@ add geometry, resize, label, or keyboard navigation algorithms there.
 
 Follow the upstream widget shape: feature code depends on the base
 `TableWidget` facade as the single owner surface. Do not expose or pass around a
-map of structural class names. The base table owns those hooks and feature code
-adds at most a root class plus domain-specific state classes or data attributes.
+map of structural class names. The base table owns structural hooks and reusable
+interaction traits. Feature code may add its root scope and true
+domain-specific state only to DOM that it creates; it must not write state
+classes or attributes onto pooled base header/body/cell DOM.
 `TableWidget` should compose the lower-level virtual table engine instead of
 inheriting from it, so engine DOM parts do not become public widget API by
 accident.
+
+Base table selection traits follow the upstream list trait shape:
+
+- use owner-toggled semantic classes such as `.selected`, not
+  `[data-selected="true"]`;
+- retain orthogonal state when presentation depends on why a cell is selected.
+  For example, if whole-column selection differs visually from range selection,
+  the base cell/header trait must expose that distinction with a base-owned leaf
+  class such as `.column-selected`; a combined `selected: boolean` is not a
+  sufficient DOM contract;
+- scope feature presentation under the feature root, then follow the base DOM
+  structure with `>` direct-child selectors where the relationship is direct;
+- do not add a container marker such as `table_view--column_selection`, write a
+  feature `data-*` attribute onto base DOM, or use `:has(...)` to infer a state
+  that the base trait contract failed to expose. Fix the base trait contract
+  first and cover its pooled-node class removal/rebinding behavior in base
+  widget tests.
 
 Feature widgets consume those facts by subscribing and rereading owner state.
 They should not make each logical cell a long-lived component or subscribe each
@@ -298,6 +317,12 @@ type TableSelectionTarget =
   | { readonly kind: "range"; readonly range: TableRange }
   | { readonly kind: "columns"; readonly columns: readonly number[] };
 ```
+
+Selection modes are exclusive. A column-selection target replaces the active
+cell and selected ranges; a cell or range target clears selected columns. Do not
+preserve a hidden selection mode merely to retain its previous styling.
+Additive selection may extend the current column set, but it does not retain a
+simultaneous cell/range selection.
 
 Use owner APIs such as `tableWidget.select(...)`,
 `tableService.open(source)`, `tableService.select(...)`,

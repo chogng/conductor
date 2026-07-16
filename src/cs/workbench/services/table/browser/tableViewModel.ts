@@ -2619,12 +2619,11 @@ const createTableViewModel = ({
       }
 
       setSelection({
-        ...selectionRef.current,
         selectedColumns,
       });
       return true;
     },
-    [previewFileRef, selectedSource, selectionRef, setSelection],
+    [previewFileRef, selectedSource, setSelection],
   );
 
   const getHighlight = memoCallback(

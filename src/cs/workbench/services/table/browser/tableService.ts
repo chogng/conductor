@@ -263,7 +263,6 @@ const resolveSelectionForTarget = (
       return activeCell
         ? {
             activeCell,
-            selectedColumns: selection.selectedColumns ?? [],
           }
         : null;
     }
@@ -277,7 +276,6 @@ const resolveSelectionForTarget = (
               sheetId: range.sheetId,
             },
             ranges: [range],
-            selectedColumns: selection.selectedColumns ?? [],
           }
         : null;
     }
@@ -285,7 +283,6 @@ const resolveSelectionForTarget = (
       const selectedColumns = normalizeTargetColumns(tableViewModel, target.columns);
       return selectedColumns
         ? {
-            ...selection,
             selectedColumns,
           }
         : null;

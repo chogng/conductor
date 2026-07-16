@@ -154,6 +154,7 @@ export interface ITableSelectionFrameEdges {
 
 export interface ITableBodyCellTraitState {
 	readonly active: boolean;
+	readonly columnSelected: boolean;
 	readonly decoration: string;
 	readonly highlighted: boolean;
 	readonly selected: boolean;
@@ -161,6 +162,7 @@ export interface ITableBodyCellTraitState {
 }
 
 export interface ITableColumnHeaderTraitState {
+	readonly columnSelected: boolean;
 	readonly highlighted: boolean;
 	readonly selected: boolean;
 }

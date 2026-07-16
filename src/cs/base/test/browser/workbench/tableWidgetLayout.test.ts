@@ -944,7 +944,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       columnSizingMode: "fixed",
       columnHeaderSelection: "single",
       onSelect: target => {
-        selection = applySelectionTarget(selection, target);
+        selection = applySelectionTarget(target);
         for (const callback of Array.from(selectionListeners)) {
           callback(selection);
         }
@@ -984,7 +984,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       canAdjustColumnScale: false,
       columnHeaderSelection: "multi",
       onSelect: target => {
-        selection = applySelectionTarget(selection, target);
+        selection = applySelectionTarget(target);
         selectedColumns.push([...(selection.selectedColumns ?? [])]);
         return true;
       },
@@ -1021,7 +1021,7 @@ suite("base/browser/workbench tableWidget layout", () => {
     const widget = new TableWidget({
       columnSizingMode: "fixed",
       onSelect: target => {
-        selection = applySelectionTarget(selection, target);
+        selection = applySelectionTarget(target);
         selectedColumns.push([...(selection.selectedColumns ?? [])]);
         return true;
       },
@@ -1115,7 +1115,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       columnSizingMode: "fixed",
       columnHeaderSelection: "multi",
       onSelect: target => {
-        selection = applySelectionTarget(selection, target);
+        selection = applySelectionTarget(target);
         selectedColumns.push([...(selection.selectedColumns ?? [])]);
         return true;
       },
@@ -1149,7 +1149,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       columnSizingMode: "fixed",
       onSelect: target => {
         selectedTargets.push(target);
-        selection = applySelectionTarget(selection, target);
+        selection = applySelectionTarget(target);
         for (const callback of Array.from(selectionListeners)) {
           callback(selection);
         }
@@ -1321,7 +1321,6 @@ function createTableWidgetModel(
 }
 
 function applySelectionTarget(
-  selection: TableWidgetSelection,
   target: TableWidgetSelectionTarget | null,
 ): TableWidgetSelection {
   if (!target) {
@@ -1330,9 +1329,6 @@ function applySelectionTarget(
 
   if (target.kind === "columns") {
     return {
-      ...selection,
-      activeCell: undefined,
-      ranges: undefined,
       selectedColumns: target.columns,
     };
   }
@@ -1340,7 +1336,6 @@ function applySelectionTarget(
   if (target.kind === "cell") {
     return {
       activeCell: target.cell,
-      selectedColumns: selection.selectedColumns ?? [],
     };
   }
 
@@ -1351,7 +1346,6 @@ function applySelectionTarget(
       sheetId: target.range.sheetId ?? null,
     },
     ranges: [target.range],
-    selectedColumns: selection.selectedColumns ?? [],
   };
 }
 

@@ -439,6 +439,7 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 
 			widget.setBodyCellTraits(templateData, {
 				active: true,
+				columnSelected: true,
 				decoration: "",
 				highlighted: false,
 				selected: true,
@@ -451,8 +452,9 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 			});
 
 			assert.equal(cell.dataset.active, "true");
+			assert.equal(cell.classList.contains("column-selected"), true);
 			assert.equal(cell.dataset.highlighted, "false");
-			assert.equal(cell.dataset.selected, "true");
+			assert.equal(cell.classList.contains("selected"), true);
 			assert.equal(cell.dataset.selectionFrame, "true");
 			assert.equal(cell.style.getPropertyValue("--table-view-selection-frame-top"), "2px");
 			assert.equal(cell.style.getPropertyValue("--table-view-selection-frame-right"), "0");
@@ -461,6 +463,7 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 
 			widget.setBodyCellTraits(templateData, {
 				active: false,
+				columnSelected: false,
 				decoration: "",
 				highlighted: false,
 				selected: false,
@@ -473,7 +476,8 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 			});
 
 			assert.equal(cell.dataset.active, "false");
-			assert.equal(cell.dataset.selected, "false");
+			assert.equal(cell.classList.contains("column-selected"), false);
+			assert.equal(cell.classList.contains("selected"), false);
 			assert.equal(cell.dataset.selectionFrame, "false");
 		} finally {
 			listener.dispose();
@@ -518,21 +522,25 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 			assert.ok(button);
 
 			widget.setColumnHeaderTraits(templateData, {
+				columnSelected: true,
 				highlighted: true,
 				selected: true,
 			});
 
 			assert.equal(header.dataset.highlighted, "true");
-			assert.equal(header.dataset.selected, "true");
+			assert.equal(header.classList.contains("column-selected"), true);
+			assert.equal(header.classList.contains("selected"), true);
 			assert.equal(button.getAttribute("aria-pressed"), "true");
 
 			widget.setColumnHeaderTraits(templateData, {
+				columnSelected: false,
 				highlighted: false,
 				selected: false,
 			});
 
 			assert.equal(header.dataset.highlighted, "false");
-			assert.equal(header.dataset.selected, "false");
+			assert.equal(header.classList.contains("column-selected"), false);
+			assert.equal(header.classList.contains("selected"), false);
 			assert.equal(button.getAttribute("aria-pressed"), "false");
 		} finally {
 			listener.dispose();
@@ -554,11 +562,22 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 				selectedRanges: [{ startRow: 0, endRow: 1, startCol: 0, endCol: 1 }],
 			});
 			assert.equal(widget.getBodyCellElement(1, 1)?.dataset.active, "false");
-			assert.equal(widget.getBodyCellElement(1, 1)?.dataset.selected, "true");
-			assert.equal(widget.getBodyCellElement(0, 2)?.dataset.selected, "true");
+			assert.equal(widget.getBodyCellElement(1, 1)?.classList.contains("selected"), true);
+			assert.equal(widget.getBodyCellElement(1, 1)?.classList.contains("column-selected"), false);
+			assert.equal(widget.getBodyCellElement(0, 2)?.classList.contains("selected"), true);
+			assert.equal(widget.getBodyCellElement(0, 2)?.classList.contains("column-selected"), true);
 			assert.equal(widget.getBodyCellElement(0, 3)?.dataset.highlighted, "true");
-			assert.equal(widget.getColumnHeaderCellElement(2)?.dataset.selected, "true");
+			assert.equal(widget.getColumnHeaderCellElement(2)?.classList.contains("selected"), true);
+			assert.equal(widget.getColumnHeaderCellElement(2)?.classList.contains("column-selected"), true);
 			assert.equal(widget.getColumnHeaderCellElement(3)?.dataset.highlighted, "true");
+
+			widget.setCellState({
+				activeCell: { rowIndex: 1, colIndex: 1 },
+			});
+			assert.equal(widget.getBodyCellElement(0, 2)?.classList.contains("selected"), false);
+			assert.equal(widget.getBodyCellElement(0, 2)?.classList.contains("column-selected"), false);
+			assert.equal(widget.getColumnHeaderCellElement(2)?.classList.contains("selected"), false);
+			assert.equal(widget.getColumnHeaderCellElement(2)?.classList.contains("column-selected"), false);
 		} finally {
 			listener.dispose();
 			widget.dispose();
