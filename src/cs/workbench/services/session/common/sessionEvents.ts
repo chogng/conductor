@@ -16,7 +16,6 @@ export type SessionChangeReason =
 	| "sliceRunChanged"
 	| "curvesChanged"
 	| "metricsChanged"
-	| "calculatedRecordsChanged"
 	| "metricInputsChanged"
 	| "fileMetadataChanged"
 	| "filesRemoved"

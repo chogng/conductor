@@ -21,6 +21,10 @@ import { AbstractStorageService } from "src/cs/platform/storage/common/storageSe
 import { WebWorkerDescriptor } from "src/cs/platform/webWorker/browser/webWorkerDescriptor";
 import type { IWebWorkerService } from "src/cs/platform/webWorker/browser/webWorkerService";
 import { WebWorkerService } from "src/cs/platform/webWorker/browser/webWorkerServiceImpl";
+import type {
+  CalculationResourceResult,
+  ICalculationService,
+} from "src/cs/workbench/services/calculation/common/calculation";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
@@ -72,7 +76,7 @@ class PlotService extends BrowserPlotService {
       sessionService,
       settingsService,
       storageService,
-      sliceService,
+      createCalculationServiceStub(sliceService),
     );
   }
 }
@@ -2402,7 +2406,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     });
 
     assert.ok(calculated);
-    assert.equal(calculated.source.inputKind, "sliceResource");
+    assert.equal(calculated.source.inputKind, "calculationResource");
     assert.equal(calculated.seriesList[0]?.name, "A");
     assert.equal(service.getCachedCalculatedData({
       plotType: "iv",
@@ -3047,7 +3051,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
     for (const reason of [
       "rawTablesChanged",
-      "calculatedRecordsChanged",
       "metricsChanged",
       "metricInputsChanged",
       "fileMetadataChanged",
@@ -3154,7 +3157,6 @@ const createSessionServiceStub = (
   onDidChangeSession,
   clearMetricInput: () => undefined,
   clearSession: () => undefined,
-  commitCalculatedRecordsBatch: () => undefined,
   commitCurves: () => undefined,
   commitCurvesBatch: () => undefined,
   commitFileImport: () => ({
@@ -3192,6 +3194,100 @@ const createSliceServiceStub = (
   setTemplateSelection: () => undefined,
   submitResource: () => undefined,
 });
+
+const createCalculationServiceStub = (
+  sliceService?: ISliceService,
+): ICalculationService => ({
+  _serviceBrand: undefined,
+  getResourceResult: (resource, sheetId) => {
+    const result = sliceService?.getResourceResult(resource, sheetId);
+    return result ? createCalculationResourceResult(result) : null;
+  },
+  onDidChangeResourceCalculationResult:
+    Event.None as ICalculationService["onDidChangeResourceCalculationResult"],
+  prioritizeResource: (resource, sheetId) => {
+    sliceService?.prioritizeResource(resource, sheetId);
+  },
+});
+
+const createCalculationResourceResult = (
+  result: SliceResourceResult,
+): CalculationResourceResult => {
+  const fileId = [
+    result.resource.toString().replace(/\\/g, "/"),
+    String(result.sheetId ?? "").trim(),
+  ].filter(Boolean).join("\u0000");
+  const block = result.run.template.blocks[0];
+  return {
+    axis: {
+      xAxisRole: result.curves[0]?.ivMode === "transfer"
+        ? "vg"
+        : result.curves[0]?.ivMode === "output"
+          ? "vd"
+          : null,
+      xLabel: block?.titles?.bottom,
+      xUnit: block?.x.unit,
+      yLabel: block?.titles?.left,
+      yUnit: block?.y.unit,
+    },
+    completedAt: result.completedAt,
+    curvesByKey: Object.fromEntries(result.curves.map(curve => {
+      const mode = curve.curveFamily === "iv"
+        ? curve.ivMode ?? "default"
+        : curve.curveFamily === "it"
+          ? curve.itMode ?? "default"
+          : "default";
+      return [
+        `base:${curve.curveFamily}:${mode}:${curve.seriesId}`,
+        {
+          channels: curve.channels,
+          curveFamily: curve.curveFamily,
+          curveGeneration: "base",
+          domain: curve.domain,
+          fileId,
+          itMode: curve.itMode ?? null,
+          ivMode: curve.ivMode ?? null,
+          lineage: {
+            baseFamily: curve.curveFamily,
+            baseSeries: { fileId, seriesId: curve.seriesId },
+            curveGeneration: "base",
+            itMode: curve.itMode ?? null,
+            ivMode: curve.ivMode ?? null,
+          },
+          points: curve.points,
+          seriesId: curve.seriesId,
+          signature: curve.signature,
+        },
+      ];
+    })),
+    inputSignature: [
+      result.requestSignature,
+      result.sourceModelVersion,
+      result.sourceVersion,
+    ].join("\u001e"),
+    metricsByKey: {},
+    requestSignature: result.requestSignature,
+    resource: result.resource,
+    seriesById: Object.fromEntries(result.series.map(series => [
+      series.id,
+      {
+        fileId,
+        groupIndex: series.groupIndex,
+        id: series.id,
+        labelOverride: series.labelOverride,
+        legendValue: series.legendValue,
+        name: series.name,
+        sheetId: result.sheetId ?? undefined,
+        y: series.y,
+        yCol: series.yCol,
+      },
+    ])),
+    seriesOrder: result.series.map(series => series.id),
+    sheetId: result.sheetId ?? null,
+    sourceModelVersion: result.sourceModelVersion,
+    sourceVersion: result.sourceVersion,
+  };
+};
 
 const createSettingsServiceStub = (
   initialSettings: ConductorSettings | null = {

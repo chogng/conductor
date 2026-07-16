@@ -22,7 +22,6 @@ import type {
   CurveRef,
   CurveRecord,
   FileId,
-  FileRecord,
   ItCurveMode,
   IvCurveMode,
   MetricKey,
@@ -31,6 +30,7 @@ import type {
   SeriesId,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
+  type CalculationFileRecord,
   collectFileRecordBaseCurves,
   fileRecordSupportsSs,
   getFileRecordAxisProjection,
@@ -82,7 +82,7 @@ type SsFitResult = {
 };
 
 export const createCalculatedMetricRecordsByFile = (
-  filesById: Record<FileId, FileRecord>,
+  filesById: Record<FileId, CalculationFileRecord>,
   fileOrder: readonly FileId[],
   optionsByFileId: Readonly<Record<FileId, CalculatedMetricRecordBuilderOptions | undefined>> = {},
 ): Record<FileId, MetricRecord[]> => {
@@ -97,7 +97,7 @@ export const createCalculatedMetricRecordsByFile = (
 };
 
 export const createCalculatedMetricRecordsInputSignature = (
-  filesById: Record<FileId, FileRecord>,
+  filesById: Record<FileId, CalculationFileRecord>,
   fileOrder: readonly FileId[],
 ): string => {
   const parts: string[] = [];
@@ -130,7 +130,7 @@ export const createCalculatedMetricRecordsInputSignature = (
 };
 
 export const createCalculatedMetricRecordsForFile = (
-  file: FileRecord,
+  file: CalculationFileRecord,
   options: CalculatedMetricRecordBuilderOptions = {},
 ): MetricRecord[] => {
   const curves = collectFileRecordBaseCurves(file);
@@ -226,7 +226,7 @@ export const createCalculatedMetricRecordsForFile = (
   return Object.values(metricsByKey);
 };
 
-const createMetricSourceFile = (file: FileRecord): MetricSourceFile => {
+const createMetricSourceFile = (file: CalculationFileRecord): MetricSourceFile => {
   const axis = getFileRecordAxisProjection(file);
   return {
     curveType: getFileRecordCurveType(file),
@@ -344,7 +344,7 @@ const createSubthresholdMetric = ({
   subthresholdAutoKey,
   subthresholdManualKey,
 }: {
-  file: FileRecord;
+  file: CalculationFileRecord;
   input: MetricInputRecord | undefined;
   inputCurves: CurveRef[];
   inputSignatures: string[];
@@ -615,10 +615,10 @@ const resolveSsFit = (
 };
 
 const getOrderedFileRecords = (
-  filesById: Readonly<Record<FileId, FileRecord>>,
+  filesById: Readonly<Record<FileId, CalculationFileRecord>>,
   fileOrder: readonly FileId[],
-): FileRecord[] => {
-  const files: FileRecord[] = [];
+): CalculationFileRecord[] => {
+  const files: CalculationFileRecord[] = [];
   const seen = new Set<FileId>();
   const pushFile = (fileId: string): void => {
     const normalizedFileId = String(fileId ?? "").trim();

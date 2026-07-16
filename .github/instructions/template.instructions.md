@@ -163,7 +163,7 @@ import/export command
   unknown, low-confidence, review-required, or ambiguous evidence can be
   applied by the system. Keep skipped/blocked files visible through Explorer
   badges driven by Review and Slice projections.
-- Full/incremental apply must not start while another extraction job is running or while Explorer has pending/preparing sources.
+- Full/incremental apply must not start while another extraction job is running or while the Files-owned source import task is active.
 - Resource cleanup belongs to `ISliceService` and URI/model resource owners; do not
   reintroduce Session cleanup subscriptions under Template.
 

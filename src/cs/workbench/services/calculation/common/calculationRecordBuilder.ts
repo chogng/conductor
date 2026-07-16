@@ -16,18 +16,25 @@ import type {
 import type {
 	CurveRecord,
 	FileId,
-	FileRecord,
 	MetricRecord,
 	SeriesId,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import type {
+	CalculationFileRecord,
+} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 
 export type CalculatedRecordsByFile = {
 	readonly curvesByFileId: Record<FileId, CurveRecord[]>;
 	readonly metricsByFileId: Record<FileId, MetricRecord[]>;
 };
 
+export type CalculatedCurveRecord =
+	CalculatedRecordsByFile["curvesByFileId"][FileId][number];
+export type CalculatedMetricRecord =
+	CalculatedRecordsByFile["metricsByFileId"][FileId][number];
+
 export const createCalculatedRecordsInputSignature = (
-	filesById: Record<FileId, FileRecord>,
+	filesById: Record<FileId, CalculationFileRecord>,
 	fileOrder: readonly FileId[],
 ): string => createCalculatedCurveRecordsInputSignature(
 	filesById,
@@ -38,7 +45,7 @@ export const createCalculatedRecordsInputSignature = (
 );
 
 export const createCalculatedRecordsByFile = (
-	filesById: Record<FileId, FileRecord>,
+	filesById: Record<FileId, CalculationFileRecord>,
 	fileOrder: readonly FileId[],
 	analysisByFileId: Readonly<Record<FileId, CalculationAnalysisBySeriesId | undefined>> = {},
 ): CalculatedRecordsByFile => {
@@ -82,11 +89,11 @@ const createDerivativePointsBySeriesId = (
 };
 
 const getOrderedFileRecords = (
-	filesById: Record<FileId, FileRecord>,
+	filesById: Record<FileId, CalculationFileRecord>,
 	fileOrder: readonly FileId[],
-): FileRecord[] => {
+): CalculationFileRecord[] => {
 	const seen = new Set<FileId>();
-	const files: FileRecord[] = [];
+	const files: CalculationFileRecord[] = [];
 	const pushFile = (fileId: FileId): void => {
 		if (seen.has(fileId)) {
 			return;

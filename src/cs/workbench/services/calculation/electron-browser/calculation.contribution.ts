@@ -14,7 +14,7 @@ import {
 import {
 	ElectronCalculationRecordsBackend,
 } from "src/cs/workbench/services/calculation/electron-browser/calculationRecordsBackend";
-import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 
 const calculationWorkerDescriptor = new WebWorkerDescriptor({
 	esmModuleLocationBundler: calculationWorkerUrl,
@@ -24,7 +24,7 @@ const calculationWorkerDescriptor = new WebWorkerDescriptor({
 class DesktopCalculationService extends CalculationService {
 	public constructor(
 		@IWebWorkerService webWorkerService: IWebWorkerService,
-		@ISessionService sessionService: ISessionService,
+		@ISliceService sliceService: ISliceService,
 	) {
 		super(
 			new ElectronCalculationRecordsBackend(
@@ -33,7 +33,7 @@ class DesktopCalculationService extends CalculationService {
 					calculationWorkerDescriptor,
 				),
 			),
-			sessionService,
+			sliceService,
 		);
 	}
 }

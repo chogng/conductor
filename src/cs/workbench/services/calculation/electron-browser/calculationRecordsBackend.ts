@@ -11,6 +11,7 @@ import {
 	type CalculationSeriesAnalysis,
 } from "src/cs/workbench/services/calculation/common/calculationAnalysis";
 import {
+	type CalculationFileRecord,
 	collectFileRecordBaseCurves,
 	fileRecordSupportsSs,
 	getFileRecordAxisProjection,
@@ -27,7 +28,6 @@ import type {
 } from "src/cs/workbench/services/calculation/common/ionIoff";
 import type {
 	CurvePoint,
-	FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 
 type RustHostResponse =
@@ -165,7 +165,7 @@ export class ElectronCalculationRecordsBackend
 }
 
 const createRustCalculationPayload = (
-	file: FileRecord,
+	file: CalculationFileRecord,
 ): RustCalculationPayload | null => {
 	const series: RustCalculationSeriesPayload[] = [];
 	const seenSeriesIds = new Set<string>();
@@ -206,7 +206,7 @@ const createRustCalculationPayload = (
 
 const readRustCalculationAnalysis = (
 	response: RustHostResponse,
-	file: FileRecord,
+	file: CalculationFileRecord,
 ): CalculationAnalysisBySeriesId | null => {
 	if (!response.ok) {
 		return null;

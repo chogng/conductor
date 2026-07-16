@@ -600,8 +600,9 @@ suite("workbench/browser/workbench layout integration", () => {
     const thumbnailPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
     const bridge = new WorkbenchDomainBridge({
       calculationService: {
-        prioritizeCalculationFile: () => undefined,
-        prioritizeCalculationFiles: () => undefined,
+        getResourceResult: () => null,
+        onDidChangeResourceCalculationResult: Event.None,
+        prioritizeResource: () => undefined,
       },
       chartService: {
         onDidChangeChartState: Event.None,
@@ -610,11 +611,10 @@ suite("workbench/browser/workbench layout integration", () => {
       explorerService: {
         files: [],
         getPaneInput: () => null,
-        hasPendingSourceFiles: false,
+        isImportingSources: false,
         hoveredResource: null,
         onDidChangeFiles: Event.None,
         onDidChangeHoveredResource: Event.None,
-        onDidChangePendingSourceFiles: Event.None,
         onDidChangeSelection: Event.None,
         onDidChangeVisibleTargets: visibleTargetsEmitter.event,
         selectedResource: null,
@@ -673,17 +673,10 @@ suite("workbench/browser/workbench layout integration", () => {
     const chartActiveFileIds: Array<string | null | undefined> = [];
     const bridge = new WorkbenchDomainBridge({
       calculationService: {
-        prioritizeCalculationFile: (fileId: string | null | undefined) => {
-          if (fileId) {
-            calculationPriorities.push(fileId);
-          }
-        },
-        prioritizeCalculationFiles: (fileIds: readonly (string | null | undefined)[]) => {
-          calculationPriorities.push(
-            ...fileIds
-              .map(fileId => String(fileId ?? "").trim())
-              .filter(Boolean),
-          );
+        getResourceResult: () => null,
+        onDidChangeResourceCalculationResult: Event.None,
+        prioritizeResource: (resource: URI) => {
+          calculationPriorities.push(resource.toString());
         },
       },
       chartService: {
@@ -695,11 +688,10 @@ suite("workbench/browser/workbench layout integration", () => {
       explorerService: {
         files: [],
         getPaneInput: () => null,
-        hasPendingSourceFiles: false,
+        isImportingSources: false,
         hoveredResource: null,
         onDidChangeFiles: Event.None,
         onDidChangeHoveredResource: Event.None,
-        onDidChangePendingSourceFiles: Event.None,
         onDidChangeSelection: Event.None,
         onDidChangeVisibleTargets: Event.None,
         select: () => undefined,
@@ -808,8 +800,10 @@ const createWorkbenchOptions = ({
   return {
     calculationService: {
       _serviceBrand: undefined,
-      prioritizeCalculationFile: () => undefined,
-      prioritizeCalculationFiles: () => undefined,
+      getResourceResult: () => null,
+      onDidChangeResourceCalculationResult:
+        Event.None as WorkbenchService<"calculationService">["onDidChangeResourceCalculationResult"],
+      prioritizeResource: () => undefined,
     },
     chartService: {
       onDidChangeChartState: Event.None,
@@ -826,18 +820,17 @@ const createWorkbenchOptions = ({
     explorerService: explorerService ?? {
       files: [],
       getPaneInput: () => null,
-      hasPendingSourceFiles: false,
+      isImportingSources: false,
       hoveredResource: null,
       onDidChangeFiles: Event.None,
       onDidChangeHoveredResource: Event.None,
       onDidChangeVisibleTargets: Event.None,
-      onDidChangePendingSourceFiles: Event.None,
       onDidChangeSelection: Event.None,
       onDidChangeViewLayout: Event.None,
       selectedResource: null,
       selectedSheetId: null,
       select: () => undefined,
-      setPendingSourceFiles: () => undefined,
+      setImportingSources: () => undefined,
       updatePaneInput: () => undefined,
       viewLayout: "tree",
     } as unknown as WorkbenchService<"explorerService">,

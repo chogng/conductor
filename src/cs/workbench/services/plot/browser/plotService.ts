@@ -13,9 +13,13 @@ import {
 } from "src/cs/platform/storage/common/storage";
 import {
   createCalculatedDataForCanonicalFile,
-  createCalculatedDataForSliceResourceResult,
+  createCalculatedDataForCalculationResourceResult,
   type CalculatedData,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
+import {
+  ICalculationService,
+  type ICalculationService as ICalculationServiceType,
+} from "src/cs/workbench/services/calculation/common/calculation";
 import { isPlotType } from "src/cs/workbench/services/plot/common/plot";
 import {
   IPlotService,
@@ -64,11 +68,6 @@ import {
   ISessionService,
   type SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
-import {
-  ISliceService,
-  type ISliceService as ISliceServiceType,
-  type SliceResourceResult,
-} from "src/cs/workbench/services/slice/common/slice";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import {
@@ -200,7 +199,7 @@ export class PlotService extends Disposable implements IPlotService {
   };
   private calculatedDataCacheByFile = new WeakMap<FileRecord, Partial<Record<PlotType, CalculatedData>>>();
   private readonly calculatedDataCacheKeys = new Set<string>();
-  private readonly calculatedDataCacheBySliceResourceKey = new Map<string, CalculatedData>();
+  private readonly calculatedDataCacheByResourceKey = new Map<string, CalculatedData>();
   private readonly unavailableCalculatedDataCacheKeys = new Set<string>();
   private readonly queuedCalculatedDataPrefetchByKey = new Map<string, QueuedCalculatedDataPrefetch>();
   private readonly inFlightCalculatedDataPrefetchByKey = new Map<string, InFlightPlotPrefetch>();
@@ -222,7 +221,7 @@ export class PlotService extends Disposable implements IPlotService {
     @ISessionService private readonly sessionService: ISessionService,
     @ISettingsService private readonly settingsService: ISettingsService,
     @IStorageService private readonly storageService: IStorageService,
-    @ISliceService private readonly sliceService?: ISliceServiceType,
+    @ICalculationService private readonly calculationService: ICalculationServiceType,
   ) {
     super();
 
@@ -235,11 +234,9 @@ export class PlotService extends Disposable implements IPlotService {
       this.clearQueuedPlotDisplayModelPrefetch();
       this.onDidChangePlotStateEmitter.fire(this.state);
     }));
-    if (this.sliceService) {
-      this._register(this.sliceService.onDidChangeResourceSliceResult(resource => {
-        this.invalidatePlotModelsForSliceResourceChange(resource.resource, resource.sheetId);
-      }));
-    }
+    this._register(this.calculationService.onDidChangeResourceCalculationResult(resource => {
+      this.invalidatePlotModelsForResourceChange(resource.resource, resource.sheetId);
+    }));
     this._register({ dispose: () => this.cancelScheduledCalculatedDataPrefetch() });
     this._register({ dispose: () => this.cancelScheduledPlotDisplayModelPrefetch() });
   }
@@ -264,7 +261,7 @@ export class PlotService extends Disposable implements IPlotService {
       : this.state.activePlotType;
     const normalizedFileId = getPlotInputFileId(input);
     if (hasPlotResource(input)) {
-      return this.getCachedCalculatedDataForSliceResource(normalizedFileId, plotType);
+      return this.getCachedCalculatedDataForResource(normalizedFileId, plotType);
     }
 
     if (!snapshot) {
@@ -278,7 +275,7 @@ export class PlotService extends Disposable implements IPlotService {
       return this.calculatedDataCacheByFile.get(file)?.[plotType] ?? null;
     }
 
-    return this.getCachedCalculatedDataForSliceResource(normalizedFileId, plotType);
+    return this.getCachedCalculatedDataForResource(normalizedFileId, plotType);
   }
 
   public getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null {
@@ -355,12 +352,12 @@ export class PlotService extends Disposable implements IPlotService {
       ? input.plotType
       : this.state.activePlotType;
     if (hasPlotResource(input)) {
-      const calculatedData = this.getCalculatedDataForSliceResource(input, plotType);
+      const calculatedData = this.getCalculatedDataForResource(input, plotType);
       logPerf("plotService.getCalculatedData", {
         fileId: getPlotInputFileId(input) ?? null,
         plotType,
         resultPointsCount: calculatedData?.pointsCount ?? 0,
-        source: "sliceResource",
+        source: "calculationResource",
       });
       return calculatedData;
     }
@@ -401,10 +398,10 @@ export class PlotService extends Disposable implements IPlotService {
       return calculatedData;
     }
 
-    const calculatedData = this.getCalculatedDataForSliceResource(input, plotType);
+    const calculatedData = this.getCalculatedDataForResource(input, plotType);
     endPerf({
       resultPointsCount: calculatedData?.pointsCount ?? 0,
-      source: "sliceResource",
+      source: "calculationResource",
     });
     return calculatedData;
   }
@@ -1358,7 +1355,7 @@ export class PlotService extends Disposable implements IPlotService {
 
     this.calculatedDataCacheByFile = new WeakMap();
     for (const key of [...this.calculatedDataCacheKeys]) {
-      if (this.calculatedDataCacheBySliceResourceKey.has(key)) {
+      if (this.calculatedDataCacheByResourceKey.has(key)) {
         continue;
       }
 
@@ -1387,7 +1384,7 @@ export class PlotService extends Disposable implements IPlotService {
       }
     }
     for (const key of [...this.plotDisplayModelCacheByKey.keys()]) {
-      if (this.isSliceResourcePlotDisplayModelCacheKey(key)) {
+      if (this.isResourcePlotDisplayModelCacheKey(key)) {
         continue;
       }
 
@@ -1398,7 +1395,7 @@ export class PlotService extends Disposable implements IPlotService {
       }
     }
     for (const key of [...this.plotInspectorDisplayModelCacheByKey.keys()]) {
-      if (this.isSliceResourcePlotDisplayModelCacheKey(key)) {
+      if (this.isResourcePlotDisplayModelCacheKey(key)) {
         continue;
       }
 
@@ -1417,7 +1414,7 @@ export class PlotService extends Disposable implements IPlotService {
       addPlotCacheChange(plotDisplayModelChanges, request);
     }
     for (const key of [...this.inFlightPlotDisplayModelPrefetchByKey.keys()]) {
-      if (this.isSliceResourcePlotDisplayModelCacheKey(key)) {
+      if (this.isResourcePlotDisplayModelCacheKey(key)) {
         continue;
       }
 
@@ -1439,16 +1436,16 @@ export class PlotService extends Disposable implements IPlotService {
     this.firePlotDisplayModelCacheChanges(plotDisplayModelChanges);
   }
 
-  private isSliceResourcePlotDisplayModelCacheKey(key: string): boolean {
+  private isResourcePlotDisplayModelCacheKey(key: string): boolean {
     const keyContext = getPlotDisplayModelContextFromKey(key);
     return keyContext
-      ? this.calculatedDataCacheBySliceResourceKey.has(getCalculatedDataPrefetchKey(keyContext.fileId, keyContext.plotType))
+      ? this.calculatedDataCacheByResourceKey.has(getCalculatedDataPrefetchKey(keyContext.fileId, keyContext.plotType))
       : false;
   }
 
-  private invalidatePlotModelsForSliceResourceChange(resource: URI, sheetId?: string | null): void {
+  private invalidatePlotModelsForResourceChange(resource: URI, sheetId?: string | null): void {
     const fileIds = new Set<FileId>();
-    const fileId = normalizeStateKey(createSliceResourceId(resource, sheetId));
+    const fileId = normalizeStateKey(createPlotResourceId(resource, sheetId));
     if (fileId) {
       fileIds.add(fileId);
     }
@@ -1472,14 +1469,14 @@ export class PlotService extends Disposable implements IPlotService {
       const keyContext = getCalculatedDataPrefetchContext(key);
       if (keyContext && fileIds.has(keyContext.fileId)) {
         this.calculatedDataCacheKeys.delete(key);
-        this.calculatedDataCacheBySliceResourceKey.delete(key);
+        this.calculatedDataCacheByResourceKey.delete(key);
         addPlotCacheChange(calculatedDataChanges, keyContext);
       }
     }
-    for (const key of [...this.calculatedDataCacheBySliceResourceKey.keys()]) {
+    for (const key of [...this.calculatedDataCacheByResourceKey.keys()]) {
       const keyContext = getCalculatedDataPrefetchContext(key);
       if (keyContext && fileIds.has(keyContext.fileId)) {
-        this.calculatedDataCacheBySliceResourceKey.delete(key);
+        this.calculatedDataCacheByResourceKey.delete(key);
         addPlotCacheChange(calculatedDataChanges, keyContext);
       }
     }
@@ -1568,41 +1565,45 @@ export class PlotService extends Disposable implements IPlotService {
     }
   }
 
-  private getCachedCalculatedDataForSliceResource(fileId: FileId | null, plotType: PlotType): CalculatedData | null {
+  private getCachedCalculatedDataForResource(fileId: FileId | null, plotType: PlotType): CalculatedData | null {
     const normalizedFileId = normalizeStateKey(fileId);
     if (!normalizedFileId) {
       return null;
     }
 
-    return this.calculatedDataCacheBySliceResourceKey.get(getCalculatedDataPrefetchKey(normalizedFileId, plotType)) ?? null;
+    return this.calculatedDataCacheByResourceKey.get(getCalculatedDataPrefetchKey(normalizedFileId, plotType)) ?? null;
   }
 
-  private getCalculatedDataForSliceResource(input: PlotCalculatedDataInput, plotType: PlotType): CalculatedData | null {
-    const result = this.getSliceResourceResult(input);
-    if (!result || result.run.errors.length || !result.curves.length) {
+  private getCalculatedDataForResource(input: PlotCalculatedDataInput, plotType: PlotType): CalculatedData | null {
+    if (!input.resource) {
+      return null;
+    }
+    const result = this.calculationService.getResourceResult(input.resource, input.sheetId);
+    if (!result) {
+      this.calculationService.prioritizeResource(input.resource, input.sheetId);
       return null;
     }
 
-    const normalizedFileId = normalizeStateKey(createSliceResourceId(result.resource, result.sheetId));
+    const normalizedFileId = normalizeStateKey(createPlotResourceId(result.resource, result.sheetId));
     if (!normalizedFileId) {
       return null;
     }
 
     const key = getCalculatedDataPrefetchKey(normalizedFileId, plotType);
-    const cached = this.calculatedDataCacheBySliceResourceKey.get(key);
+    const cached = this.calculatedDataCacheByResourceKey.get(key);
     if (cached) {
       return cached;
     }
 
-    return this.cacheCalculatedDataForSliceResource(
+    return this.cacheCalculatedDataForResource(
       normalizedFileId,
       plotType,
-      createCalculatedDataForSliceResourceResult({ plotType, result }),
+      createCalculatedDataForCalculationResourceResult({ plotType, result }),
       { resource: result.resource, sheetId: result.sheetId ?? null },
     );
   }
 
-  private prefetchCalculatedDataForSliceResource(
+  private prefetchCalculatedDataForResource(
     fileId: FileId,
     plotType: PlotType,
     resource?: PlotResourceIdentity | null,
@@ -1618,7 +1619,7 @@ export class PlotService extends Disposable implements IPlotService {
     }
 
     const calculatedData = resource
-      ? this.getCalculatedDataForSliceResource({
+      ? this.getCalculatedDataForResource({
         fileId: normalizedFileId,
         resource: resource.resource,
         sheetId: resource.sheetId,
@@ -1629,19 +1630,19 @@ export class PlotService extends Disposable implements IPlotService {
     }
   }
 
-  private cacheCalculatedDataForSliceResource(
+  private cacheCalculatedDataForResource(
     fileId: FileId,
     plotType: PlotType,
     calculatedData: CalculatedData,
     resource?: PlotResourceIdentity,
   ): CalculatedData {
     const key = getCalculatedDataPrefetchKey(fileId, plotType);
-    const cached = this.calculatedDataCacheBySliceResourceKey.get(key);
+    const cached = this.calculatedDataCacheByResourceKey.get(key);
     if (cached) {
       return cached;
     }
 
-    this.calculatedDataCacheBySliceResourceKey.set(key, calculatedData);
+    this.calculatedDataCacheByResourceKey.set(key, calculatedData);
     this.unavailableCalculatedDataCacheKeys.delete(key);
     this.calculatedDataCacheKeys.add(key);
     this.onDidChangeCalculatedDataCacheEmitter.fire(
@@ -1748,7 +1749,7 @@ export class PlotService extends Disposable implements IPlotService {
       }
 
       if (hasPlotResource(next)) {
-        this.prefetchCalculatedDataForSliceResource(next.fileId, next.plotType, {
+        this.prefetchCalculatedDataForResource(next.fileId, next.plotType, {
           resource: next.resource!,
           sheetId: next.sheetId ?? null,
         });
@@ -1763,7 +1764,7 @@ export class PlotService extends Disposable implements IPlotService {
         if (file) {
           this.prefetchCalculatedDataForFileRecord(file, next.plotType, snapshot.sessionVersion, next.priority);
         } else {
-          this.prefetchCalculatedDataForSliceResource(next.fileId, next.plotType);
+          this.prefetchCalculatedDataForResource(next.fileId, next.plotType);
         }
       }
       processed += 1;
@@ -2612,7 +2613,7 @@ export class PlotService extends Disposable implements IPlotService {
     snapshot: SessionSnapshot | null,
   ): SessionSnapshot | undefined | null {
     if (hasPlotResource(request)) {
-      return this.isCalculatedDataCurrentForSliceResource(request, calculatedData)
+      return this.isCalculatedDataCurrentForResource(request, calculatedData)
         ? undefined
         : null;
     }
@@ -2626,7 +2627,7 @@ export class PlotService extends Disposable implements IPlotService {
     return currentSnapshot && currentFile === requestedFile ? currentSnapshot : null;
   }
 
-  private isCalculatedDataCurrentForSliceResource(
+  private isCalculatedDataCurrentForResource(
     request: QueuedPlotDisplayModelPrefetch,
     calculatedData: CalculatedData,
   ): boolean {
@@ -2634,32 +2635,25 @@ export class PlotService extends Disposable implements IPlotService {
       return false;
     }
 
-    const result = this.getSliceResourceResult({
-      resource: request.resource,
-      sheetId: request.sheetId,
-    });
-    if (!result || result.run.errors.length || !result.curves.length) {
+    const result = this.calculationService.getResourceResult(
+      request.resource!,
+      request.sheetId,
+    );
+    if (!result) {
       return false;
     }
 
-    const fileId = normalizeStateKey(createSliceResourceId(result.resource, result.sheetId));
+    const fileId = normalizeStateKey(createPlotResourceId(result.resource, result.sheetId));
     if (!fileId || fileId !== request.fileId) {
       return false;
     }
 
-    return createCalculatedDataForSliceResourceResult({
+    return createCalculatedDataForCalculationResourceResult({
       plotType: request.plotType,
       result,
     }).signature === calculatedData.signature;
   }
 
-  private getSliceResourceResult(input: PlotCalculatedDataInput): SliceResourceResult | null {
-    if (input.resource) {
-      return this.sliceService?.getResourceResult(input.resource, input.sheetId) ?? null;
-    }
-
-    return null;
-  }
 
   public getAxisSettings(): PlotFileAxisSettings {
     return this.resolveAxisSettings(undefined);
@@ -2723,7 +2717,6 @@ export const shouldInvalidatePlotModelsForSessionChange = (
     case "sessionCleared":
       return true;
     case "rawTablesChanged":
-    case "calculatedRecordsChanged":
     case "metricsChanged":
     case "metricInputsChanged":
     case "fileMetadataChanged":
@@ -2828,7 +2821,7 @@ const getPlotLegendStateKey = (
     : null;
 };
 
-const createSliceResourceId = (
+const createPlotResourceId = (
   resource: URI,
   sheetId?: string | null,
 ): string => {
@@ -2864,7 +2857,7 @@ const getPlotInputFileId = (
   input: Pick<PlotCalculatedDataInput, "fileId" | "resource" | "sheetId">,
 ): FileId | null => {
   if (input.resource) {
-    return normalizeStateKey(createSliceResourceId(input.resource, input.sheetId));
+    return normalizeStateKey(createPlotResourceId(input.resource, input.sheetId));
   }
   return normalizeStateKey(input.fileId);
 };

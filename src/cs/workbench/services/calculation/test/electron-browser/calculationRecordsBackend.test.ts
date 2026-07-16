@@ -95,8 +95,8 @@ suite("workbench/services/calculation/test/electron-browser/calculationRecordsBa
 
 		const output = await backend.calculateRecords({
 			file,
+			inputSignature: "input-11",
 			requestId: 7,
-			sessionVersion: 11,
 		});
 		const gm = output?.curves.find(
 			(curve) => curve.curveGeneration === "derived" &&
@@ -124,7 +124,7 @@ suite("workbench/services/calculation/test/electron-browser/calculationRecordsBa
 			},
 		});
 		assert.equal(output?.requestId, 7);
-		assert.equal(output?.sessionVersion, 11);
+		assert.equal(output?.inputSignature, "input-11");
 		assert.deepEqual(gm?.points, [{ x: 0.5, y: 42 }]);
 		assert.equal(
 			current?.metricFamily === "current" ? current.value.ion : null,
@@ -180,8 +180,8 @@ suite("workbench/services/calculation/test/electron-browser/calculationRecordsBa
 
 		const output = await backend.calculateRecords({
 			file: records.filesById["file-a"],
+			inputSignature: "input-2",
 			requestId: 1,
-			sessionVersion: 2,
 		});
 
 		assert.equal(output, null);
@@ -216,10 +216,9 @@ class TestCalculationRecordsBackend
 		);
 		return {
 			curves: records.curvesByFileId[input.file.id] ?? [],
-			fileId: input.file.id,
+			inputSignature: input.inputSignature,
 			metrics: records.metricsByFileId[input.file.id] ?? [],
 			requestId: input.requestId,
-			sessionVersion: input.sessionVersion,
 		};
 	}
 }

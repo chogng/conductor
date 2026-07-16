@@ -88,7 +88,6 @@ export class WorkbenchDomainBridge extends Disposable {
     super();
 
     this._register(this.options.settingsService.onDidChangeConductorSettings(() => this.scheduleSync()));
-    this._register(this.options.explorerService.onDidChangePendingSourceFiles(() => this.scheduleSync()));
     this._register(this.options.explorerService.onDidChangeFiles(() => this.scheduleSync()));
     this._register(this.options.explorerService.onDidChangeSelection(event => {
       this.prioritizeProcessingFile(
@@ -117,6 +116,7 @@ export class WorkbenchDomainBridge extends Disposable {
     }));
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
     this._register(this.options.sliceService.onDidChangeResourceSliceResult(() => this.scheduleInteractiveSync()));
+    this._register(this.options.calculationService.onDidChangeResourceCalculationResult(() => this.scheduleInteractiveSync()));
     this._register(this.options.sliceService.onDidChangeSliceState(() => this.scheduleInteractiveSync()));
     this._register(this.options.onDidChangeActivePanelViewContainer(() => this.scheduleSync()));
     this._register({
@@ -225,7 +225,7 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    const explorerResourceFiles = getExplorerResourceFiles(this.options.explorerService.files);
+    const explorerResourceFiles = this.options.explorerService.files;
     const endPerf = startPerf("workbenchDomainBridge.sync", {
       deferSecondaryWork,
       explorerFileCount: explorerResourceFiles.length,
@@ -302,7 +302,7 @@ export class WorkbenchDomainBridge extends Disposable {
 
     const paneInput = this.options.explorerService.getPaneInput();
     const explorerFiles = this.options.explorerService.files;
-    if (paneInput?.mode !== "chart" || !explorerFiles.some(hasExplorerFileResource)) {
+    if (paneInput?.mode !== "chart" || !explorerFiles.length) {
       return false;
     }
 
@@ -311,7 +311,7 @@ export class WorkbenchDomainBridge extends Disposable {
         resource: paneInput.selectedResource,
         sheetId: paneInput.selectedSheetId ?? null,
       },
-      createExplorerResourceIdentities(explorerFiles.filter(hasExplorerFileResource)),
+      createExplorerResourceIdentities(explorerFiles),
     );
     const selectedChartFileId = selectedIdentity?.fileId ?? null;
     const resourceIdentity = getSliceResourceForChartFileId(
@@ -410,7 +410,7 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
-    const explorerResourceFiles = getExplorerResourceFiles(this.options.explorerService.files);
+    const explorerResourceFiles = this.options.explorerService.files;
     const endPerf = startPerf("workbenchDomainBridge.deferredSync", {
       explorerFileCount: explorerResourceFiles.length,
     });
@@ -437,8 +437,11 @@ export class WorkbenchDomainBridge extends Disposable {
       explorerSelection.chartFileId,
     );
     if (chartViewInput.activeFileId && chartViewInput.hasChartData) {
-      if (!chartViewInput.activeResource) {
-        this.options.calculationService.prioritizeCalculationFile(chartViewInput.activeFileId);
+      if (chartViewInput.activeResource) {
+        this.options.calculationService.prioritizeResource(
+          chartViewInput.activeResource,
+          chartViewInput.activeSheetId,
+        );
       }
       const plotType = chartViewInput.activePlotType ?? this.options.plotService.getState().activePlotType;
       const input = chartViewInput.activeResource
@@ -516,17 +519,16 @@ export class WorkbenchDomainBridge extends Disposable {
 
     const newlyRecentFileIds = this.rememberRecentInteractiveChartTarget(normalizedFileId);
     const explorerFiles = this.options.explorerService.files;
-    const hasResource = hasExplorerResourceForChartFileId(
-      explorerFiles,
-      normalizedFileId,
-    );
     const activeResource = getSliceResourceForChartFileId(
       this.options.sliceService,
       explorerFiles,
       normalizedFileId,
     );
-    if (!hasResource && !activeResource) {
-      this.options.calculationService.prioritizeCalculationFile(normalizedFileId);
+    if (activeResource) {
+      this.options.calculationService.prioritizeResource(
+        activeResource.resource,
+        activeResource.sheetId,
+      );
     }
     this.prefetchPlotDisplayTargets([normalizedFileId], plotPriority, "interactiveTarget");
     this.prefetchRecentInteractiveChartTargets(newlyRecentFileIds);
@@ -576,8 +578,7 @@ export class WorkbenchDomainBridge extends Disposable {
   private pruneRecentInteractiveChartTargets(): void {
     const explorerFileIds = new Set(
       getExplorerPaneFileIds(
-        this.options.explorerService.files
-          .filter(hasExplorerFileResource),
+        this.options.explorerService.files,
       ),
     );
     for (let index = this.recentInteractiveChartTargetFileIds.length - 1; index >= 0; index -= 1) {
@@ -669,9 +670,9 @@ export class WorkbenchDomainBridge extends Disposable {
     }, { silent: true });
     const explorerFiles = this.options.explorerService.files;
     const inputs = normalizedFileIds.flatMap(fileId => {
-      const hasResource = hasExplorerResourceForChartFileId(explorerFiles, fileId);
+      const hasExplorerFile = hasExplorerFileForChartFileId(explorerFiles, fileId);
       const resource = getSliceResourceForChartFileId(this.options.sliceService, explorerFiles, fileId);
-      if (hasResource && !resource) {
+      if (hasExplorerFile && !resource) {
         return [];
       }
 
@@ -800,17 +801,6 @@ const createActiveChartFileOptions = (
     return [];
   }
 
-  const explorerResourceFile = explorerFiles.find(candidate =>
-    normalizeExplorerSelectionFileId(candidate.fileId) === activeFileId &&
-    hasExplorerFileResource(candidate)
-  );
-  if (explorerResourceFile) {
-    return [{
-      fileId: activeFileId,
-      fileName: String(explorerResourceFile.fileName ?? activeFileId),
-    }];
-  }
-
   const explorerFile = explorerFiles.find(candidate =>
     normalizeExplorerSelectionFileId(candidate.fileId) === activeFileId
   );
@@ -833,8 +823,7 @@ const createExplorerChartFileOptions = (
   }
 
   const file = explorerFiles.find(candidate =>
-    normalizeExplorerSelectionFileId(candidate.fileId) === activeFileId &&
-    hasExplorerFileResource(candidate)
+    normalizeExplorerSelectionFileId(candidate.fileId) === activeFileId
   );
   if (!file) {
     return [];
@@ -865,7 +854,7 @@ const getChartCandidateFileIds = (
   for (const file of explorerFiles) {
     push(getExplorerFileChartTargetId(file));
     const resource = getExplorerFileResourceSheet(file);
-    if (resource && sliceService.getResourceResult(resource.resource, resource.sheetId)) {
+    if (sliceService.getResourceResult(resource.resource, resource.sheetId)) {
       push(file.fileId);
     }
   }
@@ -886,14 +875,6 @@ const isSliceChartTargetFile = (
   sliceService: Pick<ISliceService, "getResourceResult" | "getResourceState">,
 ): boolean => {
   const resource = getExplorerFileResourceSheet(file);
-  if (!resource) {
-    const hasChartData = file.hasChartData === true;
-    return hasTraceChartTargetState(
-      file.chartState ?? (hasChartData ? "ready" : "none"),
-      hasChartData,
-    );
-  }
-
   return Boolean(sliceService.getResourceResult(resource.resource, resource.sheetId)) ||
     isSliceChartTargetState(sliceService.getResourceState(resource.resource, resource.sheetId));
 };
@@ -924,15 +905,13 @@ const createPerformanceTraceChartTargets = ({
       }
 
       const resource = getExplorerFileResourceSheet(file);
-      const hasChartData = resource
-        ? Boolean(sliceService.getResourceResult(resource.resource, resource.sheetId))
-        : file.hasChartData === true;
-      const chartState = resource
-        ? resolveChartState(
-            resolveExplorerFileProcessingState(getSliceResourceState(sliceService, resource)),
-            hasChartData,
-          )
-        : file.chartState ?? (hasChartData ? "ready" : "none");
+      const hasChartData = Boolean(
+        sliceService.getResourceResult(resource.resource, resource.sheetId),
+      );
+      const chartState = resolveChartState(
+        resolveExplorerFileProcessingState(getSliceResourceState(sliceService, resource)),
+        hasChartData,
+      );
       if (!hasTraceChartTargetState(chartState, hasChartData)) {
         return null;
       }
@@ -1081,9 +1060,7 @@ export const createExplorerPaneInput = ({
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
   const isChartMode = mode === "chart";
   const selectionKind: ExplorerPaneMode = isChartMode ? "chart" : "table";
-  const explorerResourceFiles = getExplorerResourceFiles(
-    explorerService.files,
-  );
+  const explorerResourceFiles = explorerService.files;
   const selectedResourceIdentity = resolveVisibleExplorerSelectedResourceIdentity(
     getExplorerSelectedResourceIdentity(explorerService),
     explorerResourceFiles,
@@ -1232,14 +1209,6 @@ const getExplorerPaneFileIds = (
     .filter(fileId => fileId.length > 0);
 };
 
-const getExplorerResourceFiles = (
-  files: readonly ExplorerFileEntry[],
-): ExplorerFileEntry[] =>
-  files.filter(hasExplorerFileResource);
-
-const hasExplorerFileResource = (file: ExplorerFileEntry): boolean =>
-  Boolean(getExplorerFileResource(file));
-
 const getExplorerFileChartTargetId = (
   file: ExplorerFileEntry,
 ): string | null =>
@@ -1247,18 +1216,9 @@ const getExplorerFileChartTargetId = (
 
 const getExplorerFileResourceSheet = (
   file: ExplorerFileEntry,
-): ResourceSheetIdentity | null => {
-  if (!file.resource) {
-    return null;
-  }
-
-  const resource = URI.revive(file.resource);
-  if (!resource) {
-    return null;
-  }
-
+): ResourceSheetIdentity => {
   return {
-    resource,
+    resource: URI.revive(file.resource),
     sheetId: normalizeExplorerSelectionItemKey(file.sheetId),
   };
 };
@@ -1285,14 +1245,14 @@ const getSliceResourceForChartFileId = (
       continue;
     }
     const resource = getExplorerFileResourceSheet(file);
-    if (resource && sliceService.getResourceResult(resource.resource, resource.sheetId)) {
+    if (sliceService.getResourceResult(resource.resource, resource.sheetId)) {
       return resource;
     }
   }
   return null;
 };
 
-const hasExplorerResourceForChartFileId = (
+const hasExplorerFileForChartFileId = (
   explorerFiles: readonly ExplorerFileEntry[],
   chartFileId: string | null,
 ): boolean => {
@@ -1302,8 +1262,7 @@ const hasExplorerResourceForChartFileId = (
   }
 
   return explorerFiles.some(file =>
-    normalizeExplorerSelectionFileId(file.fileId) === normalizedChartFileId &&
-    Boolean(getExplorerFileResourceSheet(file))
+    normalizeExplorerSelectionFileId(file.fileId) === normalizedChartFileId
   );
 };
 
@@ -1433,9 +1392,9 @@ const createExplorerPaneTableSource = (
 };
 
 const getExplorerFileResource = (file: ExplorerFileEntry | null): URI | null => {
-  if (!file?.resource) {
+  if (!file) {
     return null;
   }
 
-  return URI.revive(file.resource) ?? null;
+  return URI.revive(file.resource);
 };

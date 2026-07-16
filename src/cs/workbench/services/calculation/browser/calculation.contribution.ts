@@ -14,7 +14,7 @@ import {
 import { CalculationService } from 'src/cs/workbench/services/calculation/browser/calculationService';
 import { CalculationWorkerClient } from 'src/cs/workbench/services/calculation/browser/calculationWorkerClient';
 import calculationWorkerUrl from 'src/cs/workbench/services/calculation/browser/calculationWorker.ts?worker&url';
-import { ISessionService } from 'src/cs/workbench/services/session/common/session';
+import { ISliceService } from 'src/cs/workbench/services/slice/common/slice';
 
 const calculationWorkerDescriptor = new WebWorkerDescriptor({
 	esmModuleLocationBundler: calculationWorkerUrl,
@@ -24,11 +24,11 @@ const calculationWorkerDescriptor = new WebWorkerDescriptor({
 class BrowserCalculationService extends CalculationService {
 	public constructor(
 		@IWebWorkerService webWorkerService: IWebWorkerService,
-		@ISessionService sessionService: ISessionService,
+		@ISliceService sliceService: ISliceService,
 	) {
 		super(
 			new CalculationWorkerClient(webWorkerService, calculationWorkerDescriptor),
-			sessionService,
+			sliceService,
 		);
 	}
 }

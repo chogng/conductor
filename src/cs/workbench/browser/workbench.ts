@@ -996,7 +996,6 @@ export class Workbench extends Layout {
 
   private shouldRefreshExportSurfacesForSessionChange(event: SessionChangeEvent): boolean {
     switch (event.reason) {
-      case "calculatedRecordsChanged":
       case "metricsChanged":
       case "metricInputsChanged":
         return this.exportService.getState().selectedContentKeys.some(key => key !== "iv");

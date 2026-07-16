@@ -297,7 +297,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService.select(resource);
 
       assert.deepEqual(prioritizedTemplateFileIds, []);
-      assert.deepEqual(prioritizedCalculationFileIds, []);
+      assert.deepEqual(prioritizedCalculationFileIds, ["file:///data/B.csv"]);
       assert.deepEqual(plotDisplayPrefetches, [
         {
           fileIds: [],
@@ -393,6 +393,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const files = [{
       fileId: "file-a",
       fileName: "Session.csv",
+      resource: URI.file("/data/Session.csv"),
     }, {
       fileId: "uri-a",
       fileName: "Uri A.csv",
@@ -565,11 +566,11 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       throw new Error("Trace target enumeration should not read Session.");
     };
     const explorerService = store.add(new ExplorerService());
+    const resource = URI.file("/data/FileA.csv");
     const files: ExplorerFileEntry[] = [{
-      chartState: "ready",
       fileId: "file-a",
       fileName: "File A.csv",
-      hasChartData: true,
+      resource,
     }];
     explorerService.replaceFiles(files);
     explorerService.updatePaneInput({
@@ -582,6 +583,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
+      resourceSlice: { resource },
     }));
     try {
       const targets = getTemplateApplyPerformanceTraceTargetApiForTest()?.getChartTargets() ?? [];
@@ -1377,7 +1379,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService.setHoveredResource({ resource: resourceB });
 
       assert.deepEqual(prioritizedTemplateFileIds, []);
-      assert.deepEqual(prioritizedCalculationFileIds, []);
+      assert.deepEqual(prioritizedCalculationFileIds, ["file:///data/A.csv"]);
       assert.deepEqual(plotDisplayPrefetches, [
         {
           fileIds: [],
@@ -1483,7 +1485,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         selectedSheetId: null,
         selectionKind: "chart",
       });
-      explorerService.setPendingSourceFiles(true);
       assert.equal(scheduledFrames.length, 1);
 
       explorerService.select(resourceB);
@@ -1710,17 +1711,11 @@ const createDomainBridgeOptionsForTest = ({
   readonly visibleDetailPanes?: readonly ["inspector"] | readonly [];
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
   calculationService: {
-    prioritizeCalculationFile: fileId => {
-      if (fileId) {
-        prioritizedCalculationFileIds.push(fileId);
-      }
-    },
-    prioritizeCalculationFiles: fileIds => {
-      prioritizedCalculationFileIds.push(
-        ...fileIds
-          .map(fileId => String(fileId ?? "").trim())
-          .filter(Boolean),
-      );
+    _serviceBrand: undefined,
+    getResourceResult: () => null,
+    onDidChangeResourceCalculationResult: Event.None,
+    prioritizeResource: resource => {
+      prioritizedCalculationFileIds.push(resource.toString());
     },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["calculationService"],
   chartService: {

@@ -94,6 +94,7 @@ Subscriptions must be disposed through the owner lifecycle.
 | State kind | Owner | Examples |
 | --- | --- | --- |
 | Canonical model state | `ISessionService` ledger and domain commit APIs | imported table files, raw tables, table model, slice runs, curves, metrics |
+| URI-backed domain result | The producing service | Slice results, Calculation results, Review results |
 | Domain service state | The domain service | plot settings, chart view input, template catalog state, table source/selection snapshot |
 | View state | The view/widget/service that renders it | focus, local selection, template form draft, scroll, expansion, hover, layout mode |
 | Derived model | Producer service | plot render model, table display profile, search model, thumbnail preview |
@@ -154,14 +155,14 @@ Runtime folders:
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | Explorer source helpers | source collection/import contracts for ordinary Explorer URI-backed imports |
 | `IDataResourceService` | URI-backed Conductor data-resource snapshots: structured content, semantic title matching, X/data-block/binding evidence, sheet sub-targets, source versions, and parser diagnostics for Review/Table/Search/Slice consumers |
-| `ISessionService` | canonical imported data-file/raw-table ledger and downstream analysis records |
+| `ISessionService` | migration-ledger imported data-file/raw-table records and legacy canonical analysis records |
 | `IUserDataProfileResourceService` | profile-scoped user-data resources such as UserTemplate payloads; it owns profile resource persistence and import/export aggregation boundaries, not individual domain semantics |
 | `IReviewService` | URI-grounded content-version review: builds `SegmentCandidate`/review candidates from DataResource binding evidence plus UserTemplate snapshots, evaluates candidates, selects `ReviewedTemplate` for table adapters, owns manual adjustment state and system-application recommendation |
 | `services/template` | canonical executable Template spec, editor adapters, and manual-template UI state; it does not own automatic DataResource/UserTemplate candidate derivation |
 | `IUserTemplateService` | native user template catalog CRUD/snapshots/import/export and explicit template lookup |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |
-| calculation services/helpers | derived curves and metrics commit payloads |
+| `ICalculationService` and helpers | URI-backed derived curves/metrics, signatures, queue, worker lifecycle, and result cache |
 | `IPlotService` | plot render models, plot settings, series visibility/focus |
 | `IChartService` | chart shell/view input and chart-local UI state |
 | `IThumbnailService` / preview service | thumbnail bitmap cache/rendering and per-file preview lifecycle |
@@ -218,12 +219,16 @@ Primary review/template flow:
   -> ReviewResult / ReviewedTemplate
   -> SliceResourceRequest
   -> SliceResourceResult
+  -> CalculationResourceResult
+  -> Plot / Parameters
 ```
 
 Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates source preparation; Explorer owns local visible rows and table-resource open handoff.
-- Session ledger: Session backs only migration-ledger imported raw-table storage and downstream analysis records, including TableModel commits, during migration.
+- Session ledger: Session backs migration-ledger imported raw-table storage and
+  legacy canonical analysis records during migration. URI-backed Slice and
+  Calculation results stay in their owners.
 - Structured evidence / Review candidate building: DataResource produces
   resource/sheet content-version structured evidence, semantic-rules fingerprints,
   X ranges/groups, data blocks, dependent values, and binding candidates.
@@ -237,21 +242,20 @@ Specific flow owners:
 - Explicit execution controllers and Slice commands consume
   `ReviewDecision.ready.application.systemRecommended`, apply idempotency
   guards, and submit Slice requests.
-- Slice execution: Slice executes concrete reviewed/manual Template snapshots and commits SliceRun/series/base curves.
-- Calculation: calculation services derive curves/metrics and commit through Session.
-- Plot: Plot consumes canonical curves/metrics and produces render models.
+- Slice execution: Slice executes concrete reviewed/manual Template snapshots and owns resource/sheet base-curve results.
+- Calculation: Calculation derives and caches resource/sheet curves/metrics from Slice results.
+- Plot: Plot consumes Calculation resource results and legacy canonical curves to produce render models.
 - Chart: Chart hosts plot UI; it does not interpret raw session facts.
 - Thumbnail: Thumbnail consumes Plot render models; it does not derive curves.
 - Export: consumes remaining Session/Plot/metric state through its own service.
-- Parameters: consumes explicit metric-bearing file records through its own service.
+- Parameters: consumes Calculation resource results through its own service.
 - Search: consumes explicit URI structured-content snapshots plus Plot/Chart owner state.
 
 ## Canonical Session
 
-`SessionModel` is the canonical in-memory ledger for the remaining imported
-data-file/raw-table lifecycle plus downstream analysis facts. It stores
-imported files, raw tables, table model, slice runs, series, curves,
-metrics, metric inputs, and rebuildable calculation cache descriptors.
+`SessionModel` is the migration ledger for remaining imported
+data-file/raw-table lifecycle and legacy canonical analysis facts. It does not
+store URI-backed Slice or Calculation results.
 
 Keep out of Session:
 
@@ -274,8 +278,8 @@ URI/resource
   -> model owns URI, format, load state, preview rows, cache/reload/watch
 ```
 
-Those editor/input models are not Session records. Only migration-ledger
-raw-table imports and downstream analysis facts flow through the Session ledger.
+Those editor/input models and URI-backed Slice/Calculation results are not
+Session records.
 
 ## File Layout
 
@@ -304,6 +308,6 @@ Before approving a change, verify:
 2. Does user intent enter through a command/action/controller or owner API?
 3. Does only the owner mutate the state?
 4. Are events facts, with subscribers rereading public state?
-5. Are imported table-file and analysis facts in the Session ledger, while view/service state stays outside Session?
+5. Do URI-backed domain results stay in their producing services, with Session limited to its migration-ledger contract?
 6. Does the dependency direction stay within the layer rules?
 7. Are subscriptions disposed?

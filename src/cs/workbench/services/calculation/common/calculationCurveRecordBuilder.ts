@@ -23,11 +23,11 @@ import type {
 	DerivedCurveKey,
 	DomainRecord,
 	FileId,
-	FileRecord,
 	SecondDerivedCurveKey,
 	SeriesId,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
+	type CalculationFileRecord,
 	collectFileRecordBaseCurves,
 } from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
 
@@ -52,12 +52,12 @@ type DomainAccumulator = {
 const DerivedCalculationKinds: readonly DerivedCalculationKind[] = ["gm", "ss", "vth"];
 
 export const createCalculatedCurveRecordsInputSignature = (
-	filesById: Record<FileId, FileRecord>,
+	filesById: Record<FileId, CalculationFileRecord>,
 	fileOrder: readonly FileId[],
 ): string => createCalculatedDataInputSignature(filesById, fileOrder);
 
 export const createCalculatedCurveRecordsByFile = (
-	filesById: Record<FileId, FileRecord>,
+	filesById: Record<FileId, CalculationFileRecord>,
 	fileOrder: readonly FileId[],
 	analysisByFileId: Readonly<Record<FileId, CalculationAnalysisBySeriesId | undefined>> = {},
 ): Record<FileId, CurveRecord[]> => {
@@ -76,7 +76,7 @@ export const createCalculatedCurveRecordsByFile = (
 };
 
 export const createCalculatedCurveRecordsForFile = (
-	file: FileRecord,
+	file: CalculationFileRecord,
 	analysisBySeriesId: CalculationAnalysisBySeriesId = {},
 ): CurveRecord[] => {
 	const records: CurveRecord[] = [];
@@ -110,7 +110,7 @@ export const createCalculatedCurveRecordsForFile = (
 	return records;
 };
 
-const collectBaseCurveInputs = (file: FileRecord): BaseCurveInput[] => {
+const collectBaseCurveInputs = (file: CalculationFileRecord): BaseCurveInput[] => {
 	const keyByCurve = new Map<BaseCurveRecord, BaseCurveKey>();
 	for (const [curveKey, curve] of Object.entries(file.curvesByKey) as Array<[CurveKey, CurveRecord]>) {
 		if (curve.curveGeneration === "base") {
@@ -344,11 +344,11 @@ const createCalculatedCurveSignature = ({
 };
 
 const getOrderedFileRecords = (
-	filesById: Record<FileId, FileRecord>,
+	filesById: Record<FileId, CalculationFileRecord>,
 	fileOrder: readonly FileId[],
-): FileRecord[] => {
+): CalculationFileRecord[] => {
 	const seen = new Set<FileId>();
-	const files: FileRecord[] = [];
+	const files: CalculationFileRecord[] = [];
 	const pushFile = (fileId: FileId): void => {
 		if (seen.has(fileId)) {
 			return;

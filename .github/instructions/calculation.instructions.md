@@ -1,21 +1,22 @@
 ---
-description: Calculation domain - pure algorithms, derived records, metric generation, cache policy, and session commit boundaries.
+description: Calculation domain - URI-backed derived records, metric generation, cache policy, and worker lifecycle.
 applyTo: 'src/cs/workbench/services/calculation/**'
 ---
 # Calculation
 
-Calculation owns reusable analysis algorithms and pure projection helpers over
-Session facts. It is not Plot, Parameters, Chart, Table, or Session UI.
+Calculation owns reusable analysis algorithms and resource-scoped calculated
+results. It is not Plot, Parameters, Chart, Table, or Session UI.
 
 ## Ownership
 
 Calculation owns:
 
 - first-pass and second-pass numerical algorithms;
-- calculation result builders from `FileRecord` inputs;
+- calculation result builders from Slice base-curve inputs;
 - metric builders from base curves and metric inputs;
 - input signatures and cache policy helpers;
-- `ICalculationService` queue/lifecycle for reruns, interactive priority hints, worker execution, and Session commits of calculated records.
+- `ICalculationService` queue/lifecycle for resource reruns, interactive priority
+  hints, worker execution, stale-result checks, and resource result caching.
 
 Calculation does not own plot display state, chart panes, parameter panel UI,
 Session internals, table-model production, template extraction, raw parsing, or
@@ -28,57 +29,63 @@ table preview state.
 | `common/calculation.ts` | `ICalculationService` contract and shared exports. |
 | `common/calculationTypes.ts` | pure value types. |
 | `common/calculationExecutor.ts` | pure algorithm dispatcher. |
-| `common/calculationRecordBuilder.ts` | facade for calculated curve/metric commit payloads. |
+| `common/calculationRecordBuilder.ts` | facade for calculated curve/metric result records. |
 | `common/calculationCurveRecordBuilder.ts` | derived and second-derived `CurveRecord` builders. |
 | `common/calculationMetricRecordBuilder.ts` | `MetricRecord` builders from base curves/metric inputs. |
-| `common/canonicalFileProjection.ts` | pure projection helpers over canonical `FileRecord` facts. |
+| `common/canonicalFileProjection.ts` | minimal calculation input projection shared by legacy file and URI-backed resource paths. |
 | `common/calculationReadModel.ts` | derived read models and source-normalization projections. |
 | `common/calculationCacheAccess.ts` / `calculationCachePolicy.ts` | cache access/invalidation/retention. |
 | `common/gm.ts`, `ss.ts`, `vth.ts`, `ionIoff.ts`, `sweepSegmentation.ts` | focused algorithm families/helpers. |
-| `browser/calculationService.ts` | service owner: signatures, pending queue, priority lane, worker chunks, Session commits. |
+| `browser/calculationService.ts` | service owner: resource signatures, pending queue, worker execution, and result cache. |
 | `browser/calculationWorker.ts` / `calculationWorkerClient.ts` | worker entry/adapter, request identity, timeout, fallback. |
 | `browser/calculation.contribution.ts` | service registration only. |
 
 ## Flow
 
 ```txt
-SessionChangeEvent / SessionSnapshot
-  -> ICalculationService checks affected files and input signatures
-  -> queue reordered by interactive priority lane
-  -> calculation worker builds curves/metrics from slim per-file input
+SliceResourceResult for { resource, sheetId? }
+  -> ICalculationService checks the resource input signature
+  -> queue reordered by resource priority
+  -> calculation worker builds curves/metrics from a slim calculation input
   -> service verifies current signature
-  -> ISessionService.commitCalculatedRecordsBatch(...)
-  -> downstream consumers reread Session
+  -> CalculationResourceResult cached by { resource, sheetId? }
+  -> Plot / Parameters reread ICalculationService
 ```
 
 ## Update Triggers
 
-- Rerun on `sliceRunChanged`, `filesRemoved`, `sessionCleared`, and
-  `metricInputsChanged`.
-- Rerun on `curvesChanged` only when base curves changed.
-- Do not rerun on derived/second-derived curve commits, calculated record commits, metric commits, raw table changes, or table-model changes unless they become calculation inputs.
-- When `fileIds` are available, recompute only those files.
-- `filesRemoved` and `sessionCleared` prune per-file signatures instead of recommitting unrelated files.
+- A resource is calculated only after `prioritizeResource(resource, sheetId)`.
+- A changed or removed `SliceResourceResult` invalidates only the matching
+  resource/sheet result.
+- Previously requested resources are recalculated after their Slice input
+  changes.
+- Repeated priorities with the same input signature do not enqueue duplicate
+  work.
 
-## Session And Worker Rules
+## Resource And Worker Rules
 
-- Read Session only through `ISessionService.getSnapshot()`.
-- Write canonical results only through Session commit APIs.
+- Resource identity is `{ resource: URI, sheetId? }`; do not introduce a
+  parallel calculation file-id identity.
+- Read base curves and source versions through `ISliceService.getResourceResult()`.
+- Keep calculated curves and metrics in `CalculationResourceResult`; do not
+  commit them into Session.
 - `calculationService.ts` owns lifecycle/queue glue; algorithm and record-building logic belongs in `common/*`.
-- Worker payloads include only what is required: base curves, matching series,
-  metric inputs, latest `SliceRun` template metadata, and minimal raw file
-  identity.
-- Do not send raw table rows, table-model state, or full snapshots to the worker.
-- Worker results must be checked against per-file input signatures; session version alone is not enough.
-- Interactive foreground and background work share one calculation worker slot to bound CPU pressure.
-- `prioritizeCalculationFile(s)` is a priority hint only: reorder pending work and optionally process a tiny current-file chunk. Do not enqueue unchanged or unrelated files.
+- Worker payloads include only base curves, matching series, axis projection,
+  metric inputs when present, and request/input signatures.
+- Do not send raw table rows, table-model state, Session snapshots, or
+  `SessionModel` records to the worker.
+- Worker results must be checked against the current resource input signature
+  and request id.
+- Resource work shares one calculation worker slot to bound CPU pressure.
+- `prioritizeResource` is a priority hint and calculation trigger; do not
+  enqueue unchanged or unrelated resources.
 - Second-derived curves are calculated from first-pass derived curves in memory during the same pass; do not commit/read-back just to compute the second pass.
 - Calculation never calls Plot, Parameters, Export, Search, Chart, or Table directly.
 
 ## Do Not
 
 - Do not put DOM, services, or command registration in pure helpers.
-- Do not mutate `SessionModel` internals.
+- Do not read or mutate Session to transport URI-backed calculation results.
 - Do not import plot rendering helpers or chart DOM.
 - Do not own parameter view state.
 - Do not let calculated output invalidate itself.

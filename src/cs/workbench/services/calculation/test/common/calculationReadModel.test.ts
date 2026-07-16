@@ -6,12 +6,12 @@ import type {
   DerivedCurveKey,
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type { SliceResourceResult } from "src/cs/workbench/services/slice/common/slice";
+import type { CalculationResourceResult } from "src/cs/workbench/services/calculation/common/calculation";
 
 import {
   createCalculatedData,
   createCalculatedDataKey,
-  createCalculatedDataForSliceResourceResult,
+  createCalculatedDataForCalculationResourceResult,
   createCalculatedDataInputSignature,
   createCalculatedPlotsByKey,
   createCalculatedSeries,
@@ -262,9 +262,9 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     assert.notEqual(left.signature, right.signature);
   });
 
-  test("createCalculatedDataForSliceResourceResult derives resource id from URI components", () => {
-    const result = createSliceResourceResult();
-    const calculated = createCalculatedDataForSliceResourceResult({
+  test("createCalculatedDataForCalculationResourceResult derives resource id from URI components", () => {
+    const result = createCalculationResourceResult();
+    const calculated = createCalculatedDataForCalculationResourceResult({
       plotType: "iv",
       result,
     });
@@ -295,70 +295,54 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
   });
 });
 
-const createSliceResourceResult = (): SliceResourceResult => {
+const createCalculationResourceResult = (): CalculationResourceResult => {
   const resource = URI.file("/workspace/data/transfer.csv").toJSON() as unknown as URI;
   const sheetId = "Sheet 1";
+  const fileId = "file:///workspace/data/transfer.csv\u0000Sheet 1";
   return {
-    completedAt: 1,
-    curves: [{
-      curveFamily: "iv",
-      curveGeneration: "base",
-      ivMode: "transfer",
-      lineage: {
-        baseFamily: "iv",
-        baseSeries: {
-          resource,
-          sheetId,
-          seriesId: "series-a",
-        },
-        curveGeneration: "base",
-        ivMode: "transfer",
-      },
-      points: [
-        { x: 0, y: 1 },
-        { x: 1, y: 2 },
-      ],
-      resource,
-      seriesId: "series-a",
-      sheetId,
-      signature: "curve-a",
-    }],
-    requestSignature: "request-a",
-    run: {
-      errors: [],
-      id: "run-a",
-      inputRanges: [],
-      mode: "auto",
-      outputCurveKeys: [],
-      outputSeriesIds: ["series-a"],
-      resource,
-      selection: { kind: "auto" },
-      sheetId,
-      sourceContentSignature: "source-a",
-      template: {
-        blocks: [{
-          legend: { target: "auto" },
-          rowRange: { startRow: 0, endRow: 1 },
-          segmentation: { kind: "auto" },
-          x: { columns: [0], unit: "V" },
-          y: { columns: [1], unit: "A" },
-        }],
-        name: "Transfer",
-        schemaVersion: 1,
-        stopOnError: false,
-        version: 1,
-      },
-      templateFingerprint: "template-a",
-      warnings: [],
+    axis: {
+      xAxisRole: "vg",
+      xUnit: "V",
+      yUnit: "A",
     },
-    series: [{
-      groupIndex: 0,
-      id: "series-a",
-      name: "Series A",
-      resource,
-      sheetId,
-      y: [1, 2],
-    }],
+    completedAt: 1,
+    curvesByKey: {
+      "base:iv:transfer:series-a": {
+        curveFamily: "iv",
+        curveGeneration: "base",
+        fileId,
+        ivMode: "transfer",
+        lineage: {
+          baseFamily: "iv",
+          baseSeries: {
+            fileId,
+            seriesId: "series-a",
+          },
+          curveGeneration: "base",
+          ivMode: "transfer",
+        },
+        points: [
+          { x: 0, y: 1 },
+          { x: 1, y: 2 },
+        ],
+        seriesId: "series-a",
+        signature: "curve-a",
+      },
+    },
+    inputSignature: "calculation-a",
+    metricsByKey: {},
+    requestSignature: "request-a",
+    seriesById: {
+      "series-a": {
+        fileId,
+        groupIndex: 0,
+        id: "series-a",
+        name: "Series A",
+        sheetId,
+        y: [1, 2],
+      },
+    },
+    seriesOrder: ["series-a"],
     sourceModelVersion: 1,
     sourceVersion: 1,
     resource,

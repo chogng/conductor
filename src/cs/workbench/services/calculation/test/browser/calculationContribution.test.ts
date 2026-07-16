@@ -4,636 +4,295 @@
 
 import assert from "assert";
 
-import { Emitter, type Event } from "src/cs/base/common/event";
-import type {
-  WebWorkerReplyMessage,
-  WebWorkerRequestMessage,
-} from "src/cs/base/common/worker/webWorker";
-import { WebWorkerDescriptor } from "src/cs/platform/webWorker/browser/webWorkerDescriptor";
-import { WebWorkerService } from "src/cs/platform/webWorker/browser/webWorkerServiceImpl";
-import {
-  CalculationService,
-  shouldUpdateCalculationForSessionChange,
-} from "src/cs/workbench/services/calculation/browser/calculationService";
-import { CalculationWorkerClient } from "src/cs/workbench/services/calculation/browser/calculationWorkerClient";
-import type { CalculationRecordsWorkerRequest } from "src/cs/workbench/services/calculation/browser/calculationWorker";
-import type {
-  CommitCurvesBatchInput,
-  CommitCurvesInput,
-  CommitMetricsBatchInput,
-  CommitMetricsInput,
-  CommitCalculatedRecordsBatchInput,
-  ISessionService,
-  SessionSnapshot,
-} from "src/cs/workbench/services/session/common/session";
-import {
-  createSessionChangeEvent,
-  type SessionChangeEvent,
-  type SessionChangeReason,
-} from "src/cs/workbench/services/session/common/sessionEvents";
-import type {
-  BaseCurveKey,
-  CurveKey,
-  FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
+import { Emitter, Event } from "src/cs/base/common/event";
+import { Disposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { CalculationService } from "src/cs/workbench/services/calculation/browser/calculationService";
+import type {
+	CalculationRecordsBackendInput,
+	CalculationRecordsBackendOutput,
+	ICalculationRecordsBackend,
+} from "src/cs/workbench/services/calculation/common/calculationRecordsBackend";
+import { createCalculatedRecordsByFile } from "src/cs/workbench/services/calculation/common/calculationRecordBuilder";
+import type {
+	ISliceService,
+	SliceResourceResult,
+} from "src/cs/workbench/services/slice/common/slice";
 
-const testCalculationWorkerDescriptor = new WebWorkerDescriptor({
-  esmModuleLocationBundler: "calculation-worker.js",
-  label: "Calculation",
-});
-const testWebWorkerService = new WebWorkerService();
-
-const createCalculationService = (sessionService: ISessionService): CalculationService =>
-  new CalculationService(
-    new CalculationWorkerClient(
-      testWebWorkerService,
-      testCalculationWorkerDescriptor,
-    ),
-    sessionService,
-  );
+type ResourceSheetIdentity = {
+	readonly resource: URI;
+	readonly sheetId?: string | null;
+};
 
 suite("workbench/services/calculation/test/browser/calculationContribution", () => {
-  ensureNoDisposablesAreLeakedInTestSuite();
-  test("ignores session changes that do not affect calculated curve inputs", () => {
-    for (const reason of [
-      "rawTablesChanged",
-      "calculatedRecordsChanged",
-      "metricsChanged",
-    ] satisfies SessionChangeReason[]) {
-      assert.equal(
-        shouldUpdateCalculationForSessionChange(createSessionChangeEvent(reason, 1)),
-        false,
-        reason,
-      );
-    }
-  });
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("updates for slice, removal, clear, and metric input changes", () => {
-    for (const reason of [
-      "sliceRunChanged",
-      "filesRemoved",
-      "sessionCleared",
-      "metricInputsChanged",
-    ] satisfies SessionChangeReason[]) {
-      assert.equal(
-        shouldUpdateCalculationForSessionChange(createSessionChangeEvent(reason, 1)),
-        true,
-        reason,
-      );
-    }
-  });
+	test("calculates and caches records by resource identity", async () => {
+		const resource = URI.file("/data/transfer.csv");
+		const sliceService = store.add(new TestSliceService(
+			createSliceResourceResult(resource, "Sheet 1", 1),
+		));
+		const backend = new TestCalculationRecordsBackend(true);
+		const service = store.add(new CalculationService(backend, sliceService));
+		const changes: ResourceSheetIdentity[] = [];
+		store.add(service.onDidChangeResourceCalculationResult(change => changes.push(change)));
 
-  test("updates only for base curve changes", () => {
-    assert.equal(
-      shouldUpdateCalculationForSessionChange(createSessionChangeEvent("curvesChanged", 1, {
-        curveKeys: ["base:iv:transfer:series-a" as CurveKey],
-      })),
-      true,
-    );
-    assert.equal(
-      shouldUpdateCalculationForSessionChange(createSessionChangeEvent("curvesChanged", 1, {
-        curveKeys: ["derived:gm:default:series-a" as CurveKey],
-      })),
-      false,
-    );
-    assert.equal(
-      shouldUpdateCalculationForSessionChange(createSessionChangeEvent("curvesChanged", 1, {
-        curveKeys: ["secondDerived:secondDerivative:default:series-a" as CurveKey],
-      })),
-      false,
-    );
-  });
+		assert.equal(service.getResourceResult(resource, "Sheet 1"), null);
+		service.prioritizeResource(resource, "Sheet 1");
+		await waitForCalculation();
 
-  test("updates for curve replacement events without committed curve keys", () => {
-    assert.equal(
-      shouldUpdateCalculationForSessionChange(createSessionChangeEvent("curvesChanged", 1)),
-      true,
-    );
-  });
+		const result = service.getResourceResult(resource, "Sheet 1");
+		assert.ok(result);
+		assert.equal(result.resource.toString(), resource.toString());
+		assert.equal(result.sheetId, "Sheet 1");
+		assert.equal(result.sourceVersion, 1);
+		assert.ok(Object.values(result.curvesByKey).some(curve =>
+			curve.curveGeneration === "base" &&
+			curve.curveFamily === "iv"
+		));
+		assert.ok(Object.values(result.curvesByKey).some(curve =>
+			curve.curveGeneration === "derived" &&
+			curve.curveFamily === "gm"
+		));
+		assert.ok(Object.keys(result.metricsByKey).length > 0);
+		assert.equal(backend.calculateCount, 1);
+		assert.deepEqual(changes.map(change => ({
+			resource: change.resource.toString(),
+			sheetId: change.sheetId,
+		})), [{
+			resource: resource.toString(),
+			sheetId: "Sheet 1",
+		}]);
+	});
 
-  test("recalculates only files affected by a base curve session change", async () => {
-    const sessionEvents = new Emitter<SessionChangeEvent>();
-    const curveCommits: CommitCurvesInput[] = [];
-    const metricCommits: CommitMetricsInput[] = [];
-    let snapshot = createSnapshot({
-      "file-a": createFileRecord("file-a", "series-a", "base-a"),
-      "file-b": createFileRecord("file-b", "series-b", "base-b"),
-    });
-    const contribution = createCalculationService(createSessionServiceStub({
-      commitCurvesBatch: input => curveCommits.push(...input),
-      commitCalculatedRecordsBatch: input => {
-        curveCommits.push(...input.map(commit => ({
-          curves: commit.curves,
-          fileId: commit.fileId,
-          replaceGenerations: commit.replaceCurveGenerations,
-        })));
-        metricCommits.push(...input.map(commit => ({
-          fileId: commit.fileId,
-          metrics: commit.metrics,
-          replace: commit.replaceMetrics,
-        })));
-      },
-      commitMetricsBatch: input => metricCommits.push(...input),
-      getSnapshot: () => snapshot,
-      onDidChangeSession: sessionEvents.event,
-    }));
-    curveCommits.length = 0;
-    metricCommits.length = 0;
+	test("does not recalculate an unchanged resource result", async () => {
+		const resource = URI.file("/data/transfer.csv");
+		const sliceService = store.add(new TestSliceService(
+			createSliceResourceResult(resource, null, 1),
+		));
+		const backend = new TestCalculationRecordsBackend(true);
+		const service = store.add(new CalculationService(backend, sliceService));
 
-    snapshot = createSnapshot({
-      "file-a": createFileRecord("file-a", "series-a", "base-a"),
-      "file-b": createFileRecord("file-b", "series-b", "base-b-next"),
-    });
-    sessionEvents.fire(createSessionChangeEvent("curvesChanged", 2, {
-      curveKeys: ["base:iv:transfer:series-b" as CurveKey],
-      fileIds: ["file-b"],
-    }));
+		service.prioritizeResource(resource);
+		await waitForCalculation();
+		service.prioritizeResource(resource);
+		service.prioritizeResource(resource);
+		await waitForCalculation();
 
-    assert.deepEqual(curveCommits.map(commit => commit.fileId), []);
-    assert.deepEqual(metricCommits.map(commit => commit.fileId), []);
+		assert.equal(backend.calculateCount, 1);
+	});
 
-    await waitForPendingCalculation();
+	test("drops stale backend output and recalculates the changed Slice result", async () => {
+		const resource = URI.file("/data/transfer.csv");
+		const sliceService = store.add(new TestSliceService(
+			createSliceResourceResult(resource, null, 1),
+		));
+		const backend = new TestCalculationRecordsBackend(false);
+		const service = store.add(new CalculationService(backend, sliceService));
 
-    assert.deepEqual(curveCommits.map(commit => commit.fileId), ["file-b"]);
-    assert.deepEqual(metricCommits.map(commit => commit.fileId), ["file-b"]);
-    contribution.dispose();
-    sessionEvents.dispose();
-  });
+		service.prioritizeResource(resource);
+		assert.equal(backend.calculateCount, 1);
 
-  test("queues non-interactive calculation files and flushes them in background chunks", async () => {
-    const sessionEvents = new Emitter<SessionChangeEvent>();
-    const calculatedCommitFileIds: string[][] = [];
-    const snapshot = createSnapshot({
-      "file-a": createFileRecord("file-a", "series-a", "base-a"),
-      "file-b": createFileRecord("file-b", "series-b", "base-b"),
-      "file-c": createFileRecord("file-c", "series-c", "base-c"),
-    });
-    const contribution = createCalculationService(createSessionServiceStub({
-      commitCurvesBatch: () => undefined,
-      commitCalculatedRecordsBatch: input => {
-        calculatedCommitFileIds.push(input.map(commit => commit.fileId));
-      },
-      commitMetricsBatch: () => undefined,
-      getSnapshot: () => snapshot,
-      onDidChangeSession: sessionEvents.event,
-    }));
+		sliceService.setResult(createSliceResourceResult(resource, null, 2));
+		backend.complete(0);
+		await waitForCalculation();
 
-    assert.deepEqual(calculatedCommitFileIds, []);
-    await waitForPendingCalculation(3);
-    assert.deepEqual(calculatedCommitFileIds, [["file-a"], ["file-b"], ["file-c"]]);
+		assert.equal(service.getResourceResult(resource), null);
+		assert.equal(backend.calculateCount, 2);
 
-    contribution.dispose();
-    sessionEvents.dispose();
-  });
+		backend.complete(1);
+		await waitForCalculation();
 
-  test("runs one calculation worker at a time and gives queued interactive work the next slot", async () => {
-    const originalWorker = globalThis.Worker;
-    const sessionEvents = new Emitter<SessionChangeEvent>();
-    const calculatedCommitFileIds: string[][] = [];
-    const workerRecords: Array<{
-      readonly message: WebWorkerRequestMessage;
-      readonly worker: TestWorker;
-    }> = [];
-    let activeWorkerCount = 0;
-    let maxActiveWorkerCount = 0;
-    class TestWorker {
-      public onerror: ((event: ErrorEvent) => void) | null = null;
-      public onmessage: ((event: MessageEvent) => void) | null = null;
-      public onmessageerror: ((event: MessageEvent) => void) | null = null;
-
-      constructor() {
-        activeWorkerCount += 1;
-        maxActiveWorkerCount = Math.max(maxActiveWorkerCount, activeWorkerCount);
-      }
-
-      public postMessage(message: WebWorkerRequestMessage): void {
-        workerRecords.push({ message, worker: this });
-      }
-
-      public terminate(): void {
-        activeWorkerCount = Math.max(0, activeWorkerCount - 1);
-      }
-    }
-
-    let contribution: CalculationService | undefined;
-    try {
-      globalThis.Worker = TestWorker as unknown as typeof Worker;
-      const snapshot = createSnapshot({
-        "file-a": createFileRecord("file-a", "series-a", "base-a"),
-        "file-b": createFileRecord("file-b", "series-b", "base-b"),
-        "file-c": createFileRecord("file-c", "series-c", "base-c"),
-      });
-      contribution = createCalculationService(createSessionServiceStub({
-        commitCurvesBatch: () => undefined,
-        commitCalculatedRecordsBatch: input => {
-          calculatedCommitFileIds.push(input.map(commit => commit.fileId));
-        },
-        commitMetricsBatch: () => undefined,
-        getSnapshot: () => snapshot,
-        onDidChangeSession: sessionEvents.event,
-      }));
-
-      await waitForPendingCalculation();
-
-      assert.equal(workerRecords.length, 1);
-      assert.equal(getCalculationWorkerPayload(workerRecords[0]).fileId, "file-a");
-      assert.deepEqual(calculatedCommitFileIds, []);
-
-      contribution.prioritizeCalculationFile("file-c");
-      assert.equal(workerRecords.length, 1);
-      assert.deepEqual(calculatedCommitFileIds, []);
-
-      completeCalculationWorker(workerRecords[0]);
-      await waitForCalculationWorkerResult();
-
-      assert.equal(workerRecords.length, 2);
-      assert.equal(getCalculationWorkerPayload(workerRecords[1]).fileId, "file-c");
-      assert.deepEqual(calculatedCommitFileIds, [["file-a"]]);
-      assert.equal(maxActiveWorkerCount, 1);
-
-      completeCalculationWorker(workerRecords[1]);
-      await waitForCalculationWorkerResult();
-
-      assert.deepEqual(calculatedCommitFileIds, [["file-a"], ["file-c"]]);
-
-      await waitForPendingCalculation();
-      assert.equal(workerRecords.length, 3);
-      assert.equal(getCalculationWorkerPayload(workerRecords[2]).fileId, "file-b");
-      assert.equal(maxActiveWorkerCount, 1);
-    } finally {
-      contribution?.dispose();
-      sessionEvents.dispose();
-      globalThis.Worker = originalWorker;
-    }
-  });
-
-  test("ignores stale background worker calculation results after input changes", async () => {
-    const originalWorker = globalThis.Worker;
-    const sessionEvents = new Emitter<SessionChangeEvent>();
-    const calculatedCommitFileIds: string[][] = [];
-    const workerRecords: Array<{
-      readonly message: WebWorkerRequestMessage;
-      readonly worker: TestWorker;
-    }> = [];
-    class TestWorker {
-      public onerror: ((event: ErrorEvent) => void) | null = null;
-      public onmessage: ((event: MessageEvent) => void) | null = null;
-      public onmessageerror: ((event: MessageEvent) => void) | null = null;
-
-      public postMessage(message: WebWorkerRequestMessage): void {
-        workerRecords.push({ message, worker: this });
-      }
-
-      public terminate(): void {
-        return;
-      }
-    }
-
-    let contribution: CalculationService | undefined;
-    try {
-      globalThis.Worker = TestWorker as unknown as typeof Worker;
-      let snapshot = createSnapshot({
-        "file-a": createFileRecord("file-a", "series-a", "base-a"),
-      });
-      contribution = createCalculationService(createSessionServiceStub({
-        commitCurvesBatch: () => undefined,
-        commitCalculatedRecordsBatch: input => {
-          calculatedCommitFileIds.push(input.map(commit => commit.fileId));
-        },
-        commitMetricsBatch: () => undefined,
-        getSnapshot: () => snapshot,
-        onDidChangeSession: sessionEvents.event,
-      }));
-
-      await waitForPendingCalculation();
-      assert.equal(workerRecords.length, 1);
-
-      snapshot = {
-        ...createSnapshot({
-          "file-a": createFileRecord("file-a", "series-a", "base-a-next"),
-        }),
-        sessionVersion: 2,
-      };
-      sessionEvents.fire(createSessionChangeEvent("curvesChanged", 2, {
-        curveKeys: ["base:iv:transfer:series-a" as CurveKey],
-        fileIds: ["file-a"],
-      }));
-
-      completeCalculationWorker(workerRecords[0]);
-      await waitForCalculationWorkerResult();
-
-      assert.deepEqual(calculatedCommitFileIds, []);
-
-      await waitForPendingCalculation();
-      assert.equal(workerRecords.length, 2);
-      completeCalculationWorker(workerRecords[1]);
-      await waitForCalculationWorkerResult();
-
-      assert.deepEqual(calculatedCommitFileIds, [["file-a"]]);
-    } finally {
-      contribution?.dispose();
-      sessionEvents.dispose();
-      globalThis.Worker = originalWorker;
-    }
-  });
-
-  test("prioritizes newly affected files ahead of older background calculation", async () => {
-    const sessionEvents = new Emitter<SessionChangeEvent>();
-    const calculatedCommitFileIds: string[][] = [];
-    let snapshot = createSnapshot({
-      "file-a": createFileRecord("file-a", "series-a", "base-a"),
-      "file-b": createFileRecord("file-b", "series-b", "base-b"),
-      "file-c": createFileRecord("file-c", "series-c", "base-c"),
-    });
-    const contribution = createCalculationService(createSessionServiceStub({
-      commitCurvesBatch: () => undefined,
-      commitCalculatedRecordsBatch: input => {
-        calculatedCommitFileIds.push(input.map(commit => commit.fileId));
-      },
-      commitMetricsBatch: () => undefined,
-      getSnapshot: () => snapshot,
-      onDidChangeSession: sessionEvents.event,
-    }));
-    calculatedCommitFileIds.length = 0;
-
-    snapshot = createSnapshot({
-      "file-a": createFileRecord("file-a", "series-a", "base-a"),
-      "file-b": createFileRecord("file-b", "series-b", "base-b"),
-      "file-c": createFileRecord("file-c", "series-c", "base-c-next"),
-    });
-    sessionEvents.fire(createSessionChangeEvent("curvesChanged", 2, {
-      curveKeys: ["base:iv:transfer:series-c" as CurveKey],
-      fileIds: ["file-c"],
-    }));
-
-    assert.deepEqual(calculatedCommitFileIds, []);
-    await waitForPendingCalculation(2);
-    assert.deepEqual(calculatedCommitFileIds[0], ["file-c"]);
-
-    contribution.dispose();
-    sessionEvents.dispose();
-  });
-
-  test("prioritizes requested pending calculation files ahead of background backlog", async () => {
-    const sessionEvents = new Emitter<SessionChangeEvent>();
-    const calculatedCommitFileIds: string[][] = [];
-    const snapshot = createSnapshot({
-      "file-a": createFileRecord("file-a", "series-a", "base-a"),
-      "file-b": createFileRecord("file-b", "series-b", "base-b"),
-      "file-c": createFileRecord("file-c", "series-c", "base-c"),
-    });
-    const contribution = createCalculationService(createSessionServiceStub({
-      commitCurvesBatch: () => undefined,
-      commitCalculatedRecordsBatch: input => {
-        calculatedCommitFileIds.push(input.map(commit => commit.fileId));
-      },
-      commitMetricsBatch: () => undefined,
-      getSnapshot: () => snapshot,
-      onDidChangeSession: sessionEvents.event,
-    }));
-    calculatedCommitFileIds.length = 0;
-
-    contribution.prioritizeCalculationFile("file-c");
-    assert.deepEqual(calculatedCommitFileIds, [["file-c"]]);
-
-    await waitForPendingCalculation(2);
-
-    assert.deepEqual(calculatedCommitFileIds, [["file-c"], ["file-a"], ["file-b"]]);
-
-    contribution.dispose();
-    sessionEvents.dispose();
-  });
-
-  test("keeps requested calculation files prioritized when they enter pending later", () => {
-    const sessionEvents = new Emitter<SessionChangeEvent>();
-    const calculatedCommitFileIds: string[][] = [];
-    let snapshot = createSnapshot({
-      "file-a": createFileRecord("file-a", "series-a", "base-a"),
-    });
-    const contribution = createCalculationService(createSessionServiceStub({
-      commitCurvesBatch: () => undefined,
-      commitCalculatedRecordsBatch: input => {
-        calculatedCommitFileIds.push(input.map(commit => commit.fileId));
-      },
-      commitMetricsBatch: () => undefined,
-      getSnapshot: () => snapshot,
-      onDidChangeSession: sessionEvents.event,
-    }));
-    calculatedCommitFileIds.length = 0;
-
-    contribution.prioritizeCalculationFile("file-c");
-    snapshot = createSnapshot({
-      "file-a": createFileRecord("file-a", "series-a", "base-a"),
-      "file-b": createFileRecord("file-b", "series-b", "base-b"),
-      "file-c": createFileRecord("file-c", "series-c", "base-c"),
-      "file-d": createFileRecord("file-d", "series-d", "base-d"),
-    });
-    sessionEvents.fire(createSessionChangeEvent("curvesChanged", 2));
-
-    assert.deepEqual(calculatedCommitFileIds, [["file-c"]]);
-
-    contribution.dispose();
-    sessionEvents.dispose();
-  });
-
-  test("uses the most recent calculation priority when pending files arrive later", () => {
-    const sessionEvents = new Emitter<SessionChangeEvent>();
-    const calculatedCommitFileIds: string[][] = [];
-    let snapshot = createSnapshot({
-      "file-a": createFileRecord("file-a", "series-a", "base-a"),
-    });
-    const contribution = createCalculationService(createSessionServiceStub({
-      commitCurvesBatch: () => undefined,
-      commitCalculatedRecordsBatch: input => {
-        calculatedCommitFileIds.push(input.map(commit => commit.fileId));
-      },
-      commitMetricsBatch: () => undefined,
-      getSnapshot: () => snapshot,
-      onDidChangeSession: sessionEvents.event,
-    }));
-    calculatedCommitFileIds.length = 0;
-
-    contribution.prioritizeCalculationFile("file-c");
-    contribution.prioritizeCalculationFile("file-b");
-    snapshot = createSnapshot({
-      "file-a": createFileRecord("file-a", "series-a", "base-a"),
-      "file-b": createFileRecord("file-b", "series-b", "base-b"),
-      "file-c": createFileRecord("file-c", "series-c", "base-c"),
-      "file-d": createFileRecord("file-d", "series-d", "base-d"),
-    });
-    sessionEvents.fire(createSessionChangeEvent("curvesChanged", 2));
-
-    assert.deepEqual(calculatedCommitFileIds, [["file-b"]]);
-
-    contribution.dispose();
-    sessionEvents.dispose();
-  });
+		const result = service.getResourceResult(resource);
+		assert.ok(result);
+		assert.equal(result.sourceVersion, 2);
+		assert.equal(result.requestSignature, "request-2");
+	});
 });
 
-const createSessionServiceStub = ({
-  commitCalculatedRecordsBatch,
-  commitCurvesBatch,
-  commitMetricsBatch,
-  getSnapshot,
-  onDidChangeSession,
-}: {
-  readonly commitCurvesBatch: (input: CommitCurvesBatchInput) => void;
-  readonly commitCalculatedRecordsBatch: (input: CommitCalculatedRecordsBatchInput) => void;
-  readonly commitMetricsBatch: (input: CommitMetricsBatchInput) => void;
-  readonly getSnapshot: () => SessionSnapshot;
-  readonly onDidChangeSession: Event<SessionChangeEvent>;
-}): ISessionService => ({
-  _serviceBrand: undefined,
-  clearMetricInput: () => undefined,
-  clearSession: () => undefined,
-  commitFileImport: () => ({
-    importedFileIds: [],
-    skippedDuplicateFileIds: [],
-  }),
-  commitCurves: () => undefined,
-  commitCalculatedRecordsBatch,
-  commitCurvesBatch,
-  commitMetrics: () => undefined,
-  commitMetricsBatch,
-  commitSliceRuns: () => undefined,
-  getSnapshot,
-  onDidChangeSession,
-  renameFile: () => false,
-  removeFiles: () => undefined,
-  setMetricInput: () => undefined,
-});
+class TestCalculationRecordsBackend
+	extends Disposable
+	implements ICalculationRecordsBackend {
 
-const createSnapshot = (
-  filesById: Record<string, FileRecord>,
-): SessionSnapshot => ({
-  fileOrder: Object.keys(filesById),
-  filesById,
-  schemaVersion: 1,
-  sessionVersion: 1,
-});
+	public calculateCount = 0;
+	private readonly pending: Array<{
+		readonly input: CalculationRecordsBackendInput;
+		readonly resolve: (result: CalculationRecordsBackendOutput) => void;
+	}> = [];
 
-const createFileRecord = (
-  fileId: string,
-  seriesId: string,
-  signature: string,
-): FileRecord => {
-  const curveKey = `base:iv:transfer:${seriesId}` as BaseCurveKey;
-  return {
-    curvesByKey: {
-      [curveKey]: {
-        curveFamily: "iv",
-        curveGeneration: "base",
-        fileId,
-        ivMode: "transfer",
-        lineage: {
-          baseFamily: "iv",
-          baseSeries: { fileId, seriesId },
-          curveGeneration: "base",
-          ivMode: "transfer",
-        },
-        points: [
-          { x: 0, y: 1 },
-          { x: 1, y: 2 },
-          { x: 2, y: 4 },
-        ],
-        seriesId,
-        signature,
-      },
-    },
-    id: fileId,
-    kind: "unknown",
-    metricsByKey: {},
-    name: `${fileId}.csv`,
-    raw: {
-      fileId,
-      fileName: `${fileId}.csv`,
-      tableOrder: [],
-      tablesById: {},
-    },
-    rawTableVersionsById: {},
-    seriesById: {
-      [seriesId]: {
-        fileId,
-        groupIndex: 0,
-        id: seriesId,
-        name: seriesId,
-        y: [1, 2, 4],
-      },
-    },
-    seriesOrder: [seriesId],
-    latestSliceRunId: "run-a",
-    sliceRunsById: {
-      "run-a": {
-        fileId,
-        id: "run-a",
-        mode: "auto",
-        rawTableId: fileId,
-        selection: { kind: "auto" },
-        sourceRawTableVersion: 0,
-        template: {
-          schemaVersion: 1,
-          name: "Template",
-          version: 1,
-          stopOnError: false,
-          blocks: [{
-            rowRange: { startRow: 0, endRow: 2 },
-            x: { columns: [0], unit: "V" },
-            y: { columns: [1], unit: "A" },
-            segmentation: { kind: "auto" },
-            legend: { target: "auto" },
-            titles: {
-              bottom: "Gate Voltage",
-              left: "Drain Current",
-            },
-          }],
-        },
-        templateFingerprint: "config-a",
-        inputRanges: [],
-        outputCurveKeys: [curveKey],
-        outputSeriesIds: [seriesId],
-        warnings: [],
-        errors: [],
-      },
-    },
-  };
-};
+	public constructor(private readonly autoComplete: boolean) {
+		super();
+	}
 
-const completeCalculationWorker = (record: {
-  readonly message: WebWorkerRequestMessage;
-  readonly worker: {
-    readonly onmessage: ((event: MessageEvent) => void) | null;
-  };
-}): void => {
-  const payload = getCalculationWorkerPayload(record);
-  record.worker.onmessage?.({
-    data: {
-      requestId: record.message.requestId,
-      result: {
-        curves: [],
-        fileId: payload.fileId,
-        metrics: [],
-        requestId: payload.requestId,
-        sessionVersion: payload.sessionVersion,
-      },
-      type: "reply",
-      workerId: record.message.workerId,
-    } satisfies WebWorkerReplyMessage,
-  } as MessageEvent<WebWorkerReplyMessage>);
-};
+	public isSupported(): boolean {
+		return true;
+	}
 
-const getCalculationWorkerPayload = (record: {
-  readonly message: WebWorkerRequestMessage;
-}): CalculationRecordsWorkerRequest => record.message.args[0] as CalculationRecordsWorkerRequest;
+	public calculateRecords(
+		input: CalculationRecordsBackendInput,
+	): Promise<CalculationRecordsBackendOutput> {
+		this.calculateCount += 1;
+		if (this.autoComplete) {
+			return Promise.resolve(createBackendOutput(input));
+		}
+		return new Promise(resolve => {
+			this.pending.push({ input, resolve });
+		});
+	}
 
-const waitForPendingCalculation = async (flushCount = 1): Promise<void> => {
-  for (let index = 0; index < flushCount; index += 1) {
-    await new Promise(resolve => setTimeout(resolve, 0));
-  }
-};
+	public complete(index: number): void {
+		const pending = this.pending[index];
+		assert.ok(pending, `Missing pending calculation ${index}.`);
+		pending.resolve(createBackendOutput(pending.input));
+	}
+}
 
-const waitForCalculationWorkerResult = async (): Promise<void> => {
-  for (let index = 0; index < 8; index += 1) {
-    await Promise.resolve();
-  }
-};
+class TestSliceService extends Disposable implements ISliceService {
+	public declare readonly _serviceBrand: undefined;
+
+	private readonly onDidChangeResourceSliceResultEmitter = this._register(
+		new Emitter<ResourceSheetIdentity>(),
+	);
+	public readonly onDidChangeResourceSliceResult =
+		this.onDidChangeResourceSliceResultEmitter.event;
+	public readonly onDidChangeSliceState = Event.None as Event<void>;
+	public readonly onDidChangeTemplateSelection =
+		Event.None as Event<ResourceSheetIdentity>;
+
+	public constructor(private result: SliceResourceResult | null) {
+		super();
+	}
+
+	public getResourceResult(resource: URI, sheetId?: string | null): SliceResourceResult | null {
+		return this.result &&
+			this.result.resource.toString() === resource.toString() &&
+			String(this.result.sheetId ?? "") === String(sheetId ?? "")
+			? this.result
+			: null;
+	}
+
+	public setResult(result: SliceResourceResult): void {
+		this.result = result;
+		this.onDidChangeResourceSliceResultEmitter.fire({
+			resource: result.resource,
+			sheetId: result.sheetId ?? null,
+		});
+	}
+
+	public getState(): ReturnType<ISliceService["getState"]> {
+		return { queueLength: 0, templateSelections: [] };
+	}
+
+	public getTemplateSelection(): ReturnType<ISliceService["getTemplateSelection"]> {
+		return { kind: "auto" };
+	}
+
+	public getResourceState(): ReturnType<ISliceService["getResourceState"]> {
+		return undefined;
+	}
+
+	public submitResource(): void {}
+	public prioritizeResource(): void {}
+	public cancelResource(): void {}
+	public setTemplateSelection(): void {}
+}
+
+function createBackendOutput(
+	input: CalculationRecordsBackendInput,
+): CalculationRecordsBackendOutput {
+	const records = createCalculatedRecordsByFile(
+		{ [input.file.id]: input.file },
+		[input.file.id],
+	);
+	return {
+		curves: records.curvesByFileId[input.file.id] ?? [],
+		inputSignature: input.inputSignature,
+		metrics: records.metricsByFileId[input.file.id] ?? [],
+		requestId: input.requestId,
+	};
+}
+
+function createSliceResourceResult(
+	resource: URI,
+	sheetId: string | null,
+	sourceVersion: number,
+): SliceResourceResult {
+	return {
+		completedAt: sourceVersion,
+		curves: [{
+			curveFamily: "iv",
+			curveGeneration: "base",
+			ivMode: "transfer",
+			lineage: {
+				baseFamily: "iv",
+				baseSeries: {
+					resource,
+					sheetId,
+					seriesId: "series-a",
+				},
+				curveGeneration: "base",
+				ivMode: "transfer",
+			},
+			points: [
+				{ x: 0, y: 1e-12 },
+				{ x: 1, y: 1e-9 },
+				{ x: 2, y: 1e-6 },
+			],
+			resource,
+			seriesId: "series-a",
+			sheetId,
+			signature: `curve-${sourceVersion}`,
+		}],
+		requestSignature: `request-${sourceVersion}`,
+		resource,
+		run: {
+			errors: [],
+			id: `run-${sourceVersion}`,
+			inputRanges: [],
+			mode: "auto",
+			outputCurveKeys: [],
+			outputSeriesIds: ["series-a"],
+			resource,
+			selection: { kind: "auto" },
+			sheetId,
+			sourceContentSignature: `source-${sourceVersion}`,
+			template: {
+				blocks: [{
+					legend: { target: "auto" },
+					rowRange: { startRow: 0, endRow: 2 },
+					segmentation: { kind: "auto" },
+					titles: {
+						bottom: "Gate Voltage",
+						left: "Drain Current",
+					},
+					x: { columns: [0], unit: "V" },
+					y: { columns: [1], unit: "A" },
+				}],
+				name: "Transfer",
+				schemaVersion: 1,
+				stopOnError: false,
+				version: 1,
+			},
+			templateFingerprint: "template",
+			warnings: [],
+		},
+		series: [{
+			groupIndex: 0,
+			id: "series-a",
+			name: "A",
+			resource,
+			sheetId,
+			y: [1e-12, 1e-9, 1e-6],
+		}],
+		sheetId,
+		sourceModelVersion: sourceVersion,
+		sourceVersion,
+	};
+}
+
+async function waitForCalculation(): Promise<void> {
+	for (let index = 0; index < 8; index += 1) {
+		await Promise.resolve();
+	}
+}

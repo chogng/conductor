@@ -27,7 +27,6 @@ import {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   ISessionService,
-  type CommitCalculatedRecordsBatchInput,
   type CommitFileImportResult,
   type CommitCurvesBatchInput,
   type CommitCurvesInput,
@@ -333,92 +332,6 @@ export class SessionService extends Disposable implements ISessionServiceType {
       fileIds: uniqueStrings(committedFileIds),
       metricKeys: uniqueStrings(committedMetricKeys),
       seriesIds: uniqueStrings(committedSeriesIds),
-    });
-  };
-
-  public commitCalculatedRecordsBatch = (inputs: CommitCalculatedRecordsBatchInput): void => {
-    const inputList = Array.isArray(inputs) ? inputs : [];
-    const inputFileIds = inputList.flatMap(input => {
-      const fileId = normalizeId(input.fileId);
-      return fileId ? [fileId] : [];
-    });
-    const endPerf = startPerf("sessionService.commitCalculatedRecordsBatch", {
-      batchSize: inputList.length,
-      fileIds: inputFileIds,
-      sessionVersion: this.snapshot.sessionVersion,
-    });
-    let nextFilesById = this.snapshot.filesById;
-    const committedFileIds: FileId[] = [];
-    const committedCurveKeys: SessionCurveKey[] = [];
-    const committedMetricKeys: MetricKey[] = [];
-    const committedSeriesIds: string[] = [];
-
-    for (const input of inputList) {
-      const fileId = normalizeId(input.fileId);
-      let file = fileId ? nextFilesById[fileId] : undefined;
-      if (!file) {
-        continue;
-      }
-
-      const curvesCommit = createCurvesFileCommit(file, {
-        curves: input.curves,
-        fileId,
-        replaceGenerations: input.replaceCurveGenerations,
-      }, fileId);
-      if (curvesCommit) {
-        file = curvesCommit.file;
-        committedCurveKeys.push(...curvesCommit.curveKeys);
-        committedSeriesIds.push(...curvesCommit.seriesIds);
-      }
-
-      const metricsCommit = createMetricsFileCommit(file, {
-        fileId,
-        metrics: input.metrics,
-        replace: input.replaceMetrics,
-      }, fileId);
-      if (metricsCommit) {
-        file = metricsCommit.file;
-        committedMetricKeys.push(...metricsCommit.metricKeys);
-        committedSeriesIds.push(...metricsCommit.seriesIds);
-      }
-
-      if (!curvesCommit && !metricsCommit) {
-        continue;
-      }
-
-      if (nextFilesById === this.snapshot.filesById) {
-        nextFilesById = { ...nextFilesById };
-      }
-      nextFilesById[fileId] = file;
-      committedFileIds.push(fileId);
-    }
-
-    if (nextFilesById === this.snapshot.filesById) {
-      endPerf({
-        committed: false,
-        fileIds: inputFileIds,
-      });
-      return;
-    }
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      filesById: nextFilesById,
-    }, "calculatedRecordsChanged", {
-      curveKeys: uniqueStrings(committedCurveKeys),
-      fileIds: uniqueStrings(committedFileIds),
-      metricKeys: uniqueStrings(committedMetricKeys),
-      seriesIds: uniqueStrings(committedSeriesIds),
-    });
-    endPerf({
-      committed: true,
-      committedCurveCount: uniqueStrings(committedCurveKeys).length,
-      committedFileCount: uniqueStrings(committedFileIds).length,
-      committedFileIds: uniqueStrings(committedFileIds),
-      committedMetricCount: uniqueStrings(committedMetricKeys).length,
-      committedSeriesCount: uniqueStrings(committedSeriesIds).length,
-      fileIds: inputFileIds,
-      nextSessionVersion: this.snapshot.sessionVersion,
     });
   };
 

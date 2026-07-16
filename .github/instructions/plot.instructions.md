@@ -6,7 +6,7 @@ applyTo: 'src/cs/workbench/services/plot/**,src/cs/workbench/contrib/plot/**'
 
 Plot is the drawing core. Chart is a host that renders Plot output.
 
-`IPlotService` consumes Session curves/metrics and resource/sheet Slice results, and
+`IPlotService` consumes legacy Session curves and resource/sheet Calculation results, and
 produces plot render/display models for Chart, Thumbnail, Search, and Export.
 
 ## Ownership
@@ -18,8 +18,8 @@ produces plot render/display models for Chart, Thumbnail, Search, and Export.
 - axis unit conversion and y-scale settings;
 - plot domains, ticks, display labels, legend labels;
 - display downsampling;
-- render/display model assembly from Session curves/metrics and resource/sheet
-  Slice results;
+- render/display model assembly from legacy Session curves and resource/sheet
+  Calculation results;
 - calculated-data and display-model caches/prefetch queues.
 
 It does not own DOM rendering, chart panel layout, raw parsing, table-model
@@ -43,7 +43,7 @@ production, template execution, or thumbnail bitmap cache.
 ## Flow
 
 ```txt
-SessionSnapshot-backed file ids or resource/sheet Slice results + PlotState
+SessionSnapshot-backed file ids or resource/sheet Calculation results + PlotState
   -> PlotService
   -> calculated-data cache / display-model cache / worker queues
   -> PlotRenderModel / PlotDisplayModel
@@ -71,7 +71,7 @@ uses platform storage; callers should not write settings/storage directly.
 - Consumers request prefetch on cache miss instead of synchronously creating expensive data in render.
 - Calculated-data and display-model prefetch are separate cache warmups.
 - PlotService owns dedupe, cache-hit skip, queue promotion, stale-result checks, and perf counters.
-- Consumers pass file identity or direct resource/sheet Slice identity into Plot read/prefetch APIs;
+- Consumers pass file identity or direct resource/sheet identity into Plot read/prefetch APIs;
   they should not pass `SessionSnapshot` through Plot input records. PlotService
   resolves legacy Session-backed file ids internally as the Plot owner fallback.
 - Resource/sheet consumers pass `resource` and optional `sheetId` directly. Do
@@ -81,8 +81,8 @@ uses platform storage; callers should not write settings/storage directly.
   without passing Session snapshots. Session-backed callers merge file default
   axis projections in their own owner boundary when they still consume Session
   data.
-- Resource/sheet calculated/display reads resolve the current Slice result through
-  `ISliceService` and must not resolve `ISessionService.getSnapshot()` just to
+- Resource/sheet calculated/display reads resolve the current calculated result
+  through `ICalculationService` and must not resolve `ISessionService.getSnapshot()` just to
   satisfy Plot input shape. Session snapshots are required only for
   Session-backed file ids.
 - Display-model creation uses Plot-owned storage settings when a resource/sheet input has
@@ -102,8 +102,8 @@ uses platform storage; callers should not write settings/storage directly.
 
 - Session changes should invalidate only affected file ids when possible.
 - Full Session clears/removals clear Session-backed file-record caches; resource/sheet
-  Slice caches are invalidated by Slice resource changes, not by Session events.
-- Slice result changes should invalidate only affected resource/sheet identities when
+  Calculation caches are invalidated by Calculation resource changes, not by Session events.
+- Calculation result changes should invalidate only affected resource/sheet identities when
   possible.
 - Plot-relevant data changes publish targeted calculated/display cache events.
 - Do not publish global `onDidChangePlotState` for unrelated file commits.
@@ -114,7 +114,7 @@ uses platform storage; callers should not write settings/storage directly.
 - Cached reads for active chart, hover, file switch, and recent backfill refresh recency.
 
 Plot render models currently consume template/base curve records from Session
-or resource/sheet Slice results and Plot-owned settings. Do not invalidate active
+or resource/sheet Calculation results and Plot-owned settings. Do not invalidate active
 chart/hover caches for calculated-record, metric, or derived-only curve changes
 unless Plot starts consuming those as render inputs.
 

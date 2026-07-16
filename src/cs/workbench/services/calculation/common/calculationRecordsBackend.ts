@@ -7,24 +7,25 @@ import type {
 	CalculationAnalysisBySeriesId,
 } from "src/cs/workbench/services/calculation/common/calculationAnalysis";
 import type {
-	CurveRecord,
-	FileRecord,
-	MetricRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
+	CalculationFileRecord,
+} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
+import type {
+	CalculatedCurveRecord,
+	CalculatedMetricRecord,
+} from "src/cs/workbench/services/calculation/common/calculationRecordBuilder";
 
 export type CalculationRecordsBackendInput = {
 	readonly analysisBySeriesId?: CalculationAnalysisBySeriesId;
-	readonly file: FileRecord;
+	readonly file: CalculationFileRecord;
+	readonly inputSignature: string;
 	readonly requestId: number;
-	readonly sessionVersion: number;
 };
 
 export type CalculationRecordsBackendOutput = {
-	readonly curves: readonly CurveRecord[];
-	readonly fileId: string;
-	readonly metrics: readonly MetricRecord[];
+	readonly curves: readonly CalculatedCurveRecord[];
+	readonly inputSignature: string;
+	readonly metrics: readonly CalculatedMetricRecord[];
 	readonly requestId: number;
-	readonly sessionVersion: number;
 };
 
 export interface ICalculationRecordsBackend extends IDisposable {

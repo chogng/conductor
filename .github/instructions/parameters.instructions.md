@@ -15,9 +15,9 @@ Pure view state stays in Parameters.
 - rows grouped by file/series/metric;
 - display filters and sorting.
 
-It resolves the selected metric-bearing file record from the service model /
-legacy Session ledger using caller-provided file identity, consumes Plot context
-when needed, and uses the owner model version for duplicate suppression. It does
+It resolves the selected metric-bearing `CalculationResourceResult` using
+caller-provided resource identity and uses the Calculation input signature for
+duplicate suppression. It does
 not own metric algorithms unless explicitly split here later, raw parsing, plot
 rendering, chart shell, Session mutation, or table selection.
 
@@ -36,17 +36,17 @@ rendering, chart shell, Session mutation, or table selection.
 
 ```txt
 show parameters command -> IWorkbenchLayoutService
-current chart target -> IParametersService.updateViewState
-IParametersService resolves Session file record or Slice resource result + model version
+current chart resource target -> IParametersService.updateViewState
+IParametersService resolves Calculation resource result + input signature
 onDidChangeParametersViewState -> ParametersViewPane render
 ```
 
 ## Rules
 
 - Selected rows, filters, method choices, and panel state are service-local.
-- Parameter rows link to curves/metrics by ids, not copied data.
+- Parameter rows project Calculation curves/metrics by ids.
 - `onDidChangeParametersViewState` is a leaf view event for Parameters views.
-- Workbench provides the current chart target while rendering the active Parameters auxiliary view; Parameters resolves the backing record/version through its own service boundary.
+- Workbench provides the current chart resource target while rendering the active Parameters auxiliary view; Parameters resolves the backing result/signature through `ICalculationService`.
 - `updateViewState` should suppress duplicate publishes when effective input is unchanged.
 - Showing/hiding Parameters belongs to layout/view commands, not `IParametersService`.
 

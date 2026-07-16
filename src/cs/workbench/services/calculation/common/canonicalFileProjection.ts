@@ -6,9 +6,12 @@ import {
   getLatestSliceRunRecord,
   type BaseCurveFamily,
   type BaseCurveRecord,
+  type CurveRecord,
   type DomainRecord,
   type FileRecord,
   type IvCurveMode,
+  type MetricInputRecord,
+  type SeriesRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateBlock } from "src/cs/workbench/services/template/common/templateSpec";
@@ -23,8 +26,19 @@ export type FileRecordAxisProjection = {
   readonly yUnit?: string;
 };
 
+export type CalculationFileRecord = {
+  readonly axis?: FileRecordAxisProjection;
+  readonly curvesByKey: Record<string, CurveRecord>;
+  readonly id: string;
+  readonly latestSliceRunId?: FileRecord["latestSliceRunId"];
+  readonly metricInputsByKey?: Record<string, MetricInputRecord>;
+  readonly seriesById: Record<string, SeriesRecord>;
+  readonly seriesOrder: string[];
+  readonly sliceRunsById?: FileRecord["sliceRunsById"];
+};
+
 export const collectFileRecordBaseCurves = (
-  file: FileRecord,
+  file: CalculationFileRecord,
 ): BaseCurveRecord[] => {
   const curves = Object.values(file.curvesByKey).filter(
     (curve): curve is BaseCurveRecord => curve.curveGeneration === "base",
@@ -57,16 +71,16 @@ export const collectFileRecordBaseCurves = (
   return ordered;
 };
 
-export const hasFileRecordBaseCurves = (file: FileRecord): boolean =>
+export const hasFileRecordBaseCurves = (file: CalculationFileRecord): boolean =>
   collectFileRecordBaseCurves(file).length > 0;
 
 export const getFileRecordCurveFamily = (
-  file: FileRecord,
+  file: CalculationFileRecord,
 ): BaseCurveFamily | null =>
   collectFileRecordBaseCurves(file)[0]?.curveFamily ?? null;
 
 export const getFileRecordCurveType = (
-  file: FileRecord,
+  file: CalculationFileRecord,
 ): string | undefined => {
   const curve = collectFileRecordBaseCurves(file)[0];
   if (curve?.curveFamily === "iv" && curve.ivMode) {
@@ -82,8 +96,11 @@ export const getFileRecordCurveType = (
 };
 
 export const getFileRecordAxisProjection = (
-  file: FileRecord,
+  file: CalculationFileRecord,
 ): FileRecordAxisProjection => {
+  if (file.axis) {
+    return file.axis;
+  }
   const sliceRun = getLatestSliceRunRecord(file);
   const ivMode = getFileRecordIvMode(file);
   return {
@@ -96,14 +113,14 @@ export const getFileRecordAxisProjection = (
 };
 
 export const getFileRecordXGroups = (
-  file: FileRecord,
+  file: CalculationFileRecord,
 ): number[][] =>
   collectFileRecordBaseCurves(file).map((curve) =>
     curve.points.map((point) => point.x)
   );
 
 export const getFileRecordDomain = (
-  file: FileRecord,
+  file: CalculationFileRecord,
 ): DomainRecord | undefined => {
   const curves = collectFileRecordBaseCurves(file);
   if (!curves.length) {
@@ -119,12 +136,12 @@ export const getFileRecordDomain = (
   };
 };
 
-export const fileRecordSupportsSs = (file: FileRecord): boolean =>
+export const fileRecordSupportsSs = (file: CalculationFileRecord): boolean =>
   collectFileRecordBaseCurves(file).some((curve) =>
     curve.curveFamily === "iv" && curve.ivMode === "transfer"
   );
 
-const getFileRecordIvMode = (file: FileRecord): IvCurveMode | null =>
+const getFileRecordIvMode = (file: CalculationFileRecord): IvCurveMode | null =>
   collectFileRecordBaseCurves(file).find((curve) =>
     curve.curveFamily === "iv" && curve.ivMode
   )?.ivMode ?? null;

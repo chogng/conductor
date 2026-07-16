@@ -10,12 +10,9 @@ import { PlotCalculatedDataWorkerClient } from 'src/cs/workbench/services/plot/b
 import plotCalculatedDataWorkerUrl from 'src/cs/workbench/services/plot/browser/plotCalculatedDataWorker.ts?worker&url';
 import { PlotService } from 'src/cs/workbench/services/plot/browser/plotService';
 import { IPlotService } from 'src/cs/workbench/services/plot/common/plot';
+import { ICalculationService } from 'src/cs/workbench/services/calculation/common/calculation';
 import { ISettingsService } from 'src/cs/workbench/services/settings/common/settings';
 import { ISessionService } from 'src/cs/workbench/services/session/common/session';
-import {
-	ISliceService,
-	type ISliceService as ISliceServiceType,
-} from 'src/cs/workbench/services/slice/common/slice';
 
 const plotCalculatedDataWorkerDescriptor = new WebWorkerDescriptor({
 	esmModuleLocationBundler: plotCalculatedDataWorkerUrl,
@@ -28,7 +25,7 @@ class BrowserPlotService extends PlotService {
 		@ISessionService sessionService: ISessionService,
 		@ISettingsService settingsService: ISettingsService,
 		@IStorageService storageService: IStorageService,
-		@ISliceService sliceService: ISliceServiceType,
+		@ICalculationService calculationService: ICalculationService,
 	) {
 		super(
 			new PlotCalculatedDataWorkerClient(
@@ -38,7 +35,7 @@ class BrowserPlotService extends PlotService {
 			sessionService,
 			settingsService,
 			storageService,
-			sliceService,
+			calculationService,
 		);
 	}
 }

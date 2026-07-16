@@ -32,9 +32,9 @@ model services.
 
 ## Canonical Data Only
 
-Session may store imported files, raw tables/versions, table model,
-slice runs, series, curves, metrics, metric inputs, and rebuildable calculation
-cache descriptors.
+Session may store migration-ledger imported files, raw tables/versions, and
+legacy canonical analysis records. URI-backed Slice and Calculation results
+stay in their owning services.
 
 Session must not store URI/editor input models, format support-check results,
 preview rows, watch/reload state, cache entries, active resource/view input,
@@ -49,7 +49,6 @@ caches, or thumbnail caches.
 - Import commits return committed file ids and skipped duplicate source ids for caller follow-up.
 - Table-model commits check `sourceRawTableVersion`.
 - Raw table replacement invalidates stale TableModel, slice runs, curves, and metrics for that raw table.
-- Calculation output that includes derived curves and metrics should use `commitCalculatedRecordsBatch`.
 - Events include affected ids; consumers ignore unrelated changes.
 
 ## Workflow Boundary
@@ -66,8 +65,6 @@ records and downstream analysis records.
 | Workflow | Preferred producer | Session method |
 | --- | --- | --- |
 | migration-ledger raw import | migration owner after raw-table import preparation | `commitFileImport` |
-| slice | slice service after planning/execution | `commitSliceRuns` |
-| calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |
 | metric input | parameters service | `setMetricInput` / `clearMetricInput` |
 | migration-ledger file removal | migration owner after file workflow succeeds | `removeFiles` |
 | clear migration-ledger imported table files/session | migration/global Workbench command | `clearSession` |
@@ -80,8 +77,11 @@ Production Explorer/files code must not call Session import, rename, remove, or
 clear APIs for the ordinary file-to-table path. Do not route URI open/preview
 lifecycle through Session.
 
-Do not add Template-owned run/output commit or cleanup APIs. Template execution
-results enter Session only through Slice commits.
+URI-backed Slice run/output results stay in `ISliceService`; do not add new
+Session commit or cleanup APIs for them.
+
+Do not add a Session commit API for `CalculationResourceResult`. Plot and
+Parameters consume URI-backed calculated results through `ICalculationService`.
 
 ## Do Not
 
