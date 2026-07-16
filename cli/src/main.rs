@@ -7,6 +7,7 @@ mod infer;
 mod legend;
 mod rc;
 mod rules;
+mod structured_content;
 mod table_model_seed;
 mod utils;
 
@@ -1761,6 +1762,14 @@ fn handle_request(
                 "parallelism": parallelism,
                 "results": results,
             }))
+        }
+        "resolveStructuredContent" => {
+            let path_text = request
+                .path
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "missing path".to_string())?;
+            structured_content::resolve_structured_content(&PathBuf::from(path_text))
         }
         "previewRows" => {
             let file_id = request

@@ -20,8 +20,10 @@ import { DataResourceService } from "src/cs/workbench/services/dataResource/brow
 import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
 import type {
 	DataResourceStructuredContentResolution,
+	DataResourceStructuredEvidenceResolution,
 	IDataResourceService,
 	IDataResourceStructuredContentReference,
+	IDataResourceStructuredEvidenceReference,
 } from "src/cs/workbench/services/dataResource/common/dataResource";
 import type { IStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/common/structuredContentEvidenceService";
 import {
@@ -1562,6 +1564,13 @@ class CountingDataResourceService extends Disposable implements IDataResourceSer
 		return this.delegate.resolveStructuredContent(target);
 	}
 
+	public resolveStructuredEvidence(
+		target: Parameters<IDataResourceService["resolveStructuredEvidence"]>[0],
+	): ReturnType<IDataResourceService["resolveStructuredEvidence"]> {
+		this.resolveStructuredContentCalls += 1;
+		return this.delegate.resolveStructuredEvidence(target);
+	}
+
 	public resolve(
 		target: Parameters<IDataResourceService["resolve"]>[0],
 	): ReturnType<IDataResourceService["resolve"]> {
@@ -1589,6 +1598,16 @@ class ResolvingDataResourceService extends Disposable implements IDataResourceSe
 		};
 	}
 
+	public async resolveStructuredEvidence(): Promise<IDataResourceStructuredEvidenceReference> {
+		this.resolveStructuredContentCalls += 1;
+		return {
+			object: {
+				kind: "missingContent",
+			},
+			dispose: () => undefined,
+		};
+	}
+
 	public resolve(): void {}
 }
 
@@ -1598,13 +1617,23 @@ class ControlledDataResourceService extends Disposable implements IDataResourceS
 	private readonly onDidChangeResourceEmitter = this._register(new Emitter<URI>());
 	public readonly onDidChangeResource = this.onDidChangeResourceEmitter.event;
 	public resolveStructuredContentCalls = 0;
-	private readonly pendingResolvers: Array<(reference: IDataResourceStructuredContentReference) => void> = [];
+	private readonly pendingResolvers: Array<(reference: IDataResourceStructuredEvidenceReference) => void> = [];
 
 	public canHandleResource(): boolean {
 		return true;
 	}
 
 	public resolveStructuredContent(): Promise<IDataResourceStructuredContentReference> {
+		this.resolveStructuredContentCalls += 1;
+		return Promise.resolve({
+			object: {
+				kind: "missingContent",
+			},
+			dispose: () => undefined,
+		});
+	}
+
+	public resolveStructuredEvidence(): Promise<IDataResourceStructuredEvidenceReference> {
 		this.resolveStructuredContentCalls += 1;
 		return new Promise(resolve => {
 			this.pendingResolvers.push(resolve);
@@ -1617,7 +1646,7 @@ class ControlledDataResourceService extends Disposable implements IDataResourceS
 		this.onDidChangeResourceEmitter.fire(resource);
 	}
 
-	public resolveNext(resolution: DataResourceStructuredContentResolution): void {
+	public resolveNext(resolution: DataResourceStructuredEvidenceResolution): void {
 		const resolve = this.pendingResolvers.shift();
 		assert.ok(resolve, "Expected a pending structured-content resolution.");
 		resolve({

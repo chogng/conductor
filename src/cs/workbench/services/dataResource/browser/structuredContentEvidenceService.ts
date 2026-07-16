@@ -30,13 +30,17 @@ type EvidenceWorkerSlot = {
 export class StructuredContentEvidenceService extends Disposable implements IStructuredContentEvidenceService {
 	public declare readonly _serviceBrand: undefined;
 
+	private readonly pendingRequests: QueuedEvidenceRequest[] = [];
 	private readonly slots: EvidenceWorkerSlot[] = [];
+	private readonly workerCount: number;
 	private disposed = false;
 
 	public constructor(
 		private readonly workerFactory: StructuredContentEvidenceWorkerClientFactory,
+		workerCount = resolveStructuredContentEvidenceWorkerCount(),
 	) {
 		super();
+		this.workerCount = resolveStructuredContentEvidenceWorkerCount(workerCount);
 	}
 
 	public create(
@@ -48,16 +52,13 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 		}
 		return new Promise<StructuredContentEvidence>((resolve, reject) => {
 			const request = { content, patches, reject, resolve };
-			try {
-				const slot = this.createSlot();
-				slot.activeRequest = request;
-				logPerf('dataResource.evidenceWorker.dispatchImmediate', {
-					activeWorkerCount: this.slots.length,
-				}, { silent: true });
-				void this.dispatch(slot, request);
-			} catch (error) {
-				reject(toError(error));
-			}
+			this.pendingRequests.push(request);
+			logPerf('dataResource.evidenceWorker.submit', {
+				activeWorkerCount: this.getActiveWorkerCount(),
+				pendingRequestCount: this.pendingRequests.length,
+				workerCount: this.slots.length,
+			}, { silent: true });
+			this.dispatchPending();
 		});
 	}
 
@@ -67,6 +68,9 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 		}
 		this.disposed = true;
 		const error = new Error('The DataResource evidence service was disposed.');
+		for (const request of this.pendingRequests.splice(0)) {
+			request.reject(error);
+		}
 		for (const slot of this.slots) {
 			slot.activeRequest?.reject(error);
 			slot.activeRequest = null;
@@ -86,6 +90,35 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 			workerCount: this.slots.length,
 		}, { silent: true });
 		return slot;
+	}
+
+	private dispatchPending(): void {
+		while (!this.disposed && this.pendingRequests.length > 0) {
+			let slot = this.slots.find(candidate => candidate.activeRequest === null);
+			if (!slot) {
+				if (this.slots.length >= this.workerCount) {
+					return;
+				}
+				try {
+					slot = this.createSlot();
+				} catch (error) {
+					this.pendingRequests.shift()?.reject(toError(error));
+					continue;
+				}
+			}
+
+			const request = this.pendingRequests.shift();
+			if (!request) {
+				return;
+			}
+			slot.activeRequest = request;
+			logPerf('dataResource.evidenceWorker.dispatch', {
+				activeWorkerCount: this.getActiveWorkerCount(),
+				pendingRequestCount: this.pendingRequests.length,
+				workerCount: this.slots.length,
+			}, { silent: true });
+			void this.dispatch(slot, request);
+		}
 	}
 
 	private async dispatch(
@@ -140,16 +173,18 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 		}
 		slot.activeRequest = null;
 		logPerf('dataResource.evidenceWorker.complete', {
-			activeWorkerCount: Math.max(0, this.slots.length - 1),
+			activeWorkerCount: this.getActiveWorkerCount(),
 			durationMs: getPerfNow() - startedAt,
+			pendingRequestCount: this.pendingRequests.length,
 			success: Boolean(evidence),
 		}, { silent: true });
-		this.removeWorker(slot);
 		if (evidence) {
 			request.resolve(evidence);
 		} else {
+			this.removeWorker(slot);
 			request.reject(error ?? new Error('The DataResource evidence worker failed.'));
 		}
+		this.dispatchPending();
 	}
 
 	private removeWorker(slot: EvidenceWorkerSlot): void {
@@ -159,6 +194,22 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 			this.slots.splice(index, 1);
 		}
 	}
+
+	private getActiveWorkerCount(): number {
+		return this.slots.reduce(
+			(count, slot) => count + (slot.activeRequest ? 1 : 0),
+			0,
+		);
+	}
+}
+
+export function resolveStructuredContentEvidenceWorkerCount(
+	hardwareConcurrency = globalThis.navigator?.hardwareConcurrency,
+): number {
+	const availableParallelism = Math.floor(Number(hardwareConcurrency));
+	return Number.isFinite(availableParallelism) && availableParallelism > 0
+		? availableParallelism
+		: 1;
 }
 
 function toError(error: unknown): Error {

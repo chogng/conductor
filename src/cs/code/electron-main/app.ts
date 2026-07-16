@@ -624,6 +624,14 @@ function isSupportedRustInputPath(filePath) {
   return ext === ".csv";
 }
 
+function isSupportedRustStructuredContentPath(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return ext === ".csv" ||
+    ext === ".tsv" ||
+    ext === ".xls" ||
+    ext === ".xlsx";
+}
+
 function createRustOriginExportTempPath(fileId, csvName) {
   runSharedProcessStartupContributionsOnce("origin-export-stream");
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
@@ -1658,6 +1666,7 @@ if (hasSingleInstanceLock) {
       createOriginExportTempPath: createRustOriginExportTempPath,
       isRustProcessFileConfigSupported,
       isSupportedInputPath: isSupportedRustInputPath,
+      isSupportedStructuredContentPath: isSupportedRustStructuredContentPath,
       rustWorkerHost,
     }),
   });

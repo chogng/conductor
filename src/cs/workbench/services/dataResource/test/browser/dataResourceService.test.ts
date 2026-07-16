@@ -13,7 +13,10 @@ import {
 	DataResourceContentMemoryGate,
 	estimateDataResourceContentMemoryBytes,
 } from "src/cs/workbench/services/dataResource/browser/dataResourceContentMemoryGate";
-import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
+import {
+	createStructuredContentEvidence,
+	DataResourceService,
+} from "src/cs/workbench/services/dataResource/browser/dataResourceService";
 import {
 	builtinRules,
 	createSemanticMatcher,
@@ -27,7 +30,10 @@ import type {
 	TemplateSemanticPatches,
 	TemplateSemanticTermPatch,
 } from "src/cs/workbench/services/settings/common/settings";
-import type { StructuredContentEvidence } from "src/cs/workbench/services/dataResource/common/structuredContent";
+import {
+	createStructuredContentPhysicalAnalysisBuilder,
+	type StructuredContentEvidence,
+} from "src/cs/workbench/services/dataResource/common/structuredContent";
 import type { IStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/common/structuredContentEvidenceService";
 import {
 	TableModel as TableContentModel,
@@ -528,6 +534,44 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		);
 		assert.ok(binding);
 		assert.equal(binding.relation, "oneX-oneY");
+	});
+
+	test("produces identical evidence from sparse native rows and full table rows", () => {
+		const rows = [
+			["Vg", "Id", "Ig"],
+			["-1", "1e-12", "2e-13"],
+			["0", "2e-9", "3e-13"],
+			["1", "5e-6", "4e-13"],
+		] as const;
+		const fullContent = createTableContent(rows);
+		const physicalAnalysis = createStructuredContentPhysicalAnalysisBuilder();
+		for (const row of rows) {
+			physicalAnalysis.appendRow(row);
+		}
+		const facts = physicalAnalysis.finish({
+			columnCount: fullContent.columnCount,
+			maxCellLengths: fullContent.maxCellLengths,
+			rowCount: fullContent.rowCount,
+		});
+		const sparseContent: TableModelContentSnapshot = {
+			columnCount: fullContent.columnCount,
+			columnFacts: facts.columnFacts,
+			contentFingerprint: facts.contentFingerprint,
+			maxCellLengths: fullContent.maxCellLengths,
+			rowCount: fullContent.rowCount,
+			rows: [],
+			rowWindows: [{
+				startRowIndex: 0,
+				rows: [rows[0], rows[1]],
+			}],
+			sparseRows: true,
+		};
+		const matcher = createSemanticMatcher();
+
+		assert.deepStrictEqual(
+			createStructuredContentEvidence(sparseContent, matcher),
+			createStructuredContentEvidence(fullContent, matcher),
+		);
 	});
 
 	test("uses numeric cells above shared-X dependent columns as legends", async () => {

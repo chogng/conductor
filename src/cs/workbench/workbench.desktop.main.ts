@@ -17,6 +17,9 @@ class DesktopNativeHostService extends NativeHostService {
 //#region --- platform desktop
 
 import "src/cs/platform/ipc/electron-browser/mainProcessService";
+// Singleton registration keeps the first implementation, so the desktop
+// DataResource owner must be installed before browser defaults are imported.
+import "src/cs/workbench/services/dataResource/electron-browser/rustDataResourceEvidenceContentService.ts";
 
 registerSingleton(
 	INativeHostService,

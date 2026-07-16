@@ -94,8 +94,10 @@ dependencies = [
  "calamine",
  "csv",
  "encoding_rs",
+ "quick-xml",
  "serde",
  "serde_json",
+ "zip",
 ]
 
 [[package]]

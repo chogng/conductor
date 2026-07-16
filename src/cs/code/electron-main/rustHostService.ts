@@ -5,6 +5,7 @@ import type {
   CalculateRcRequest,
   ExportOriginCsvRequest,
   IRustHostService,
+  ResolveStructuredContentRequest,
   RustHostResponse,
   RustProcessConfig,
 } from "../../platform/rust/common/rustHostProtocol.js";
@@ -13,6 +14,7 @@ type ServiceHelpers = {
   createOriginExportTempPath: (fileId: string, csvName: string) => string;
   isRustProcessFileConfigSupported: (config: RustProcessConfig | null) => boolean;
   isSupportedInputPath: (filePath: string) => boolean;
+  isSupportedStructuredContentPath: (filePath: string) => boolean;
 };
 
 type ServiceOptions = ServiceHelpers & {
@@ -140,6 +142,36 @@ export class RustHostService implements IRustHostService {
     } finally {
       void Promise.allSettled(
         disposeFileIds.map((fileId) => this.options.rustWorkerHost.disposeProcessingFile(fileId)),
+      );
+    }
+  }
+
+  public async resolveStructuredContent(
+    request: ResolveStructuredContentRequest,
+  ): Promise<RustHostResponse> {
+    if (
+      !request.inputPath ||
+      !this.options.isSupportedStructuredContentPath(request.inputPath)
+    ) {
+      return buildFailure(ErrorCode.InvalidPath, "Invalid structured-content file path.");
+    }
+
+    const startedAt = Date.now();
+    try {
+      const result = await this.options.rustWorkerHost.sendProcessingCommand(
+        "resolveStructuredContent",
+        {
+          fileName: request.fileName || path.basename(request.inputPath),
+          path: request.inputPath,
+        },
+        { timeoutMs: 120000 },
+      );
+      return buildSuccess(startedAt, result, "rust-pool");
+    } catch (error) {
+      return buildFailure(
+        "RUST_STRUCTURED_CONTENT_FAILED",
+        (error as Error)?.message || "conductor-rs failed to resolve structured content.",
+        startedAt,
       );
     }
   }

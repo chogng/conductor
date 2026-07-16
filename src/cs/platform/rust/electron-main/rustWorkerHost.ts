@@ -38,9 +38,7 @@ export type RustWorkerHostOptions = {
 
 const DEFAULT_TIMEOUT_MS = 120000;
 const DISPOSE_TIMEOUT_MS = 30000;
-const RUST_PROCESSING_POOL_MIN_SIZE = 2;
-const RUST_PROCESSING_POOL_DEFAULT_MAX_SIZE = 8;
-const RUST_PROCESSING_POOL_ENV_MAX_SIZE = 16;
+const RUST_PROCESSING_POOL_FALLBACK_SIZE = 2;
 
 export function resolveRustProcessingPoolSize({
   availableParallelism,
@@ -51,21 +49,13 @@ export function resolveRustProcessingPoolSize({
 }): number {
   const envPoolSize = Number(envValue);
   if (Number.isFinite(envPoolSize) && envPoolSize > 0) {
-    return Math.max(
-      1,
-      Math.min(RUST_PROCESSING_POOL_ENV_MAX_SIZE, Math.floor(envPoolSize)),
-    );
+    return Math.max(1, Math.floor(envPoolSize));
   }
 
   const coreCount = Number.isFinite(availableParallelism)
     ? Math.max(1, Math.floor(availableParallelism))
-    : RUST_PROCESSING_POOL_MIN_SIZE * 2;
-  const adaptivePoolSize = Math.floor(coreCount / 2);
-
-  return Math.max(
-    RUST_PROCESSING_POOL_MIN_SIZE,
-    Math.min(RUST_PROCESSING_POOL_DEFAULT_MAX_SIZE, adaptivePoolSize),
-  );
+    : RUST_PROCESSING_POOL_FALLBACK_SIZE;
+  return coreCount;
 }
 
 const normalizeAbsoluteFilePath = (rawPath: unknown): string => {

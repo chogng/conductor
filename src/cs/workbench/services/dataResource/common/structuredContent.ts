@@ -380,6 +380,12 @@ export type StructuredContentGridSnapshot = {
 	readonly rowCount: number;
 	readonly rows: readonly (readonly string[])[];
 	readonly rowWindows?: readonly StructuredContentRowWindow[];
+	/**
+	 * Marks `rows` / `rowWindows` as a sparse text-row projection. Missing rows
+	 * are physical rows whose numeric values remain available through
+	 * `columnFacts`.
+	 */
+	readonly sparseRows?: boolean;
 };
 
 export type StructuredContentPhysicalAnalysis = {
@@ -582,17 +588,17 @@ export const readStructuredContentRows = (
 		return [];
 	}
 
-	if (!content.rowWindows?.length) {
+	if (!content.sparseRows && !content.rowWindows?.length) {
 		return content.rows.slice(start, end);
 	}
 
 	const rows: (readonly string[])[] = [];
 	for (let rowIndex = start; rowIndex < end; rowIndex += 1) {
 		const row = getStructuredContentRow(content, rowIndex);
-		if (!row) {
+		if (!row && !content.sparseRows) {
 			break;
 		}
-		rows.push(row);
+		rows.push(row ?? []);
 	}
 	return rows;
 };

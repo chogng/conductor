@@ -43,6 +43,11 @@ export type DataResourceStructuredContentSnapshot = {
 	readonly structuredContent: StructuredContentEvidence;
 };
 
+export type DataResourceStructuredEvidenceSnapshot = Omit<
+	DataResourceStructuredContentSnapshot,
+	"content"
+>;
+
 export type DataResourceStructuredContentResolution =
 	| {
 		readonly kind: "ready";
@@ -63,8 +68,19 @@ export type DataResourceStructuredContentResolution =
 		readonly kind: "missingContent";
 	};
 
+export type DataResourceStructuredEvidenceResolution =
+	| {
+		readonly kind: "ready";
+		readonly snapshot: DataResourceStructuredEvidenceSnapshot;
+	}
+	| Exclude<DataResourceStructuredContentResolution, { readonly kind: "ready" }>;
+
 export interface IDataResourceStructuredContentReference extends IDisposable {
 	readonly object: DataResourceStructuredContentResolution;
+}
+
+export interface IDataResourceStructuredEvidenceReference extends IDisposable {
+	readonly object: DataResourceStructuredEvidenceResolution;
 }
 
 /**
@@ -92,6 +108,14 @@ export interface IDataResourceService extends IDisposable {
 	resolveStructuredContent(
 		target: DataResourceStructuredContentTarget,
 	): Promise<IDataResourceStructuredContentReference>;
+
+	/**
+	 * Resolves only the bounded evidence required by automatic Review. Desktop
+	 * runtimes may produce this without materializing the full Table grid.
+	 */
+	resolveStructuredEvidence(
+		target: DataResourceStructuredContentTarget,
+	): Promise<IDataResourceStructuredEvidenceReference>;
 
 	/**
 	 * Starts resolving structured content without requiring the caller to hold a

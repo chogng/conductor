@@ -42,7 +42,13 @@ export type ExportOriginCsvRequest = {
   yTransform?: unknown;
 };
 
+export type ResolveStructuredContentRequest = {
+  fileName: string;
+  inputPath: string;
+};
+
 export interface IRustHostService {
   calculateRc(request: CalculateRcRequest): Promise<RustHostResponse>;
   exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustHostResponse>;
+  resolveStructuredContent(request: ResolveStructuredContentRequest): Promise<RustHostResponse>;
 }

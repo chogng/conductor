@@ -16,6 +16,7 @@ export const workbenchIpcChannels = {
   demoFilesGet: "conductor:demo:files:get",
   rustHostCalculateRc: "conductor:rust:calculate-rc",
   rustHostExportOriginCsv: "conductor:rust:export-origin-csv",
+  rustHostResolveStructuredContent: "conductor:rust:resolve-structured-content",
   originZipSave: "conductor:origin:zip:save",
 } as const;
 

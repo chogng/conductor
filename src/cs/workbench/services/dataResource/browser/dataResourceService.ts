@@ -12,7 +12,9 @@ import {
 	type DataResourceStructuredContentResolution,
 	type DataResourceStructuredContentSnapshot,
 	type DataResourceStructuredContentTarget,
+	type DataResourceStructuredEvidenceResolution,
 	type IDataResourceStructuredContentReference,
+	type IDataResourceStructuredEvidenceReference,
 } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
 	type DataResourceContentSheetSnapshot,
@@ -21,6 +23,7 @@ import {
 	type IDataResourceContentService as IDataResourceContentServiceType,
 	type IDataResourceContentReference,
 } from "src/cs/workbench/services/dataResource/common/dataResourceContentService";
+import type { IDataResourceEvidenceContentService } from "src/cs/workbench/services/dataResource/common/dataResourceEvidenceContentService";
 import {
 	createSemanticMatcher,
 	toSemanticTermKey,
@@ -171,13 +174,16 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 	private semanticMatcher: SemanticMatcher;
 	private semanticPatches: TemplateSemanticPatches;
 	private semanticSettingsFingerprint = "";
+	private readonly evidenceContentService: IDataResourceEvidenceContentService | IDataResourceContentServiceType;
 
 	public constructor(
 		@IDataResourceContentService private readonly contentService: IDataResourceContentServiceType,
 		@ISettingsService private readonly settingsService: ISettingsService,
 		@IStructuredContentEvidenceService private readonly structuredContentEvidenceService: IStructuredContentEvidenceService,
+		evidenceContentService?: IDataResourceEvidenceContentService,
 	) {
 		super();
+		this.evidenceContentService = evidenceContentService ?? contentService;
 
 		this._register({
 			dispose: () => {
@@ -189,18 +195,10 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		this.semanticMatcher = semanticConfiguration.matcher;
 		this.semanticPatches = semanticConfiguration.patches;
 		this.semanticSettingsFingerprint = this.semanticMatcher.fingerprint;
-		this._register(this.contentService.onDidChangeContent(resource => {
-			const snapshot = this.contentService.get(resource);
-			if (snapshot) {
-				if (this.rememberStableStructuredContentSignature(snapshot)) {
-					this.onDidChangeResourceEmitter.fire(resource);
-				}
-				return;
-			}
-			if (this.trackedResources.has(normalizeResourceIdentity(resource))) {
-				this.onDidChangeResourceEmitter.fire(resource);
-			}
-		}));
+		this.registerContentChangeListener(this.contentService);
+		if (this.evidenceContentService !== this.contentService) {
+			this.registerContentChangeListener(this.evidenceContentService);
+		}
 		this._register(this.settingsService.onDidChangeConductorSettings(() => {
 			const nextConfiguration = this.createSettingsSemanticConfiguration();
 			const nextMatcher = nextConfiguration.matcher;
@@ -274,6 +272,62 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		}
 	}
 
+	public async resolveStructuredEvidence(
+		target: DataResourceStructuredContentTarget,
+	): Promise<IDataResourceStructuredEvidenceReference> {
+		this.trackResource(target.resource);
+		const sourceService = this.evidenceContentService.canHandleResource(target.resource)
+			? this.evidenceContentService
+			: this.contentService;
+		let reference: IDataResourceContentReference | null = null;
+		try {
+			reference = await sourceService.createContentReference(target.resource);
+			let resolution: DataResourceStructuredEvidenceResolution;
+			while (true) {
+				const snapshot = reference.object;
+				this.rememberStableStructuredContentSignature(snapshot);
+				const semanticSettingsFingerprint = this.semanticSettingsFingerprint;
+				resolution = await createStructuredEvidenceResolution(
+					snapshot,
+					target,
+					this.semanticPatches,
+					this.structuredContentEvidenceService,
+				);
+				const currentSnapshot = sourceService.get(target.resource);
+				if (
+					currentSnapshot?.version === snapshot.version &&
+					currentSnapshot.sourceVersion === snapshot.sourceVersion &&
+					currentSnapshot.errorMessage === snapshot.errorMessage &&
+					semanticSettingsFingerprint === this.semanticSettingsFingerprint
+				) {
+					break;
+				}
+				const nextReference = await sourceService.createContentReference(target.resource);
+				reference.dispose();
+				reference = nextReference;
+			}
+			const retainedReference = reference;
+			return {
+				object: resolution,
+				dispose: () => {
+					retainedReference.dispose();
+				},
+			};
+		} catch (error) {
+			reference?.dispose();
+			return {
+				object: {
+					kind: "loadError",
+					loadState: {
+						state: "error",
+						message: getErrorMessage(error),
+					},
+				},
+				dispose: () => undefined,
+			};
+		}
+	}
+
 	public resolve(target: DataResourceStructuredContentTarget): void {
 		this.trackResource(target.resource);
 		void this.resolveStructuredContent(target).then(reference => {
@@ -297,6 +351,23 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		const resourceKey = normalizeResourceIdentity(resource);
 		this.trackedResources.set(resourceKey, resource);
 		return resourceKey;
+	}
+
+	private registerContentChangeListener(
+		service: Pick<IDataResourceContentServiceType, "get" | "onDidChangeContent">,
+	): void {
+		this._register(service.onDidChangeContent(resource => {
+			const snapshot = service.get(resource);
+			if (snapshot) {
+				if (this.rememberStableStructuredContentSignature(snapshot)) {
+					this.onDidChangeResourceEmitter.fire(resource);
+				}
+				return;
+			}
+			if (this.trackedResources.has(normalizeResourceIdentity(resource))) {
+				this.onDidChangeResourceEmitter.fire(resource);
+			}
+		}));
 	}
 
 	private rememberStableStructuredContentSignature(snapshot: DataResourceContentSnapshot): boolean {
@@ -350,6 +421,60 @@ const createStructuredContentResolution = async (
 		snapshot: {
 			columnCount: content.columnCount,
 			content,
+			...(target.contentHash ? { contentHash: target.contentHash } : {}),
+			fileName,
+			resource: target.resource,
+			rowCount: content.rowCount,
+			...(target.sheetId ? { sheetId: target.sheetId } : {}),
+			sourceModelVersion: snapshot.version,
+			sourceUri: normalizeResourceIdentity(target.resource),
+			sourceVersion: snapshot.sourceVersion,
+			structuredContent: {
+				...evidence,
+				diagnostics: [
+					...evidence.diagnostics,
+					...getStructuredContentDiagnostics(snapshot, selectedSheet).map(toStructuredContentDiagnostic),
+				],
+			},
+		},
+	};
+};
+
+const createStructuredEvidenceResolution = async (
+	snapshot: DataResourceContentSnapshot,
+	target: DataResourceStructuredContentTarget,
+	semanticPatches: TemplateSemanticPatches,
+	structuredContentEvidenceService: IStructuredContentEvidenceService,
+): Promise<DataResourceStructuredEvidenceResolution> => {
+	if (snapshot.errorMessage) {
+		return {
+			kind: "loadError",
+			loadState: {
+				state: "error",
+				message: snapshot.errorMessage,
+			},
+		};
+	}
+
+	const sheetResolution = resolveStructuredContentSheet(snapshot, target.sheetId ?? null);
+	if (sheetResolution.kind === "missing") {
+		return { kind: "missingSheet" };
+	}
+
+	const selectedSheet = sheetResolution.sheet;
+	const content = selectedSheet
+		? selectedSheet.content
+		: snapshot.content;
+	if (!content) {
+		return { kind: "missingContent" };
+	}
+
+	const fileName = getStructuredContentFileName(target.resource, selectedSheet);
+	const evidence = await structuredContentEvidenceService.create(content, semanticPatches);
+	return {
+		kind: "ready",
+		snapshot: {
+			columnCount: content.columnCount,
 			...(target.contentHash ? { contentHash: target.contentHash } : {}),
 			fileName,
 			resource: target.resource,
@@ -459,6 +584,7 @@ export const createStructuredContentEvidence = (
 		const explicitDataRowRanges = createExplicitDataRowRanges(rows, semanticMatcher);
 		const numericRuns = createNumericRuns(columnFacts);
 		const baseColumnTitleSpans = createColumnTitleSpanEvidence({
+			columnFacts,
 			numericRuns,
 			rows,
 			semanticMatcher,
@@ -485,9 +611,9 @@ export const createStructuredContentEvidence = (
 			titleSpans: columnTitleSpans,
 		});
 		const xRangeAnalyses = createXRangeAnalyses({
+			columnFacts,
 			columnCount: content.columnCount,
 			numericRuns,
-			rows,
 			titleSpans: columnTitleSpans,
 		});
 		const xRangeCandidates = xRangeAnalyses.map(analysis => analysis.candidate);
@@ -495,6 +621,7 @@ export const createStructuredContentEvidence = (
 		const dataBlockCandidates = applyExplicitDataRowBoundaryEvidence({
 			blocks: createDataBlockCandidates({
 				blockSegments,
+				columnFacts,
 				columnCount: content.columnCount,
 				explicitDataRowRanges,
 				rows,
@@ -505,8 +632,8 @@ export const createStructuredContentEvidence = (
 			explicitDataRowRanges,
 		});
 		const dependentValueCandidates = createDependentValueCandidates({
+			columnFacts,
 			dataBlockCandidates,
-			rows,
 		});
 		const bindingCandidates = createBindingCandidates({
 			dataBlockCandidates,
@@ -525,6 +652,7 @@ export const createStructuredContentEvidence = (
 		});
 		const blocks = createStructuredMeasurementBlocks({
 			columnProfiles,
+			columnFacts,
 			content,
 			dataBlockCandidates,
 			rows,
@@ -632,10 +760,12 @@ const createExplicitDataRowRanges = (
 };
 
 const createColumnTitleSpanEvidence = ({
+	columnFacts,
 	numericRuns,
 	rows,
 	semanticMatcher,
 }: {
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly numericRuns: readonly NumericRun[];
 	readonly rows: readonly (readonly string[])[];
 	readonly semanticMatcher: SemanticMatcher;
@@ -643,7 +773,12 @@ const createColumnTitleSpanEvidence = ({
 	const spans: StructuredColumnTitleSpanEvidence[] = [];
 	const titleCells = numericRuns
 		.map((run): NumericRunTitleCell | null => {
-			const titleCell = findTitleCellForNumericRun(rows, run, semanticMatcher);
+			const titleCell = findTitleCellForNumericRun(
+				columnFacts,
+				rows,
+				run,
+				semanticMatcher,
+			);
 			if (!titleCell) {
 				return null;
 			}
@@ -810,6 +945,7 @@ const parseTrailingParenthesizedHeaderPart = (
 };
 
 const findTitleCellForNumericRun = (
+	columnFacts: readonly StructuredContentColumnFacts[],
 	rows: readonly (readonly string[])[],
 	run: NumericRun,
 	semanticMatcher: SemanticMatcher,
@@ -825,7 +961,7 @@ const findTitleCellForNumericRun = (
 	const minimumRow = Math.max(0, run.startRow - 64);
 	for (let rowIndex = immediateRow - 1; rowIndex >= minimumRow; rowIndex -= 1) {
 		const row = rows[rowIndex] ?? [];
-		if (getRowNumericCount(row) >= 2) {
+		if (getRowNumericCount(columnFacts, rowIndex) >= 2) {
 			break;
 		}
 		const titleCell = readTitleCellFromRow(row, rowIndex, run.column, semanticMatcher);
@@ -1223,14 +1359,14 @@ const createColumnSemanticCandidates = ({
 };
 
 const createXRangeAnalyses = ({
+	columnFacts,
 	columnCount,
 	numericRuns,
-	rows,
 	titleSpans,
 }: {
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly columnCount: number;
 	readonly numericRuns: readonly NumericRun[];
-	readonly rows: readonly (readonly string[])[];
 	readonly titleSpans: readonly StructuredColumnTitleSpanEvidence[];
 }): readonly XRangeAnalysis[] => {
 	const titleSpansByRun = createTitleSpanByRun(titleSpans);
@@ -1239,9 +1375,9 @@ const createXRangeAnalyses = ({
 		const titleSpan = titleSpansByRun.get(getRunKey(run));
 		const pattern = analyzeNumericPattern(run.values);
 		const baseConfidence = scoreXRangeCandidate({
+			columnFacts,
 			columnCount,
 			pattern,
-			rows,
 			run,
 			titleSpan,
 		});
@@ -1264,7 +1400,12 @@ const createXRangeAnalyses = ({
 			continue;
 		}
 
-		const reasons = createXRangeReasons(draft.pattern, draft.titleSpan, rows, draft.run);
+		const reasons = createXRangeReasons(
+			columnFacts,
+			draft.pattern,
+			draft.titleSpan,
+			draft.run,
+		);
 		analyses.push({
 			run: draft.run,
 			candidate: {
@@ -1289,15 +1430,15 @@ const createXRangeAnalyses = ({
 };
 
 const scoreXRangeCandidate = ({
+	columnFacts,
 	columnCount,
 	pattern,
-	rows,
 	run,
 	titleSpan,
 }: {
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly columnCount: number;
 	readonly pattern: NumericPatternAnalysis;
-	readonly rows: readonly (readonly string[])[];
 	readonly run: NumericRun;
 	readonly titleSpan?: StructuredColumnTitleSpanEvidence;
 }): number => {
@@ -1312,7 +1453,7 @@ const scoreXRangeCandidate = ({
 	} else if (pattern.stepKind === "pointsDerived") {
 		confidence += 0.1;
 	}
-	if (hasAlignedNumericNeighbor(rows, run, columnCount)) {
+	if (hasAlignedNumericNeighbor(columnFacts, run, columnCount)) {
 		confidence += 0.08;
 	}
 	if (titleSpan?.axisTendency === "x") {
@@ -1334,9 +1475,9 @@ const scoreXRangeCandidate = ({
 };
 
 const createXRangeReasons = (
+	columnFacts: readonly StructuredContentColumnFacts[],
 	pattern: NumericPatternAnalysis,
 	titleSpan: StructuredColumnTitleSpanEvidence | undefined,
-	rows: readonly (readonly string[])[],
 	run: NumericRun,
 ): readonly string[] => {
 	const reasons: string[] = ["xRange.numericRun"];
@@ -1352,7 +1493,7 @@ const createXRangeReasons = (
 	if (titleSpan?.axisTendency === "x") {
 		reasons.push(`xRange.title:${titleSpan.canonicalRole}`);
 	}
-	if (hasAlignedNumericNeighbor(rows, run, Number.MAX_SAFE_INTEGER)) {
+	if (hasAlignedNumericNeighbor(columnFacts, run, Number.MAX_SAFE_INTEGER)) {
 		reasons.push("xRange.alignedDependentNeighbor");
 	}
 	return reasons;
@@ -1387,6 +1528,7 @@ const createXGroupCandidates = (
 
 const createDataBlockCandidates = ({
 	blockSegments,
+	columnFacts,
 	columnCount,
 	explicitDataRowRanges,
 	rows,
@@ -1395,6 +1537,7 @@ const createDataBlockCandidates = ({
 	xRangeAnalyses,
 }: {
 	readonly blockSegments: readonly StructuredBlockSegment[];
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly columnCount: number;
 	readonly explicitDataRowRanges: readonly ExplicitDataRowRange[];
 	readonly rows: readonly (readonly string[])[];
@@ -1423,6 +1566,7 @@ const createDataBlockCandidates = ({
 		for (const analysis of scopedX) {
 			const right = scanDependentColumns({
 				analysis,
+				columnFacts,
 				direction: "right",
 				maxColumn: scope.endCol,
 				minColumn: scope.startCol,
@@ -1434,6 +1578,7 @@ const createDataBlockCandidates = ({
 				? emptyDependentScan
 				: scanDependentColumns({
 					analysis,
+					columnFacts,
 					direction: "left",
 					maxColumn: scope.endCol,
 					minColumn: scope.startCol,
@@ -1452,7 +1597,7 @@ const createDataBlockCandidates = ({
 				? "rightPreferred"
 				: "leftObserved";
 			const coverage = average(dependentColumns.map(column =>
-				getNumericCoverage(rows, column, analysis.candidate.startRow, analysis.candidate.endRow)
+				getNumericCoverage(columnFacts, column, analysis.candidate.startRow, analysis.candidate.endRow)
 			));
 			const confidence = clampConfidence(
 				analysis.candidate.confidence * 0.76 +
@@ -1480,7 +1625,7 @@ const createDataBlockCandidates = ({
 			});
 		}
 	}
-	const sharedXBlocks = createRepeatedPairSharedXDataBlocks(blocks, rows);
+	const sharedXBlocks = createRepeatedPairSharedXDataBlocks(blocks, columnFacts);
 	return [...blocks, ...sharedXBlocks].sort((left, right) =>
 		left.startCol - right.startCol ||
 		left.startRow - right.startRow
@@ -1550,7 +1695,7 @@ const isDataBlockInsideExplicitDataRows = (
 
 const createRepeatedPairSharedXDataBlocks = (
 	blocks: readonly StructuredDataBlockCandidate[],
-	rows: readonly (readonly string[])[],
+	columnFacts: readonly StructuredContentColumnFacts[],
 ): readonly StructuredDataBlockCandidate[] => {
 	const pairwiseBlocks = blocks
 		.filter(block =>
@@ -1581,7 +1726,13 @@ const createRepeatedPairSharedXDataBlocks = (
 				next.startRow !== first.startRow ||
 				next.endRow !== first.endRow ||
 				next.startCol !== previous.endCol + 1 ||
-				!haveSameNumericValues(rows, first.xColumn, next.xColumn, first.startRow, first.endRow)
+				!haveSameNumericValues(
+					columnFacts,
+					first.xColumn,
+					next.xColumn,
+					first.startRow,
+					first.endRow,
+				)
 			) {
 				break;
 			}
@@ -1626,6 +1777,7 @@ const emptyDependentScan: {
 
 const scanDependentColumns = ({
 	analysis,
+	columnFacts,
 	direction,
 	maxColumn,
 	minColumn,
@@ -1634,6 +1786,7 @@ const scanDependentColumns = ({
 	xRangeAnalyses,
 }: {
 	readonly analysis: XRangeAnalysis;
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly direction: "left" | "right";
 	readonly maxColumn: number;
 	readonly minColumn: number;
@@ -1652,7 +1805,13 @@ const scanDependentColumns = ({
 		column >= minColumn && column <= maxColumn;
 		column += step
 	) {
-		if (isSeparatorColumn(rows, column, analysis.candidate.startRow, analysis.candidate.endRow)) {
+		if (isSeparatorColumn(
+			columnFacts,
+			rows,
+			column,
+			analysis.candidate.startRow,
+			analysis.candidate.endRow,
+		)) {
 			separatorColumns.push(column);
 			break;
 		}
@@ -1660,8 +1819,8 @@ const scanDependentColumns = ({
 			dependentColumns.length &&
 			isIndependentXBoundary({
 				column,
+				columnFacts,
 				current: analysis,
-				rows,
 				titleSpansByColumn,
 				xRangeAnalyses,
 			})
@@ -1669,7 +1828,12 @@ const scanDependentColumns = ({
 			break;
 		}
 
-		const coverage = getNumericCoverage(rows, column, analysis.candidate.startRow, analysis.candidate.endRow);
+		const coverage = getNumericCoverage(
+			columnFacts,
+			column,
+			analysis.candidate.startRow,
+			analysis.candidate.endRow,
+		);
 		if (coverage >= 0.6) {
 			const xTitleSpan = titleSpansByColumn.get(analysis.candidate.column);
 			const dependentTitleSpan = titleSpansByColumn.get(column);
@@ -1690,8 +1854,14 @@ const scanDependentColumns = ({
 	const boundaryColumn = direction === "right" ? maxColumn + 1 : minColumn - 1;
 	if (
 		boundaryColumn >= 0 &&
-		hasColumn(rows, boundaryColumn) &&
-		isSeparatorColumn(rows, boundaryColumn, analysis.candidate.startRow, analysis.candidate.endRow)
+		hasColumn(columnFacts, boundaryColumn) &&
+		isSeparatorColumn(
+			columnFacts,
+			rows,
+			boundaryColumn,
+			analysis.candidate.startRow,
+			analysis.candidate.endRow,
+		)
 	) {
 		separatorColumns.push(boundaryColumn);
 	}
@@ -1699,9 +1869,9 @@ const scanDependentColumns = ({
 };
 
 const hasColumn = (
-	rows: readonly (readonly string[])[],
+	columnFacts: readonly StructuredContentColumnFacts[],
 	column: number,
-): boolean => rows.some(row => column < row.length);
+): boolean => column >= 0 && column < columnFacts.length;
 
 const hasSharedRuleBinding = (
 	xTitleSpan: StructuredColumnTitleSpanEvidence,
@@ -1744,14 +1914,14 @@ const isAlignedHeaderDependentColumn = ({
 
 const isIndependentXBoundary = ({
 	column,
+	columnFacts,
 	current,
-	rows,
 	titleSpansByColumn,
 	xRangeAnalyses,
 }: {
 	readonly column: number;
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly current: XRangeAnalysis;
-	readonly rows: readonly (readonly string[])[];
 	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
 	readonly xRangeAnalyses: readonly XRangeAnalysis[];
 }): boolean => {
@@ -1765,20 +1935,31 @@ const isIndependentXBoundary = ({
 		analysis.candidate.endRow === current.candidate.endRow &&
 		analysis.candidate.confidence >= BlockXConfidenceThreshold
 	);
-	return Boolean(candidate && haveSameNumericPattern(rows, current.candidate.column, column, current.candidate.startRow, current.candidate.endRow));
+	return Boolean(candidate && haveSameNumericPattern(
+		columnFacts,
+		current.candidate.column,
+		column,
+		current.candidate.startRow,
+		current.candidate.endRow,
+	));
 };
 
 const createDependentValueCandidates = ({
+	columnFacts,
 	dataBlockCandidates,
-	rows,
 }: {
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
-	readonly rows: readonly (readonly string[])[];
 }): readonly StructuredDependentValueCandidate[] => {
 	const candidates: StructuredDependentValueCandidate[] = [];
 	for (const block of dataBlockCandidates) {
 		for (const column of block.dependentColumns) {
-			const numericCoverage = getNumericCoverage(rows, column, block.startRow, block.endRow);
+			const numericCoverage = getNumericCoverage(
+				columnFacts,
+				column,
+				block.startRow,
+				block.endRow,
+			);
 			candidates.push({
 				id: `dependent:c${column}:${block.id}`,
 				column,
@@ -2185,6 +2366,7 @@ const createStructureFingerprint = ({
 
 const createStructuredMeasurementBlocks = ({
 	columnProfiles,
+	columnFacts,
 	content,
 	dataBlockCandidates,
 	rows,
@@ -2193,6 +2375,7 @@ const createStructuredMeasurementBlocks = ({
 	xGroupCandidates,
 }: {
 	readonly columnProfiles: readonly StructuredColumnProfile[];
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly content: TableModelContentSnapshot;
 	readonly dataBlockCandidates: readonly StructuredDataBlockCandidate[];
 	readonly rows: readonly (readonly string[])[];
@@ -2203,6 +2386,7 @@ const createStructuredMeasurementBlocks = ({
 	const titleSpansByColumn = createBestTitleSpanByColumn(titleSpans);
 	return dataBlockCandidates.map((block): StructuredMeasurementBlockRecord => {
 		const measurement = inferMeasurementForBlock(block, {
+			columnFacts,
 			rows,
 			semanticMatcher,
 			titleSpansByColumn,
@@ -2388,6 +2572,7 @@ const normalizeHeaderLegendText = (
 const inferMeasurementForBlock = (
 	block: StructuredDataBlockCandidate,
 	context: {
+		readonly columnFacts: readonly StructuredContentColumnFacts[];
 		readonly rows: readonly (readonly string[])[];
 		readonly semanticMatcher: SemanticMatcher;
 		readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
@@ -2420,6 +2605,7 @@ const inferMeasurementForBlock = (
 const selectBlockRule = (
 	block: StructuredDataBlockCandidate,
 	context: {
+		readonly columnFacts: readonly StructuredContentColumnFacts[];
 		readonly rows: readonly (readonly string[])[];
 		readonly semanticMatcher: SemanticMatcher;
 		readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
@@ -2432,11 +2618,18 @@ const selectBlockRule = (
 	readonly priorityIndex: number;
 	readonly proofColumns: readonly number[];
 } | null => {
-	const { rows, semanticMatcher, titleSpansByColumn, xGroupCandidates } = context;
+	const {
+		columnFacts,
+		rows,
+		semanticMatcher,
+		titleSpansByColumn,
+		xGroupCandidates,
+	} = context;
 	const xRules = titleSpansByColumn.get(block.xColumn)?.semanticRules
 		.filter(rule => rule.axisTendency === "x") ?? [];
 	const proofEvidenceByRuleId = collectBlockProofEvidence({
 		block,
+		columnFacts,
 		rows,
 		titleSpansByColumn,
 		xGroupCandidates,
@@ -2713,11 +2906,13 @@ const createRuleCandidatesFromSemanticMatches = ({
 
 const collectBlockProofEvidence = ({
 	block,
+	columnFacts,
 	rows,
 	titleSpansByColumn,
 	xGroupCandidates,
 }: {
 	readonly block: StructuredDataBlockCandidate;
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly rows: readonly (readonly string[])[];
 	readonly titleSpansByColumn: ReadonlyMap<number, StructuredColumnTitleSpanEvidence>;
 	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
@@ -2734,7 +2929,7 @@ const collectBlockProofEvidence = ({
 			: getBlockProofColumnKind({
 				block,
 				column,
-				rows,
+				columnFacts,
 				xGroupCandidates,
 			});
 		for (const rule of rules) {
@@ -2772,15 +2967,15 @@ const normalizeProofColumns = (
 const getBlockProofColumnKind = ({
 	block,
 	column,
-	rows,
+	columnFacts,
 	xGroupCandidates,
 }: {
 	readonly block: StructuredDataBlockCandidate;
 	readonly column: number;
-	readonly rows: readonly (readonly string[])[];
+	readonly columnFacts: readonly StructuredContentColumnFacts[];
 	readonly xGroupCandidates: readonly StructuredXGroupCandidate[];
 }): BlockProofColumnKind => {
-	if (getNumericCoverage(rows, column, block.startRow, block.endRow) < 0.8) {
+	if (getNumericCoverage(columnFacts, column, block.startRow, block.endRow) < 0.8) {
 		return "title";
 	}
 	const groups = xGroupCandidates
@@ -2789,10 +2984,15 @@ const getBlockProofColumnKind = ({
 	const ranges = groups.length
 		? groups.map(group => ({ startRow: group.startRow, endRow: group.endRow }))
 		: [{ startRow: block.startRow, endRow: block.endRow }];
-	const proofValueTolerance = getProofColumnValueTolerance(rows, column, block.startRow, block.endRow);
+	const proofValueTolerance = getProofColumnValueTolerance(
+		columnFacts,
+		column,
+		block.startRow,
+		block.endRow,
+	);
 	const representatives: number[] = [];
 	for (const range of ranges) {
-		const values = readNumericValues(rows, column, range.startRow, range.endRow);
+		const values = readNumericValues(columnFacts, column, range.startRow, range.endRow);
 		const rowCount = range.endRow - range.startRow + 1;
 		if (values.length / Math.max(1, rowCount) < 0.8 || values.length < 2) {
 			return "none";
@@ -2813,12 +3013,12 @@ const getBlockProofColumnKind = ({
 };
 
 const getProofColumnValueTolerance = (
-	rows: readonly (readonly string[])[],
+	columnFacts: readonly StructuredContentColumnFacts[],
 	column: number,
 	startRow: number,
 	endRow: number,
 ): number => {
-	const values = readNumericValues(rows, column, startRow, endRow);
+	const values = readNumericValues(columnFacts, column, startRow, endRow);
 	if (!values.length) {
 		return ProofColumnAbsoluteTolerance;
 	}
@@ -3188,7 +3388,7 @@ const groupXGroupsByRangeId = (
 };
 
 const hasAlignedNumericNeighbor = (
-	rows: readonly (readonly string[])[],
+	columnFacts: readonly StructuredContentColumnFacts[],
 	run: NumericRun,
 	columnCount: number,
 ): boolean => {
@@ -3196,7 +3396,7 @@ const hasAlignedNumericNeighbor = (
 		if (column < 0 || column >= columnCount) {
 			continue;
 		}
-		if (getNumericCoverage(rows, column, run.startRow, run.endRow) >= 0.6) {
+		if (getNumericCoverage(columnFacts, column, run.startRow, run.endRow) >= 0.6) {
 			return true;
 		}
 	}
@@ -3204,28 +3404,28 @@ const hasAlignedNumericNeighbor = (
 };
 
 const getNumericCoverage = (
-	rows: readonly (readonly string[])[],
+	columnFacts: readonly StructuredContentColumnFacts[],
 	column: number,
 	startRow: number,
 	endRow: number,
 ): number => {
-	let numeric = 0;
-	let total = 0;
-	for (let rowIndex = startRow; rowIndex <= endRow; rowIndex += 1) {
-		total += 1;
-		if (parseFiniteNumber(rows[rowIndex]?.[column]) !== null) {
-			numeric += 1;
-		}
-	}
+	const total = Math.max(0, endRow - startRow + 1);
+	const numeric = getStructuredColumnNumericRuns(columnFacts, column)
+		.reduce((count, run) =>
+			count + getOverlappingRowCount(run, startRow, endRow), 0);
 	return total ? numeric / total : 0;
 };
 
 const isSeparatorColumn = (
+	columnFacts: readonly StructuredContentColumnFacts[],
 	rows: readonly (readonly string[])[],
 	column: number,
 	startRow: number,
 	endRow: number,
 ): boolean => {
+	if (getNumericCoverage(columnFacts, column, startRow, endRow) > 0) {
+		return false;
+	}
 	for (let rowIndex = startRow; rowIndex <= endRow; rowIndex += 1) {
 		if (normalizeText(rows[rowIndex]?.[column])) {
 			return false;
@@ -3250,14 +3450,14 @@ const hasTextInRange = (
 };
 
 const haveSameNumericPattern = (
-	rows: readonly (readonly string[])[],
+	columnFacts: readonly StructuredContentColumnFacts[],
 	leftColumn: number,
 	rightColumn: number,
 	startRow: number,
 	endRow: number,
 ): boolean => {
-	const leftValues = readNumericValues(rows, leftColumn, startRow, endRow);
-	const rightValues = readNumericValues(rows, rightColumn, startRow, endRow);
+	const leftValues = readNumericValues(columnFacts, leftColumn, startRow, endRow);
+	const rightValues = readNumericValues(columnFacts, rightColumn, startRow, endRow);
 	if (leftValues.length !== rightValues.length || leftValues.length < 2) {
 		return false;
 	}
@@ -3270,34 +3470,57 @@ const haveSameNumericPattern = (
 };
 
 const haveSameNumericValues = (
-	rows: readonly (readonly string[])[],
+	columnFacts: readonly StructuredContentColumnFacts[],
 	leftColumn: number,
 	rightColumn: number,
 	startRow: number,
 	endRow: number,
 ): boolean => {
-	const leftValues = readNumericValues(rows, leftColumn, startRow, endRow);
-	const rightValues = readNumericValues(rows, rightColumn, startRow, endRow);
+	const leftValues = readNumericValues(columnFacts, leftColumn, startRow, endRow);
+	const rightValues = readNumericValues(columnFacts, rightColumn, startRow, endRow);
 	return leftValues.length >= 2 &&
 		leftValues.length === rightValues.length &&
 		leftValues.every((value, index) => nearlyEqual(value, rightValues[index] ?? Number.NaN));
 };
 
 const readNumericValues = (
-	rows: readonly (readonly string[])[],
+	columnFacts: readonly StructuredContentColumnFacts[],
 	column: number,
 	startRow: number,
 	endRow: number,
 ): readonly number[] => {
 	const values: number[] = [];
-	for (let rowIndex = startRow; rowIndex <= endRow; rowIndex += 1) {
-		const value = parseFiniteNumber(rows[rowIndex]?.[column]);
-		if (value !== null) {
-			values.push(value);
+	for (const run of getStructuredColumnNumericRuns(columnFacts, column)) {
+		const overlapStart = Math.max(startRow, run.startRow);
+		const overlapEnd = Math.min(endRow, run.endRow);
+		if (overlapEnd < overlapStart) {
+			continue;
+		}
+		for (let rowIndex = overlapStart; rowIndex <= overlapEnd; rowIndex += 1) {
+			const value = run.values[rowIndex - run.startRow];
+			if (Number.isFinite(value)) {
+				values.push(value);
+			}
 		}
 	}
 	return values;
 };
+
+const getStructuredColumnNumericRuns = (
+	columnFacts: readonly StructuredContentColumnFacts[],
+	column: number,
+): readonly StructuredContentColumnFacts["numericRuns"][number][] =>
+	columnFacts[column]?.numericRuns ?? [];
+
+const getOverlappingRowCount = (
+	run: Pick<StructuredContentColumnFacts["numericRuns"][number], "startRow" | "endRow">,
+	startRow: number,
+	endRow: number,
+): number =>
+	Math.max(
+		0,
+		Math.min(run.endRow, endRow) - Math.max(run.startRow, startRow) + 1,
+	);
 
 const isPhysicalRowIndexLike = (
 	run: NumericRun,
@@ -3309,9 +3532,11 @@ const isPhysicalRowIndexLike = (
 );
 
 const getRowNumericCount = (
-	row: readonly string[],
+	columnFacts: readonly StructuredContentColumnFacts[],
+	row: number,
 ): number =>
-	row.reduce((count, cell) => count + (parseFiniteNumber(cell) !== null ? 1 : 0), 0);
+	columnFacts.reduce((count, facts) =>
+		count + (facts.numericRuns.some(run => row >= run.startRow && row <= run.endRow) ? 1 : 0), 0);
 
 const getFallbackColumnHeaderText = (
 	column: number,

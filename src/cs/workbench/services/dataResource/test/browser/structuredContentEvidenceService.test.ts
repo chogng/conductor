@@ -6,7 +6,10 @@ import assert from "assert";
 
 import type { IWebWorkerClient } from "src/cs/base/common/worker/webWorker";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { StructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/browser/structuredContentEvidenceService";
+import {
+	resolveStructuredContentEvidenceWorkerCount,
+	StructuredContentEvidenceService,
+} from "src/cs/workbench/services/dataResource/browser/structuredContentEvidenceService";
 import type {
 	IStructuredContentEvidenceWorker,
 	StructuredContentEvidenceWorkerInput,
@@ -17,14 +20,15 @@ import { testStructuredContentEvidenceService } from "src/cs/workbench/services/
 suite("workbench/services/dataResource/test/browser/structuredContentEvidenceService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("dispatches every evidence request immediately without a concurrency queue", async () => {
+	test("submits every request immediately and reuses every hardware worker", async () => {
 		const requestCount = 12;
+		const workerCount = 3;
 		const workers: TestStructuredContentEvidenceWorkerClient[] = [];
 		const service = store.add(new StructuredContentEvidenceService(() => {
 			const worker = new TestStructuredContentEvidenceWorkerClient();
 			workers.push(worker);
 			return worker as unknown as IWebWorkerClient<IStructuredContentEvidenceWorker>;
-		}));
+		}, workerCount));
 		const requests = Array.from({ length: requestCount }, () => service.create({
 			columnCount: 2,
 			maxCellLengths: [1, 1],
@@ -36,27 +40,42 @@ suite("workbench/services/dataResource/test/browser/structuredContentEvidenceSer
 		}));
 
 		await waitFor(() =>
-			workers.reduce((count, worker) => count + worker.requestCount, 0) === requestCount
+			workers.reduce((count, worker) => count + worker.requestCount, 0) === workerCount
 		);
 		assert.deepStrictEqual({
 			requestCount: workers.reduce((count, worker) => count + worker.requestCount, 0),
 			workerCount: workers.length,
 		}, {
-			requestCount,
-			workerCount: requestCount,
+			requestCount: workerCount,
+			workerCount,
 		});
 
-		for (const worker of workers) {
-			await worker.complete();
+		let completedCount = 0;
+		while (completedCount < requestCount) {
+			const activeWorkers = workers.filter(worker => worker.requests.length > 0);
+			await Promise.all(activeWorkers.map(worker => worker.complete()));
+			completedCount += activeWorkers.length;
+			await waitFor(() =>
+				completedCount === requestCount ||
+				workers.reduce((count, worker) => count + worker.requestCount, 0) > completedCount
+			);
 		}
 		const results = await Promise.all(requests);
 		assert.deepStrictEqual({
 			resultCount: results.length,
-			terminatedWorkers: workers.filter(worker => worker.disposed).length,
+			reusedWorkerCount: workers.filter(worker => worker.requestCount > 1).length,
+			workerCount: workers.length,
 		}, {
 			resultCount: requestCount,
-			terminatedWorkers: requestCount,
+			reusedWorkerCount: workerCount,
+			workerCount,
 		});
+	});
+
+	test("uses the full reported hardware parallelism without a fixed cap", () => {
+		assert.strictEqual(resolveStructuredContentEvidenceWorkerCount(64), 64);
+		assert.strictEqual(resolveStructuredContentEvidenceWorkerCount(1), 1);
+		assert.strictEqual(resolveStructuredContentEvidenceWorkerCount(0), 1);
 	});
 });
 

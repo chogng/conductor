@@ -4,6 +4,7 @@ import type {
   CalculateRcRequest,
   ExportOriginCsvRequest,
   IRustHostService,
+  ResolveStructuredContentRequest,
   RustProcessConfig,
 } from "../../platform/rust/common/rustHostProtocol.js";
 import type { workbenchIpcChannels } from "../../workbench/common/ipcChannels.js";
@@ -13,6 +14,7 @@ type RegisterRustHandlersOptions = {
     typeof workbenchIpcChannels,
     | "rustHostCalculateRc"
     | "rustHostExportOriginCsv"
+    | "rustHostResolveStructuredContent"
   >;
   ipcMain: IpcMain;
   runForeground?: <T>(task: () => Promise<T>) => Promise<T>;
@@ -79,6 +81,18 @@ export const registerRustHostChannels = ({
     return rustService.exportOriginCsv(request);
   };
 
+  const handleRustResolveStructuredContent = async (
+    _event: IpcMainInvokeEvent,
+    payload: unknown,
+  ) => {
+    const record = readObject(payload);
+    const request: ResolveStructuredContentRequest = {
+      fileName: readString(record?.fileName),
+      inputPath: normalizeAbsoluteFilePath(record?.path),
+    };
+    return runForeground(() => rustService.resolveStructuredContent(request));
+  };
+
   ipcMain.handle(
     ipcChannels.rustHostCalculateRc,
     handleRustEngineAnalyzeRc,
@@ -87,10 +101,15 @@ export const registerRustHostChannels = ({
     ipcChannels.rustHostExportOriginCsv,
     handleRustEngineExportOriginCsv,
   );
+  ipcMain.handle(
+    ipcChannels.rustHostResolveStructuredContent,
+    handleRustResolveStructuredContent,
+  );
   return {
     dispose() {
       ipcMain.removeHandler(ipcChannels.rustHostCalculateRc);
       ipcMain.removeHandler(ipcChannels.rustHostExportOriginCsv);
+      ipcMain.removeHandler(ipcChannels.rustHostResolveStructuredContent);
     },
   };
 };

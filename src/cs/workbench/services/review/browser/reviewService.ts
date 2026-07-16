@@ -25,7 +25,10 @@ import {
   type DataResourceStructuredContentResolution,
   type DataResourceStructuredContentSnapshot,
   type DataResourceStructuredContentTarget,
+  type DataResourceStructuredEvidenceResolution,
+  type DataResourceStructuredEvidenceSnapshot,
   type IDataResourceStructuredContentReference,
+  type IDataResourceStructuredEvidenceReference,
 } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
   ISchemaProfileService,
@@ -506,9 +509,9 @@ export class ReviewService extends Disposable implements IReviewService {
       return null;
     }
 
-    let reference: IDataResourceStructuredContentReference | null = null;
+    let reference: IDataResourceStructuredEvidenceReference | null = null;
     try {
-      reference = await this.dataResourceService.resolveStructuredContent(createDataResourceStructuredContentTarget(target));
+      reference = await this.dataResourceService.resolveStructuredEvidence(createDataResourceStructuredContentTarget(target));
       return this.createUriReviewSummaryFromStructuredContent(target, reference.object);
     } catch (error) {
       return {
@@ -530,7 +533,7 @@ export class ReviewService extends Disposable implements IReviewService {
 
   private async createUriReviewSummaryFromStructuredContent(
     target: NormalizedUriReviewTarget,
-    resolution: DataResourceStructuredContentResolution,
+    resolution: DataResourceStructuredEvidenceResolution,
   ): Promise<UriReviewCacheEntry> {
     const userTemplateSnapshot = this.userTemplateService.getSnapshot();
     const modelSignature = createUriReviewModelSignature({
@@ -1207,7 +1210,7 @@ const createDataResourceStructuredContentTarget = (
 });
 
 const createReviewEvidenceFromStructuredContent = (
-  snapshot: DataResourceStructuredContentSnapshot,
+  snapshot: DataResourceStructuredEvidenceSnapshot,
 ): ReviewEvidence => ({
   sourceMetadata: {
     columnCount: snapshot.columnCount,
@@ -1228,7 +1231,7 @@ const createUriReviewModelSignature = ({
   userTemplateEffectiveFingerprint,
   userTemplateVersion,
 }: {
-  readonly resolution: DataResourceStructuredContentResolution;
+  readonly resolution: DataResourceStructuredEvidenceResolution;
   readonly schemaProfileVersion: number;
   readonly target: NormalizedUriReviewTarget;
   readonly userTemplateEffectiveFingerprint: string;

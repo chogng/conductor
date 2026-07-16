@@ -60,17 +60,18 @@ suite("platform/rust/electron-main/rustWorkerHost", () => {
 
 	test("resolves adaptive processing pool size from available parallelism", () => {
 		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: Number.NaN }), 2);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 1 }), 1);
 		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 2 }), 2);
-		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8 }), 4);
-		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 16 }), 8);
-		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 64 }), 8);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8 }), 8);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 16 }), 16);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 64 }), 64);
 	});
 
-	test("resolves processing pool size from bounded environment override", () => {
+	test("resolves processing pool size from environment override without a fixed cap", () => {
 		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "1" }), 1);
 		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "6" }), 6);
-		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "64" }), 16);
-		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "invalid" }), 4);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "64" }), 64);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "invalid" }), 8);
 	});
 });
 
