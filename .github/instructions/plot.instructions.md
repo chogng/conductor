@@ -32,6 +32,7 @@ production, template execution, or thumbnail bitmap cache.
 | `services/plot/common/plot.ts` | `IPlotService`, `PlotType`, state, events, inputs. |
 | `services/plot/common/plotModel.ts` | shared model types. No DOM. |
 | `services/plot/common/plotSettings.ts` | unit/scale/visibility/plot-type settings. |
+| `services/plot/common/canonicalCalculatedData.ts` | legacy Session `FileRecord` adapter into Plot calculated-data inputs. |
 | `services/plot/browser/plotService.ts` | state owner, session subscriber, cache/prefetch owner. |
 | `services/plot/browser/plotCalculatedDataWorker*.ts` | worker entry/client for async calculated data and display model work. |
 | `services/plot/browser/plotDisplayModel.ts` | pure display-model builder. |

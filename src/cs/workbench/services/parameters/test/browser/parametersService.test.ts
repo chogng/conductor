@@ -11,13 +11,10 @@ import type {
 	CalculationResourceResult,
 	ICalculationService,
 } from "src/cs/workbench/services/calculation/common/calculation";
-import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculationMetricRecordBuilder";
+import { createCalculatedMetricRecords } from "src/cs/workbench/services/calculation/common/calculationMetricRecordBuilder";
+import type { CalculationRecordsInput } from "src/cs/workbench/services/calculation/common/calculationRecords";
 import { ParametersService } from "src/cs/workbench/services/parameters/browser/parametersService";
 import type { ParametersViewState } from "src/cs/workbench/services/parameters/common/parameterModel";
-import type {
-	FileRecord,
-	MetricKey,
-} from "src/cs/workbench/services/session/common/sessionModel";
 
 suite("workbench/services/parameters/test/browser/parametersService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -106,20 +103,10 @@ function createCalculationResourceResult(
 	sheetId: string | null,
 	version: number,
 ): CalculationResourceResult {
-	const file = createProcessedFileRecord();
-	const metricRecords = createCalculatedMetricRecordsByFile(
-		{ [file.id]: file },
-		[file.id],
-	);
+	const input = createProcessedRecordsInput();
+	const metricRecords = createCalculatedMetricRecords(input);
 	const metricsByKey = Object.fromEntries(
-		(metricRecords[file.id] ?? []).map(metric => [metric.key, metric]),
-	);
-	const metricsBySeriesId = Object.values(metricsByKey).reduce<Record<string, MetricKey[]>>(
-		(result, metric) => {
-			result[metric.seriesId] = [...(result[metric.seriesId] ?? []), metric.key];
-			return result;
-		},
-		{},
+		metricRecords.map(metric => [metric.key, metric]),
 	);
 	return {
 		axis: {
@@ -130,34 +117,30 @@ function createCalculationResourceResult(
 			yUnit: "A",
 		},
 		completedAt: version,
-		curvesByKey: file.curvesByKey,
+		curvesByKey: input.baseCurvesByKey,
 		inputSignature: `calculation-${version}`,
 		metricsByKey,
 		requestSignature: `request-${version}`,
 		resource,
-		seriesById: file.seriesById,
-		seriesOrder: file.seriesOrder,
+		seriesById: input.seriesById,
+		seriesOrder: input.seriesOrder,
 		sheetId,
 		sourceModelVersion: version,
 		sourceVersion: version,
 	};
 }
 
-function createProcessedFileRecord(): FileRecord {
+function createProcessedRecordsInput(): CalculationRecordsInput {
 	return {
-		id: "resource-file",
-		kind: "unknown",
-		name: "Transfer.csv",
-		raw: {
-			fileId: "resource-file",
-			fileName: "Transfer.csv",
-			tableOrder: [],
-			tablesById: {},
+		axis: {
+			xAxisRole: "vg",
+			xLabel: "Voltage",
+			xUnit: "V",
+			yLabel: "Current",
+			yUnit: "A",
 		},
-		rawTableVersionsById: {},
 		seriesById: {
 			"series-a": {
-				fileId: "resource-file",
 				groupIndex: 0,
 				id: "series-a",
 				name: "A",
@@ -166,7 +149,7 @@ function createProcessedFileRecord(): FileRecord {
 			},
 		},
 		seriesOrder: ["series-a"],
-		curvesByKey: {
+		baseCurvesByKey: {
 			"base:iv:transfer:series-a": {
 				curveFamily: "iv",
 				curveGeneration: "base",
@@ -174,12 +157,10 @@ function createProcessedFileRecord(): FileRecord {
 					x: [0, 2],
 					y: [1e-12, 1e-6],
 				},
-				fileId: "resource-file",
 				ivMode: "transfer",
 				lineage: {
 					baseFamily: "iv",
 					baseSeries: {
-						fileId: "resource-file",
 						seriesId: "series-a",
 					},
 					curveGeneration: "base",
@@ -194,7 +175,5 @@ function createProcessedFileRecord(): FileRecord {
 				signature: "series-a",
 			},
 		},
-		metricsByKey: {},
-		metricsBySeriesId: {},
 	};
 }

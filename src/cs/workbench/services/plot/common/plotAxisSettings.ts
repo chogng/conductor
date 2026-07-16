@@ -4,7 +4,7 @@
 
 import type { PlotFileAxisSettings } from "src/cs/workbench/services/plot/common/plot";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import { getFileRecordAxisProjection } from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
+import { getFileRecordAxisProjection } from "src/cs/workbench/services/session/common/sessionFileProjection";
 
 export type PlotFileAxisSettingsOverrides = {
 	readonly xUnitByFileId?: Readonly<Record<string, string>>;

@@ -7,8 +7,12 @@ import assert from "assert";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import {
-  createCalculatedCurveRecordsByFile,
+  createCalculatedCurveRecords,
 } from "src/cs/workbench/services/calculation/common/calculationCurveRecordBuilder";
+import {
+  createCalculationRecordsInputForTest,
+  createSessionCurveRecordsForTest,
+} from "src/cs/workbench/services/session/test/common/sessionCalculationTestRecords";
 import {
   commitRawFilesForTest,
   commitTemplateOutputForTest,
@@ -292,11 +296,10 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       { x: 1, y: 0.001001 },
     ]);
 
-    const calculated = createCalculatedCurveRecordsByFile(
-      snapshot.filesById,
-      snapshot.fileOrder,
+    const calculated = createCalculatedCurveRecords(
+      createCalculationRecordsInputForTest(snapshot.filesById["file-a"]),
     );
-    const gmCurve = calculated["file-a"].find(curve =>
+    const gmCurve = calculated.find(curve =>
       curve.curveGeneration === "derived" && curve.curveFamily === "gm"
     );
     assert.deepEqual(gmCurve?.points.map(point => point.y), [0.001, 0.001]);
@@ -981,18 +984,13 @@ const replaceDerivedCurvesForTest = (
   session: SessionService,
 ): void => {
   const snapshot = session.getSnapshot();
-  const recordsByFileId = createCalculatedCurveRecordsByFile(
-    snapshot.filesById,
-    snapshot.fileOrder,
-  );
-  const fileIds = new Set([
-    ...Object.keys(snapshot.filesById),
-    ...Object.keys(recordsByFileId),
-  ]);
-  for (const fileId of fileIds) {
+  for (const [fileId, file] of Object.entries(snapshot.filesById)) {
+    const calculated = createCalculatedCurveRecords(
+      createCalculationRecordsInputForTest(file),
+    );
     session.commitCurves({
       fileId,
-      curves: recordsByFileId[fileId] ?? [],
+      curves: createSessionCurveRecordsForTest(fileId, calculated),
       replaceGenerations: ["derived", "secondDerived"],
     });
   }

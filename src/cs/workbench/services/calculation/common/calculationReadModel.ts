@@ -13,22 +13,11 @@ import {
   type CalculationKind,
 } from "src/cs/workbench/services/calculation/common/calculationTypes";
 import type {
-  CurveRecord,
-  FileId,
-  FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
-import type {
   CalculationResourceResult,
 } from "src/cs/workbench/services/calculation/common/calculation";
-import {
-  type CalculationFileRecord,
-  collectFileRecordBaseCurves,
-  fileRecordSupportsSs,
-  getFileRecordAxisProjection,
-  getFileRecordCurveType,
-  getFileRecordDomain,
-  getFileRecordXGroups,
-} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
+import type {
+  CalculationCurveRecord,
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 
 type CalculationSourceNumberArray = readonly number[] | Float64Array;
 
@@ -128,78 +117,6 @@ export const createCalculatedPlotsByKey = (
     }
   }
   return next;
-};
-
-export const createCalculatedDataInputSignature = (
-  filesById: Record<FileId, CalculationFileRecord>,
-  fileOrder: readonly FileId[],
-): string => {
-  const parts: string[] = [];
-  for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-    if (!hasFileRecordChartData(file)) {
-      continue;
-    }
-
-    parts.push("file", file.id);
-    const axis = getFileRecordAxisProjection(file);
-    parts.push("x", axis.xUnit ?? "");
-    parts.push("y", axis.yUnit ?? "");
-    for (const curve of collectFileRecordBaseCurves(file)) {
-      parts.push(
-        "curve",
-        curve.seriesId,
-        curve.curveFamily,
-        curve.ivMode ?? "",
-        curve.itMode ?? "",
-        curve.signature,
-      );
-    }
-  }
-
-  return parts.join("\u001f");
-};
-
-export const createCalculatedDataForCanonicalFile = ({
-  file,
-  plotType,
-}: {
-  readonly file: FileRecord;
-  readonly plotType: CalculationKind;
-}): CalculatedData => {
-  const activeFile = createCalculationSourceFileFromCanonicalFile(file);
-  const seriesList = createCalculatedSeriesFromCanonicalFile(file, plotType);
-  const points = seriesList.flatMap((series) => series.data);
-  const source = {
-    fileId: file.id,
-    inputKind: "canonical" as const,
-  };
-  const xDomain = getFiniteDomain(points.map((point) => Number(point.x)), [0, 1]);
-  const xUnitLabel = String(getFileRecordAxisProjection(file).xUnit ?? "");
-  const yDomain = getFiniteDomain(points.map((point) => Number(point.y)), [0, 1]);
-  const yUnitLabel = getCalculatedYUnitLabel(plotType, activeFile);
-
-  return {
-    activeFile,
-    kind: plotType,
-    pointsCount: points.length,
-    seriesList,
-    signature: createCalculatedDataSignature({
-      activeFile,
-      kind: plotType,
-      pointsCount: points.length,
-      seriesList,
-      source,
-      xDomain,
-      xUnitLabel,
-      yDomain,
-      yUnitLabel,
-    }),
-    source,
-    xDomain,
-    xUnitLabel,
-    yDomain,
-    yUnitLabel,
-  };
 };
 
 export const createCalculatedDataForCalculationResourceResult = ({
@@ -303,10 +220,12 @@ export const createCalculatedData = ({
 export const createCalculatedDataForFile = ({
   file,
   fileId,
+  inputKind = "source",
   plotType,
 }: {
   readonly file: CalculationSourceFile | null;
   readonly fileId?: string | null;
+  readonly inputKind?: "canonical" | "source";
   readonly plotType: CalculationKind;
 }): CalculatedData => {
   const activeFile = file;
@@ -314,7 +233,7 @@ export const createCalculatedDataForFile = ({
   const points = seriesList.flatMap((series) => series.data);
   const source = {
     fileId: fileId ?? resolveSourceFileId(activeFile),
-    inputKind: "source" as const,
+    inputKind,
   };
   const xDomain = getFiniteDomain(points.map((point) => Number(point.x)), [0, 1]);
   const xUnitLabel = String(activeFile?.xUnit ?? "");
@@ -344,92 +263,9 @@ export const createCalculatedDataForFile = ({
   };
 };
 
-const getOrderedFileRecords = <T extends { readonly id: FileId }>(
-  filesById: Record<FileId, T>,
-  fileOrder: readonly FileId[],
-): T[] => {
-  const seen = new Set<FileId>();
-  const files: T[] = [];
-  const pushFile = (fileId: FileId): void => {
-    if (seen.has(fileId)) {
-      return;
-    }
-    seen.add(fileId);
-
-    const file = filesById[fileId];
-    if (file) {
-      files.push(file);
-    }
-  };
-
-  for (const fileId of fileOrder) {
-    pushFile(fileId);
-  }
-  for (const fileId of Object.keys(filesById)) {
-    pushFile(fileId);
-  }
-
-  return files;
-};
-
-const hasFileRecordChartData = (file: CalculationFileRecord): boolean =>
-  collectFileRecordBaseCurves(file).length > 0;
-
-const createCalculatedSeriesFromCanonicalFile = (
-  file: FileRecord,
-  plotType: CalculationKind,
-): CalculatedSeries[] => {
-  const curves = collectFileRecordBaseCurves(file);
-  if (!curves.length) {
-    return createCalculatedSeries(createCalculationSourceFileFromCanonicalFile(file), plotType);
-  }
-
-  const usedIds = new Set<string>();
-  return curves
-    .map((curve, index): CalculatedSeries | null => {
-      const data = resolveCalculatedPoints(plotType, curve.points);
-      if (!data.length) {
-        return null;
-      }
-
-      const id = resolveUniqueSeriesId(String(curve.seriesId), index, usedIds);
-      return {
-        data,
-        id,
-        kind: plotType,
-        name: resolveCanonicalFileSeriesName(file, curve.seriesId, index),
-      };
-    })
-    .filter((series): series is CalculatedSeries => Boolean(series));
-};
-
-const createCalculationSourceFileFromCanonicalFile = (file: FileRecord): CalculationSourceFile => {
-  const axis = getFileRecordAxisProjection(file);
-  const domain = getFileRecordDomain(file);
-  return {
-    curveType: getFileRecordCurveType(file),
-    domain: domain
-      ? {
-        x: domain.x,
-        y: domain.y,
-      }
-      : undefined,
-    fileId: file.id,
-    fileName: file.raw.fileName,
-    series: createCalculationSourceSeriesFromFileRecord(file),
-    supportsSs: fileRecordSupportsSs(file),
-    xAxisRole: axis.xAxisRole,
-    xGroups: getFileRecordXGroups(file),
-    xUnit: axis.xUnit,
-    yUnit: axis.yUnit,
-    xLabel: axis.xLabel,
-    yLabel: axis.yLabel,
-  };
-};
-
 const createCalculationSourceFileFromCalculationResourceResult = (
   result: CalculationResourceResult,
-  curves: readonly CurveRecord[],
+  curves: readonly CalculationCurveRecord[],
 ): CalculationSourceFile => {
   const xValues = curves.flatMap(curve => curve.points.map(point => point.x));
   const yValues = curves.flatMap(curve => curve.points.map(point => point.y));
@@ -456,7 +292,7 @@ const createCalculationSourceFileFromCalculationResourceResult = (
 
 const createCalculationSourceSeriesFromCalculationResourceResult = (
   result: CalculationResourceResult,
-  curves: readonly CurveRecord[],
+  curves: readonly CalculationCurveRecord[],
 ): CalculationSourceSeries[] => {
   return curves.map((curve, index): CalculationSourceSeries => {
     const series = result.seriesById[curve.seriesId];
@@ -471,23 +307,8 @@ const createCalculationSourceSeriesFromCalculationResourceResult = (
   });
 };
 
-const createCalculationSourceSeriesFromFileRecord = (
-  file: FileRecord,
-): CalculationSourceSeries[] =>
-  collectFileRecordBaseCurves(file).map((curve, index): CalculationSourceSeries => {
-    const series = file.seriesById[curve.seriesId];
-    return {
-      groupIndex: index,
-      id: curve.seriesId || `series-${index + 1}`,
-      legendValue: series?.legendValue,
-      name: series?.labelOverride ?? series?.name ?? series?.legendValue,
-      y: curve.points.map((point) => point.y),
-      yCol: Number.isInteger(Number(series?.yCol)) ? series?.yCol : index + 1,
-    };
-  });
-
 const getCalculationResultCurveType = (
-  curve: CurveRecord | undefined,
+  curve: CalculationCurveRecord | undefined,
 ): string | undefined => {
   if (!curve) {
     return undefined;
@@ -513,7 +334,7 @@ const createResourceCalculationId = (
 const collectCalculationResultCurves = (
   result: CalculationResourceResult,
   plotType: CalculationKind,
-): CurveRecord[] =>
+): CalculationCurveRecord[] =>
   Object.values(result.curvesByKey).filter(curve => {
     switch (plotType) {
       case "iv":
@@ -576,20 +397,6 @@ const getResourceString = (resource: unknown): string => {
 
   const text = String(toString.call(resource) ?? "").trim();
   return text === "[object Object]" ? "" : text;
-};
-
-const resolveCanonicalFileSeriesName = (
-  file: FileRecord,
-  seriesId: string,
-  index: number,
-): string => {
-  const series = file.seriesById[seriesId];
-  return String(
-    series?.labelOverride ??
-      series?.legendValue ??
-      series?.name ??
-      `Series ${index + 1}`,
-  );
 };
 
 const getCalculatedFileId = (file: CalculationSourceFile, index: number): string => {

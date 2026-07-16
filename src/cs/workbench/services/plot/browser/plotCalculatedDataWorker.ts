@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { bootstrapWebWorker } from 'src/cs/base/common/worker/webWorker';
-import { hasFileRecordBaseCurves } from 'src/cs/workbench/services/calculation/common/canonicalFileProjection';
+import { hasFileRecordBaseCurves } from 'src/cs/workbench/services/session/common/sessionFileProjection';
 import {
 	createCalculatedDataForFile,
 	type CalculatedData,

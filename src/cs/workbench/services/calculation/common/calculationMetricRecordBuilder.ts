@@ -19,26 +19,25 @@ import type {
   BaseCurveFamily,
   CurrentWindowRecord,
   CurveKey as SessionCurveKey,
-  CurveRef,
-  CurveRecord,
-  FileId,
   ItCurveMode,
   IvCurveMode,
   MetricKey,
-  MetricInputRecord,
-  MetricRecord,
   SeriesId,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  type CalculationFileRecord,
-  collectFileRecordBaseCurves,
-  fileRecordSupportsSs,
-  getFileRecordAxisProjection,
-  getFileRecordCurveType,
-} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
+  type CalculationBaseCurveRecord,
+  type CalculationCurrentMetricRecord,
+  type CalculationCurveRef,
+  type CalculationMetricInputRecord,
+  type CalculationMetricRecord,
+  type CalculationRecordsInput,
+  type CalculationSubthresholdMetricRecord,
+  calculationSupportsSs,
+  collectCalculationBaseCurves,
+  getCalculationCurveType,
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 
-type CurrentMetricValue = Extract<MetricRecord, { metricFamily: "current" }>["value"];
-type SubthresholdMetricRecord = Extract<MetricRecord, { metricFamily: "subthreshold" }>;
+type CurrentMetricValue = CalculationCurrentMetricRecord["value"];
 type MetricSourceFile = {
   readonly curveType?: unknown;
   readonly supportsSs?: unknown;
@@ -81,65 +80,42 @@ type SsFitResult = {
   readonly suggested?: SsFit;
 };
 
-export const createCalculatedMetricRecordsByFile = (
-  filesById: Record<FileId, CalculationFileRecord>,
-  fileOrder: readonly FileId[],
-  optionsByFileId: Readonly<Record<FileId, CalculatedMetricRecordBuilderOptions | undefined>> = {},
-): Record<FileId, MetricRecord[]> => {
-  const metricsByFileId: Record<FileId, MetricRecord[]> = {};
-  for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-    const metrics = createCalculatedMetricRecordsForFile(file, optionsByFileId[file.id]);
-    if (metrics.length) {
-      metricsByFileId[file.id] = metrics;
-    }
-  }
-  return metricsByFileId;
-};
-
 export const createCalculatedMetricRecordsInputSignature = (
-  filesById: Record<FileId, CalculationFileRecord>,
-  fileOrder: readonly FileId[],
+  input: CalculationRecordsInput,
 ): string => {
   const parts: string[] = [];
-  for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-    if (!collectFileRecordBaseCurves(file).length) {
-      continue;
-    }
-
-    parts.push("file", file.id);
-    for (const input of Object.values(file.metricInputsByKey ?? {})
-      .sort((first, second) => first.metricKey.localeCompare(second.metricKey))) {
-      parts.push(
-        "input",
-        input.metricKey,
-        input.seriesId,
-        input.source,
-        input.configSignature ?? "",
-        String(input.range?.x1 ?? ""),
-        String(input.range?.x2 ?? ""),
-      );
-      for (const [key, value] of Object.entries(input.targets ?? {}).sort(([left], [right]) =>
-        left.localeCompare(right)
-      )) {
-        parts.push("target", key, String(value ?? ""));
-      }
+  for (const metricInput of Object.values(input.metricInputsByKey ?? {})
+    .sort((first, second) => first.metricKey.localeCompare(second.metricKey))) {
+    parts.push(
+      "input",
+      metricInput.metricKey,
+      metricInput.seriesId,
+      metricInput.source,
+      metricInput.configSignature ?? "",
+      String(metricInput.range?.x1 ?? ""),
+      String(metricInput.range?.x2 ?? ""),
+    );
+    for (const [key, value] of Object.entries(metricInput.targets ?? {}).sort(([left], [right]) =>
+      left.localeCompare(right)
+    )) {
+      parts.push("target", key, String(value ?? ""));
     }
   }
 
   return parts.join("\u001f");
 };
 
-export const createCalculatedMetricRecordsForFile = (
-  file: CalculationFileRecord,
+export const createCalculatedMetricRecords = (
+  input: CalculationRecordsInput,
   options: CalculatedMetricRecordBuilderOptions = {},
-): MetricRecord[] => {
-  const curves = collectFileRecordBaseCurves(file);
+): CalculationMetricRecord[] => {
+  const curves = collectCalculationBaseCurves(input);
   if (!curves.length) {
     return [];
   }
 
-  const metricsByKey: Record<MetricKey, MetricRecord> = {};
-  const sourceFile = createMetricSourceFile(file);
+  const metricsByKey: Record<MetricKey, CalculationMetricRecord> = {};
+  const sourceFile = createMetricSourceFile(input, curves);
   const family = curves[0]?.curveFamily ?? null;
   const ivMode = curves.find((curve) => curve.curveFamily === "iv" && curve.ivMode)?.ivMode ?? null;
   const itMode = curves.find((curve) => curve.curveFamily === "it" && curve.itMode)?.itMode ?? null;
@@ -157,13 +133,12 @@ export const createCalculatedMetricRecordsForFile = (
     const currentKey = `current:${seriesId}:base` as MetricKey;
     const subthresholdAutoKey = `subthreshold:${seriesId}:ss:auto` as MetricKey;
     const subthresholdManualKey = `subthreshold:${seriesId}:ss:manual` as MetricKey;
-    const currentInput = file.metricInputsByKey?.[currentKey];
-    const subthresholdInput = file.metricInputsByKey?.[subthresholdManualKey];
+    const currentInput = input.metricInputsByKey?.[currentKey];
+    const subthresholdInput = input.metricInputsByKey?.[subthresholdManualKey];
     const inputCurve = family
       ? createMetricInputCurveRef({
-          curvesByKey: file.curvesByKey,
+          curvesByKey: input.baseCurvesByKey,
           family,
-          fileId: file.id,
           itMode,
           ivMode,
           seriesId,
@@ -173,7 +148,11 @@ export const createCalculatedMetricRecordsForFile = (
     const inputSignatures = inputCurves
       .map((curve) => curve.signature)
       .filter((signature) => signature.length > 0);
-    const baseCurve = curve ?? (inputCurve ? file.curvesByKey[inputCurve.curveKey] : undefined);
+    const baseCurve = curve ?? (
+      inputCurve
+        ? input.baseCurvesByKey[inputCurve.curveKey]
+        : undefined
+    );
     const currentValue = createCurrentMetricValue({
       baseCurve,
       input: currentInput,
@@ -181,7 +160,7 @@ export const createCalculatedMetricRecordsForFile = (
       sourceFile,
     });
     const subthresholdMetric = createSubthresholdMetric({
-      file,
+      recordsInput: input,
       input: subthresholdInput,
       inputCurves,
       inputSignatures,
@@ -194,7 +173,6 @@ export const createCalculatedMetricRecordsForFile = (
 
     appendMetric(metricsByKey, {
       key: currentKey,
-      fileId: file.id,
       seriesId,
       metricFamily: "current",
       contextKey: "base",
@@ -206,7 +184,6 @@ export const createCalculatedMetricRecordsForFile = (
 
     appendMetric(metricsByKey, {
       key: `derivative:${seriesId}:${derivativeKind}` as MetricKey,
-      fileId: file.id,
       seriesId,
       metricFamily: "derivative",
       contextKey: derivativeKind,
@@ -226,13 +203,15 @@ export const createCalculatedMetricRecordsForFile = (
   return Object.values(metricsByKey);
 };
 
-const createMetricSourceFile = (file: CalculationFileRecord): MetricSourceFile => {
-  const axis = getFileRecordAxisProjection(file);
+const createMetricSourceFile = (
+  input: CalculationRecordsInput,
+  curves: readonly CalculationBaseCurveRecord[],
+): MetricSourceFile => {
   return {
-    curveType: getFileRecordCurveType(file),
-    supportsSs: fileRecordSupportsSs(file),
-    xAxisRole: axis.xAxisRole,
-    xLabel: axis.xLabel,
+    curveType: getCalculationCurveType(curves[0]),
+    supportsSs: calculationSupportsSs(input),
+    xAxisRole: input.axis.xAxisRole,
+    xLabel: input.axis.xLabel,
   };
 };
 
@@ -243,7 +222,7 @@ const createMetricSourceRows = ({
   sourceFile,
 }: {
   readonly analysisBySeriesId?: CalculationAnalysisBySeriesId;
-  readonly curves: readonly CurveRecord[];
+  readonly curves: readonly CalculationBaseCurveRecord[];
   readonly derivativePointsBySeriesId?: Readonly<Record<SeriesId, readonly DerivativePoint[] | undefined>>;
   readonly sourceFile: MetricSourceFile;
 }): MetricSourceRow[] => {
@@ -291,8 +270,8 @@ const createCurrentMetricValue = ({
   row,
   sourceFile,
 }: {
-  baseCurve: CurveRecord | undefined;
-  input: MetricInputRecord | undefined;
+  baseCurve: CalculationBaseCurveRecord | undefined;
+  input: CalculationMetricInputRecord | undefined;
   row: MetricSourceRow;
   sourceFile: MetricSourceFile;
 }): CurrentMetricValue => {
@@ -334,7 +313,7 @@ const createCurrentMetricValue = ({
 };
 
 const createSubthresholdMetric = ({
-  file,
+  recordsInput,
   input,
   inputCurves,
   inputSignatures,
@@ -344,18 +323,20 @@ const createSubthresholdMetric = ({
   subthresholdAutoKey,
   subthresholdManualKey,
 }: {
-  file: CalculationFileRecord;
-  input: MetricInputRecord | undefined;
-  inputCurves: CurveRef[];
+  recordsInput: CalculationRecordsInput;
+  input: CalculationMetricInputRecord | undefined;
+  inputCurves: CalculationCurveRef[];
   inputSignatures: string[];
   row: MetricSourceRow;
   seriesId: string;
   sourceFile: MetricSourceFile;
   subthresholdAutoKey: MetricKey;
   subthresholdManualKey: MetricKey;
-}): SubthresholdMetricRecord => {
+}): CalculationSubthresholdMetricRecord => {
   const inputCurve = inputCurves[0];
-  const baseCurve = inputCurve ? file.curvesByKey[inputCurve.curveKey] : undefined;
+  const baseCurve = inputCurve
+    ? recordsInput.baseCurvesByKey[inputCurve.curveKey]
+    : undefined;
   if (
     input?.source === "manual" &&
     input.range &&
@@ -370,7 +351,6 @@ const createSubthresholdMetric = ({
     const ok = classification.ss_ok === true;
     return {
       key: subthresholdManualKey,
-      fileId: file.id,
       seriesId,
       metricFamily: "subthreshold",
       contextKey: "ss:manual",
@@ -388,7 +368,6 @@ const createSubthresholdMetric = ({
 
   return {
     key: subthresholdAutoKey,
-    fileId: file.id,
     seriesId,
     metricFamily: "subthreshold",
     contextKey: "ss:auto",
@@ -406,13 +385,15 @@ const createSubthresholdMetric = ({
 
 const createMetricInputSignatures = (
   inputSignatures: string[],
-  input: MetricInputRecord | undefined,
+  input: CalculationMetricInputRecord | undefined,
 ): string[] => {
   const inputSignature = input ? createMetricInputSignature(input) : null;
   return inputSignature ? [...inputSignatures, inputSignature] : inputSignatures;
 };
 
-const createMetricInputSignature = (input: MetricInputRecord): string => {
+const createMetricInputSignature = (
+  input: CalculationMetricInputRecord,
+): string => {
   const parts = [
     "metricInput",
     input.metricKey,
@@ -437,8 +418,8 @@ const resolveFitMidpoint = (fit: Record<string, unknown>): number | null => {
 };
 
 const appendMetric = (
-  metricsByKey: Record<MetricKey, MetricRecord>,
-  metric: MetricRecord,
+  metricsByKey: Record<MetricKey, CalculationMetricRecord>,
+  metric: CalculationMetricRecord,
 ): void => {
   metricsByKey[metric.key] = metric;
 };
@@ -446,21 +427,18 @@ const appendMetric = (
 const createMetricInputCurveRef = ({
   curvesByKey,
   family,
-  fileId,
   itMode,
   ivMode,
   seriesId,
 }: {
-  curvesByKey: Record<string, CurveRecord>;
+  curvesByKey: Readonly<Record<string, CalculationBaseCurveRecord>>;
   family: BaseCurveFamily;
-  fileId: string;
   itMode: ItCurveMode | null;
   ivMode: IvCurveMode | null;
   seriesId: string;
-}): CurveRef => {
+}): CalculationCurveRef => {
   const curveKey = createBaseCurveKey(family, ivMode, itMode, seriesId);
   return {
-    fileId,
     seriesId,
     curveKey,
     signature: curvesByKey[curveKey]?.signature ?? "",
@@ -612,33 +590,4 @@ const resolveSsFit = (
     value: Number.isFinite(ss) ? ss : null,
     x: Number.isFinite(x1) && Number.isFinite(x2) ? (x1 + x2) / 2 : null,
   };
-};
-
-const getOrderedFileRecords = (
-  filesById: Readonly<Record<FileId, CalculationFileRecord>>,
-  fileOrder: readonly FileId[],
-): CalculationFileRecord[] => {
-  const files: CalculationFileRecord[] = [];
-  const seen = new Set<FileId>();
-  const pushFile = (fileId: string): void => {
-    const normalizedFileId = String(fileId ?? "").trim();
-    if (!normalizedFileId || seen.has(normalizedFileId)) {
-      return;
-    }
-    seen.add(normalizedFileId);
-
-    const file = filesById[normalizedFileId];
-    if (file) {
-      files.push(file);
-    }
-  };
-
-  for (const fileId of fileOrder) {
-    pushFile(fileId);
-  }
-  for (const fileId of Object.keys(filesById)) {
-    pushFile(fileId);
-  }
-
-  return files;
 };

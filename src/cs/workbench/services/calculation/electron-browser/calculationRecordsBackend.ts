@@ -11,17 +11,16 @@ import {
 	type CalculationSeriesAnalysis,
 } from "src/cs/workbench/services/calculation/common/calculationAnalysis";
 import {
-	type CalculationFileRecord,
-	collectFileRecordBaseCurves,
-	fileRecordSupportsSs,
-	getFileRecordAxisProjection,
-	getFileRecordCurveType,
-} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
-import type {
 	CalculationRecordsBackendInput,
 	CalculationRecordsBackendOutput,
 	ICalculationRecordsBackend,
 } from "src/cs/workbench/services/calculation/common/calculationRecordsBackend";
+import {
+	type CalculationRecordsInput,
+	calculationSupportsSs,
+	collectCalculationBaseCurves,
+	getCalculationCurveType,
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 import type {
 	BaseCurrentMetrics,
 	CurrentWindowMeta,
@@ -102,21 +101,22 @@ export class ElectronCalculationRecordsBackend
 			return null;
 		}
 
-		const payload = createRustCalculationPayload(input.file);
+		const payload = createRustCalculationPayload(input.records, input.requestId);
 		if (payload && this.rustTransport.isSupported()) {
 			const endPerf = startPerf("calculationBackend.rust", {
-				fileId: input.file.id,
 				pointCount: payload.series.reduce(
 					(total, series) => total + series.x.length,
 					0,
 				),
+				requestId: input.requestId,
 				seriesCount: payload.series.length,
 			});
 			try {
 				const response = await this.rustTransport.analyze(payload);
 				const analysisBySeriesId = readRustCalculationAnalysis(
 					response,
-					input.file,
+					input.records,
+					payload.fileId,
 				);
 				if (analysisBySeriesId) {
 					const output = await this.fallbackBackend.calculateRecords({
@@ -165,11 +165,13 @@ export class ElectronCalculationRecordsBackend
 }
 
 const createRustCalculationPayload = (
-	file: CalculationFileRecord,
+	input: CalculationRecordsInput,
+	requestId: number,
 ): RustCalculationPayload | null => {
 	const series: RustCalculationSeriesPayload[] = [];
 	const seenSeriesIds = new Set<string>();
-	for (const curve of collectFileRecordBaseCurves(file)) {
+	const baseCurves = collectCalculationBaseCurves(input);
+	for (const curve of baseCurves) {
 		if (seenSeriesIds.has(curve.seriesId)) {
 			continue;
 		}
@@ -191,22 +193,22 @@ const createRustCalculationPayload = (
 		return null;
 	}
 
-	const axis = getFileRecordAxisProjection(file);
 	return {
-		fileId: file.id,
+		fileId: `calculation-${requestId}`,
 		series,
 		sourceFile: {
-			curveType: getFileRecordCurveType(file),
-			supportsSs: fileRecordSupportsSs(file),
-			xAxisRole: axis.xAxisRole,
-			xLabel: axis.xLabel,
+			curveType: getCalculationCurveType(baseCurves[0]),
+			supportsSs: calculationSupportsSs(input),
+			xAxisRole: input.axis.xAxisRole,
+			xLabel: input.axis.xLabel,
 		},
 	};
 };
 
 const readRustCalculationAnalysis = (
 	response: RustHostResponse,
-	file: CalculationFileRecord,
+	input: CalculationRecordsInput,
+	analysisId: string,
 ): CalculationAnalysisBySeriesId | null => {
 	if (!response.ok) {
 		return null;
@@ -215,7 +217,7 @@ const readRustCalculationAnalysis = (
 	const result = readObject(response.result);
 	if (
 		!result ||
-		String(result.fileId ?? "") !== file.id ||
+		String(result.fileId ?? "") !== analysisId ||
 		Number(result.version) !== CalculationAnalysisVersion
 	) {
 		return null;
@@ -227,7 +229,7 @@ const readRustCalculationAnalysis = (
 	}
 
 	const analysisBySeriesId: Record<string, CalculationSeriesAnalysis> = {};
-	for (const curve of collectFileRecordBaseCurves(file)) {
+	for (const curve of collectCalculationBaseCurves(input)) {
 		const rawAnalysis = readObject(rawSeriesById[curve.seriesId]);
 		if (!rawAnalysis) {
 			continue;

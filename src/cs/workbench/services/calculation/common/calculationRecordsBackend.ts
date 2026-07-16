@@ -7,17 +7,17 @@ import type {
 	CalculationAnalysisBySeriesId,
 } from "src/cs/workbench/services/calculation/common/calculationAnalysis";
 import type {
-	CalculationFileRecord,
-} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
-import type {
 	CalculatedCurveRecord,
 	CalculatedMetricRecord,
 } from "src/cs/workbench/services/calculation/common/calculationRecordBuilder";
+import type {
+	CalculationRecordsInput,
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 
 export type CalculationRecordsBackendInput = {
 	readonly analysisBySeriesId?: CalculationAnalysisBySeriesId;
-	readonly file: CalculationFileRecord;
 	readonly inputSignature: string;
+	readonly records: CalculationRecordsInput;
 	readonly requestId: number;
 };
 

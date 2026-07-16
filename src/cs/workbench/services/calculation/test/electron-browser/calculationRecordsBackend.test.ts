@@ -12,40 +12,21 @@ import type {
 	ICalculationRecordsBackend,
 } from "src/cs/workbench/services/calculation/common/calculationRecordsBackend";
 import {
-	createCalculatedRecordsByFile,
+	createCalculatedRecords,
 } from "src/cs/workbench/services/calculation/common/calculationRecordBuilder";
+import type {
+	CalculationRecordsInput,
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 import {
 	ElectronCalculationRecordsBackend,
 	type RustCalculationTransport,
 } from "src/cs/workbench/services/calculation/electron-browser/calculationRecordsBackend";
-import {
-	addSliceOutputToRecordsForTest,
-	createFileRecordsForTest,
-} from "src/cs/workbench/services/session/test/common/sessionTestRecords";
 
 suite("workbench/services/calculation/test/electron-browser/calculationRecordsBackend", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("builds canonical records from Rust calculation analysis", async () => {
-		const records = addSliceOutputToRecordsForTest(
-			createFileRecordsForTest([{
-				fileId: "file-a",
-				fileName: "Transfer.csv",
-			}]),
-			{
-				curveType: "transfer",
-				fileId: "file-a",
-				fileName: "Transfer.csv",
-				series: [{
-					groupIndex: 0,
-					id: "series-1",
-					y: [1e-9, 1e-7, 1e-5],
-				}],
-				xAxisRole: "vg",
-				xGroups: [[0, 0.5, 1]],
-			},
-		);
-		const file = records.filesById["file-a"];
+		const records = createTransferRecordsInput();
 		const fallback = new TestCalculationRecordsBackend();
 		let receivedPayload: unknown;
 		const rustTransport: RustCalculationTransport = {
@@ -55,7 +36,7 @@ suite("workbench/services/calculation/test/electron-browser/calculationRecordsBa
 					durationMs: 3,
 					ok: true,
 					result: {
-						fileId: "file-a",
+						fileId: "calculation-7",
 						series: {
 							"series-1": {
 								baseCurrent: {
@@ -94,8 +75,8 @@ suite("workbench/services/calculation/test/electron-browser/calculationRecordsBa
 		);
 
 		const output = await backend.calculateRecords({
-			file,
 			inputSignature: "input-11",
+			records,
 			requestId: 7,
 		});
 		const gm = output?.curves.find(
@@ -110,7 +91,7 @@ suite("workbench/services/calculation/test/electron-browser/calculationRecordsBa
 		);
 
 		assert.deepEqual(receivedPayload, {
-			fileId: "file-a",
+			fileId: "calculation-7",
 			series: [{
 				id: "series-1",
 				x: [0, 0.5, 1],
@@ -120,7 +101,7 @@ suite("workbench/services/calculation/test/electron-browser/calculationRecordsBa
 				curveType: "transfer",
 				supportsSs: true,
 				xAxisRole: "vg",
-				xLabel: undefined,
+				xLabel: "Gate Voltage",
 			},
 		});
 		assert.equal(output?.requestId, 7);
@@ -143,24 +124,6 @@ suite("workbench/services/calculation/test/electron-browser/calculationRecordsBa
 	});
 
 	test("falls back to the Web Worker backend for invalid Rust results", async () => {
-		const records = addSliceOutputToRecordsForTest(
-			createFileRecordsForTest([{
-				fileId: "file-a",
-				fileName: "Transfer.csv",
-			}]),
-			{
-				curveType: "transfer",
-				fileId: "file-a",
-				fileName: "Transfer.csv",
-				series: [{
-					groupIndex: 0,
-					id: "series-1",
-					y: [1e-9, 1e-7, 1e-5],
-				}],
-				xAxisRole: "vg",
-				xGroups: [[0, 0.5, 1]],
-			},
-		);
 		const fallback = new TestCalculationRecordsBackend();
 		const backend = new ElectronCalculationRecordsBackend(
 			fallback,
@@ -168,7 +131,7 @@ suite("workbench/services/calculation/test/electron-browser/calculationRecordsBa
 				analyze: async () => ({
 					ok: true,
 					result: {
-						fileId: "file-a",
+						fileId: "calculation-1",
 						series: {},
 						version: 99,
 					},
@@ -179,8 +142,8 @@ suite("workbench/services/calculation/test/electron-browser/calculationRecordsBa
 		);
 
 		const output = await backend.calculateRecords({
-			file: records.filesById["file-a"],
 			inputSignature: "input-2",
+			records: createTransferRecordsInput(),
 			requestId: 1,
 		});
 
@@ -209,16 +172,59 @@ class TestCalculationRecordsBackend
 		if (!input.analysisBySeriesId) {
 			return null;
 		}
-		const records = createCalculatedRecordsByFile(
-			{ [input.file.id]: input.file },
-			[input.file.id],
-			{ [input.file.id]: input.analysisBySeriesId },
+		const records = createCalculatedRecords(
+			input.records,
+			input.analysisBySeriesId,
 		);
 		return {
-			curves: records.curvesByFileId[input.file.id] ?? [],
+			curves: records.curves,
 			inputSignature: input.inputSignature,
-			metrics: records.metricsByFileId[input.file.id] ?? [],
+			metrics: records.metrics,
 			requestId: input.requestId,
 		};
 	}
+}
+
+function createTransferRecordsInput(): CalculationRecordsInput {
+	return {
+		axis: {
+			xAxisRole: "vg",
+			xLabel: "Gate Voltage",
+			xUnit: "V",
+			yLabel: "Drain Current",
+			yUnit: "A",
+		},
+		baseCurvesByKey: {
+			"base:iv:transfer:series-1": {
+				curveFamily: "iv",
+				curveGeneration: "base",
+				domain: {
+					x: [0, 1],
+					y: [1e-9, 1e-5],
+				},
+				ivMode: "transfer",
+				lineage: {
+					baseFamily: "iv",
+					baseSeries: { seriesId: "series-1" },
+					curveGeneration: "base",
+					ivMode: "transfer",
+				},
+				points: [
+					{ x: 0, y: 1e-9 },
+					{ x: 0.5, y: 1e-7 },
+					{ x: 1, y: 1e-5 },
+				],
+				seriesId: "series-1",
+				signature: "series-1",
+			},
+		},
+		seriesById: {
+			"series-1": {
+				groupIndex: 0,
+				id: "series-1",
+				y: [1e-9, 1e-7, 1e-5],
+			},
+		},
+		seriesOrder: ["series-1"],
+	};
 }

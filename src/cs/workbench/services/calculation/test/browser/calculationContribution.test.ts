@@ -14,7 +14,7 @@ import type {
 	CalculationRecordsBackendOutput,
 	ICalculationRecordsBackend,
 } from "src/cs/workbench/services/calculation/common/calculationRecordsBackend";
-import { createCalculatedRecordsByFile } from "src/cs/workbench/services/calculation/common/calculationRecordBuilder";
+import { createCalculatedRecords } from "src/cs/workbench/services/calculation/common/calculationRecordBuilder";
 import type {
 	ISliceService,
 	SliceResourceResult,
@@ -56,6 +56,12 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
 			curve.curveFamily === "gm"
 		));
 		assert.ok(Object.keys(result.metricsByKey).length > 0);
+		assert.equal(
+			Object.values(result.curvesByKey).some(curve =>
+				Object.prototype.hasOwnProperty.call(curve, "fileId")
+			),
+			false,
+		);
 		assert.equal(backend.calculateCount, 1);
 		assert.deepEqual(changes.map(change => ({
 			resource: change.resource.toString(),
@@ -201,14 +207,11 @@ class TestSliceService extends Disposable implements ISliceService {
 function createBackendOutput(
 	input: CalculationRecordsBackendInput,
 ): CalculationRecordsBackendOutput {
-	const records = createCalculatedRecordsByFile(
-		{ [input.file.id]: input.file },
-		[input.file.id],
-	);
+	const records = createCalculatedRecords(input.records);
 	return {
-		curves: records.curvesByFileId[input.file.id] ?? [],
+		curves: records.curves,
 		inputSignature: input.inputSignature,
-		metrics: records.metricsByFileId[input.file.id] ?? [],
+		metrics: records.metrics,
 		requestId: input.requestId,
 	};
 }

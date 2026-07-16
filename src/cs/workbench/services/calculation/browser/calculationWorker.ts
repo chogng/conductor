@@ -7,20 +7,18 @@ import type {
 	CalculationAnalysisBySeriesId,
 } from 'src/cs/workbench/services/calculation/common/calculationAnalysis';
 import {
-	createCalculatedRecordsByFile,
+	createCalculatedRecords,
 	type CalculatedCurveRecord,
 	type CalculatedMetricRecord,
 } from 'src/cs/workbench/services/calculation/common/calculationRecordBuilder';
 import type {
-	CalculationFileRecord,
-} from 'src/cs/workbench/services/calculation/common/canonicalFileProjection';
-
-export type CalculationWorkerFile = CalculationFileRecord;
+	CalculationRecordsInput,
+} from 'src/cs/workbench/services/calculation/common/calculationRecords';
 
 export type CalculationRecordsWorkerRequest = {
 	readonly analysisBySeriesId?: CalculationAnalysisBySeriesId;
-	readonly file: CalculationWorkerFile;
 	readonly inputSignature: string;
+	readonly records: CalculationRecordsInput;
 	readonly requestId: number;
 };
 
@@ -39,20 +37,18 @@ class CalculationWorker implements ICalculationWorker {
 	public $calculateRecords(
 		input: CalculationRecordsWorkerRequest,
 	): CalculationRecordsWorkerOutput {
-		const fileId = String(input.file?.id ?? '').trim();
-		if (!input.file || !fileId) {
-			throw new Error('Calculation worker request is missing file.');
+		if (!input.records || !Object.keys(input.records.baseCurvesByKey).length) {
+			throw new Error('Calculation worker request is missing base curves.');
 		}
 
-		const { curvesByFileId, metricsByFileId } = createCalculatedRecordsByFile(
-			{ [fileId]: input.file },
-			[fileId],
-			{ [fileId]: input.analysisBySeriesId },
+		const records = createCalculatedRecords(
+			input.records,
+			input.analysisBySeriesId,
 		);
 		return {
-			curves: curvesByFileId[fileId] ?? [],
+			curves: records.curves,
 			inputSignature: input.inputSignature,
-			metrics: metricsByFileId[fileId] ?? [],
+			metrics: records.metrics,
 			requestId: normalizeInteger(input.requestId),
 		};
 	}

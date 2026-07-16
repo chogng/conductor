@@ -6,13 +6,11 @@ import type { Event } from "src/cs/base/common/event";
 import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type {
-	FileRecordAxisProjection,
-} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
-import type {
-	CurveRecord,
-	MetricRecord,
-	SeriesRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
+	CalculationAxis,
+	CalculationCurveRecord,
+	CalculationMetricRecord,
+	CalculationSeriesRecord,
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 
 export const ICalculationService = createDecorator<ICalculationService>("calculationService");
 export const CalculationContributionId = "workbench.services.calculation";
@@ -23,13 +21,13 @@ export type CalculationResourceIdentity = {
 };
 
 export type CalculationResourceResult = CalculationResourceIdentity & {
-	readonly axis: FileRecordAxisProjection;
+	readonly axis: CalculationAxis;
 	readonly completedAt: number;
-	readonly curvesByKey: Readonly<Record<string, CurveRecord>>;
+	readonly curvesByKey: Readonly<Record<string, CalculationCurveRecord>>;
 	readonly inputSignature: string;
-	readonly metricsByKey: Readonly<Record<string, MetricRecord>>;
+	readonly metricsByKey: Readonly<Record<string, CalculationMetricRecord>>;
 	readonly requestSignature: string;
-	readonly seriesById: Readonly<Record<string, SeriesRecord>>;
+	readonly seriesById: Readonly<Record<string, CalculationSeriesRecord>>;
 	readonly seriesOrder: readonly string[];
 	readonly sourceModelVersion: number;
 	readonly sourceVersion: number;

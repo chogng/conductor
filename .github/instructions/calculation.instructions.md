@@ -27,12 +27,12 @@ table preview state.
 | File | Responsibility |
 | --- | --- |
 | `common/calculation.ts` | `ICalculationService` contract and shared exports. |
+| `common/calculationRecords.ts` | resource-neutral calculation input, curve, metric, series, and axis records. |
 | `common/calculationTypes.ts` | pure value types. |
 | `common/calculationExecutor.ts` | pure algorithm dispatcher. |
 | `common/calculationRecordBuilder.ts` | facade for calculated curve/metric result records. |
 | `common/calculationCurveRecordBuilder.ts` | derived and second-derived `CurveRecord` builders. |
 | `common/calculationMetricRecordBuilder.ts` | `MetricRecord` builders from base curves/metric inputs. |
-| `common/canonicalFileProjection.ts` | minimal calculation input projection shared by legacy file and URI-backed resource paths. |
 | `common/calculationReadModel.ts` | derived read models and source-normalization projections. |
 | `common/calculationCacheAccess.ts` / `calculationCachePolicy.ts` | cache access/invalidation/retention. |
 | `common/gm.ts`, `ss.ts`, `vth.ts`, `ionIoff.ts`, `sweepSegmentation.ts` | focused algorithm families/helpers. |
@@ -66,6 +66,12 @@ SliceResourceResult for { resource, sheetId? }
 
 - Resource identity is `{ resource: URI, sheetId? }`; do not introduce a
   parallel calculation file-id identity.
+- Calculation record builders consume one resource-neutral
+  `CalculationRecordsInput`; do not recreate Session `FileRecord`,
+  `filesById` / `fileOrder`, or synthetic file-id batching for URI work.
+- `CalculationResourceResult` owns `resource` / `sheetId` once at the result
+  boundary. Nested series, curves, metrics, lineage, and curve refs must not
+  repeat that identity as `fileId`.
 - Read base curves and source versions through `ISliceService.getResourceResult()`.
 - Keep calculated curves and metrics in `CalculationResourceResult`; do not
   commit them into Session.

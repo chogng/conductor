@@ -57,8 +57,8 @@ export class CalculationWorkerClient extends Disposable implements ICalculationR
 		try {
 			const workerRequest = worker.proxy.$calculateRecords({
 				analysisBySeriesId: input.analysisBySeriesId,
-				file: input.file,
 				inputSignature: input.inputSignature,
+				records: input.records,
 				requestId: input.requestId,
 			});
 			return await new Promise<CalculationRecordsBackendOutput | null>(resolve => {

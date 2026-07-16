@@ -38,7 +38,7 @@ import {
   type OriginYAxisScaleMode,
 } from "src/cs/workbench/services/export/common/originExport";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
-import { getFileRecordAxisProjection } from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
+import { getFileRecordAxisProjection } from "src/cs/workbench/services/session/common/sessionFileProjection";
 import {
   getPlotFileAxisSettings,
 } from "src/cs/workbench/services/plot/common/plotAxisSettings";

@@ -1,18 +1,12 @@
 import assert from "assert";
 
 import { URI } from "src/cs/base/common/uri";
-import type {
-  BaseCurveKey,
-  DerivedCurveKey,
-  FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
 import type { CalculationResourceResult } from "src/cs/workbench/services/calculation/common/calculation";
 
 import {
   createCalculatedData,
   createCalculatedDataKey,
   createCalculatedDataForCalculationResourceResult,
-  createCalculatedDataInputSignature,
   createCalculatedPlotsByKey,
   createCalculatedSeries,
   createSecondCalculatedData,
@@ -195,48 +189,6 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     );
   });
 
-  test("createCalculatedDataInputSignature ignores derived curve cache writes", () => {
-    const file = createFileRecord();
-    const signature = createCalculatedDataInputSignature(
-      { "file-a": file },
-      ["file-a"],
-    );
-    const derivedKey = "derived:gm:default:series-a" as DerivedCurveKey;
-    const withDerived: FileRecord = {
-      ...file,
-      curvesByKey: {
-        ...file.curvesByKey,
-        [derivedKey]: {
-          curveFamily: "gm",
-          curveGeneration: "derived",
-          fileId: "file-a",
-          lineage: {
-            curveGeneration: "derived",
-            derivedFamily: "gm",
-            inputCurve: {
-              curveKey: "base:iv:transfer:series-a" as BaseCurveKey,
-              fileId: "file-a",
-              seriesId: "series-a",
-              signature: "base-signature",
-            },
-          },
-          points: [
-            { x: 0, y: 1 },
-            { x: 1, y: 1.5 },
-            { x: 2, y: 2 },
-          ],
-          seriesId: "series-a",
-          signature: "derived-signature",
-        },
-      },
-    };
-
-    assert.equal(
-      createCalculatedDataInputSignature({ "file-a": withDerived }, ["file-a"]),
-      signature,
-    );
-  });
-
   test("getCalculatedData falls back to the first file for a plot type", () => {
     const byKey = createCalculatedPlotsByKey([
       createFile(),
@@ -298,7 +250,6 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
 const createCalculationResourceResult = (): CalculationResourceResult => {
   const resource = URI.file("/workspace/data/transfer.csv").toJSON() as unknown as URI;
   const sheetId = "Sheet 1";
-  const fileId = "file:///workspace/data/transfer.csv\u0000Sheet 1";
   return {
     axis: {
       xAxisRole: "vg",
@@ -310,12 +261,10 @@ const createCalculationResourceResult = (): CalculationResourceResult => {
       "base:iv:transfer:series-a": {
         curveFamily: "iv",
         curveGeneration: "base",
-        fileId,
         ivMode: "transfer",
         lineage: {
           baseFamily: "iv",
           baseSeries: {
-            fileId,
             seriesId: "series-a",
           },
           curveGeneration: "base",
@@ -334,11 +283,9 @@ const createCalculationResourceResult = (): CalculationResourceResult => {
     requestSignature: "request-a",
     seriesById: {
       "series-a": {
-        fileId,
         groupIndex: 0,
         id: "series-a",
         name: "Series A",
-        sheetId,
         y: [1, 2],
       },
     },
@@ -347,95 +294,5 @@ const createCalculationResourceResult = (): CalculationResourceResult => {
     sourceVersion: 1,
     resource,
     sheetId,
-  };
-};
-
-const createFileRecord = (
-  fileId = "file-a",
-  seriesId = "series-a",
-  points = [
-    { x: 0, y: 1 },
-    { x: 1, y: 2 },
-    { x: 2, y: 4 },
-  ],
-): FileRecord => {
-  const curveKey = `base:iv:transfer:${seriesId}` as BaseCurveKey;
-  return {
-    curvesByKey: {
-      [curveKey]: {
-        curveFamily: "iv",
-        curveGeneration: "base",
-        fileId,
-        ivMode: "transfer",
-        lineage: {
-          baseFamily: "iv",
-          baseSeries: { fileId, seriesId },
-          curveGeneration: "base",
-          ivMode: "transfer",
-        },
-        points,
-        domain: {
-          x: [0, 2],
-          y: [1, 4],
-        },
-        seriesId,
-        signature: "base-signature",
-      },
-    },
-    id: fileId,
-    kind: "unknown",
-    metricsByKey: {},
-    name: `${fileId}.csv`,
-    raw: {
-      fileId,
-      fileName: `${fileId}.csv`,
-      tableOrder: [],
-      tablesById: {},
-    },
-    rawTableVersionsById: {},
-    seriesById: {
-      [seriesId]: {
-        fileId,
-        groupIndex: 0,
-        id: seriesId,
-        legendValue: "Vd=0.1",
-        y: [1, 2, 4],
-      },
-    },
-    seriesOrder: [seriesId],
-    latestSliceRunId: "run-a",
-    sliceRunsById: {
-      "run-a": {
-        fileId,
-        id: "run-a",
-        mode: "auto",
-        rawTableId: fileId,
-        selection: { kind: "auto" },
-        sourceRawTableVersion: 0,
-        template: {
-          schemaVersion: 1,
-          name: "Template",
-          version: 1,
-          stopOnError: false,
-          blocks: [{
-            rowRange: { startRow: 0, endRow: 2 },
-            x: { columns: [0], unit: "V" },
-            y: { columns: [1], unit: "A" },
-            segmentation: { kind: "auto" },
-            legend: { target: "auto" },
-            titles: {
-              bottom: "Gate Voltage",
-              left: "Drain Current",
-            },
-          }],
-        },
-        templateFingerprint: "config-a",
-        inputRanges: [],
-        outputCurveKeys: [curveKey],
-        outputSeriesIds: [seriesId],
-        warnings: [],
-        errors: [],
-      },
-    },
   };
 };

@@ -12,10 +12,10 @@ import {
   StorageTarget,
 } from "src/cs/platform/storage/common/storage";
 import {
-  createCalculatedDataForCanonicalFile,
   createCalculatedDataForCalculationResourceResult,
   type CalculatedData,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
+import { createCalculatedDataForCanonicalFile } from "src/cs/workbench/services/plot/common/canonicalCalculatedData";
 import {
   ICalculationService,
   type ICalculationService as ICalculationServiceType,
@@ -74,7 +74,7 @@ import {
   getPlotFileAxisSettings,
   type PlotFileAxisSettingsOverrides,
 } from "src/cs/workbench/services/plot/common/plotAxisSettings";
-import { hasFileRecordBaseCurves } from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
+import { hasFileRecordBaseCurves } from "src/cs/workbench/services/session/common/sessionFileProjection";
 
 const PLOT_AXIS_STORAGE_KEYS = {
   xUnitByFileId: "plot.xUnitByFileId",

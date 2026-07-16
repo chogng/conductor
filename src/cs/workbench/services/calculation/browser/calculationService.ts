@@ -16,13 +16,17 @@ import {
 	type CalculationResourceResult,
 } from "src/cs/workbench/services/calculation/common/calculation";
 import {
-	type CalculationFileRecord,
-	type FileRecordAxisProjection,
-} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
-import {
-	createCalculatedRecordsByFile,
+	createCalculatedRecords,
 	createCalculatedRecordsInputSignature,
 } from "src/cs/workbench/services/calculation/common/calculationRecordBuilder";
+import type {
+	CalculationAxis,
+	CalculationBaseCurveRecord,
+	CalculationCurveRecord,
+	CalculationMetricRecord,
+	CalculationRecordsInput,
+	CalculationSeriesRecord,
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 import {
 	ISliceService,
 	type SliceResourceResult,
@@ -30,17 +34,13 @@ import {
 import type { TemplateBlock } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
 	BaseCurveKey,
-	BaseCurveRecord,
 	CurveKey,
-	CurveRecord,
-	MetricRecord,
-	SeriesRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 
 type PendingCalculation = CalculationResourceIdentity & {
 	readonly cacheKey: string;
-	readonly file: CalculationFileRecord;
 	readonly inputSignature: string;
+	readonly records: CalculationRecordsInput;
 	readonly requestSignature: string;
 	readonly sourceModelVersion: number;
 	readonly sourceVersion: number;
@@ -200,8 +200,8 @@ export class CalculationService extends Disposable implements ICalculationServic
 		try {
 			const backendResult = this.calculationRecordsBackend.isSupported()
 				? await this.calculationRecordsBackend.calculateRecords({
-					file: pending.file,
 					inputSignature: pending.inputSignature,
+					records: pending.records,
 					requestId,
 				})
 				: null;
@@ -212,7 +212,11 @@ export class CalculationService extends Disposable implements ICalculationServic
 
 			const records = isCurrentBackendResult(backendResult, pending.inputSignature, requestId)
 				? backendResult
-				: createCalculatedRecordsOnMainThread(pending.file, pending.inputSignature, requestId);
+				: createCalculatedRecordsOnMainThread(
+					pending.records,
+					pending.inputSignature,
+					requestId,
+				);
 			const result = createCalculationResourceResult(pending, records);
 			this.resultsByCacheKey.set(cacheKey, result);
 			this.onDidChangeResourceCalculationResultEmitter.fire({
@@ -254,18 +258,18 @@ export class CalculationService extends Disposable implements ICalculationServic
 			normalized.resource,
 			normalized.sheetId,
 		);
-		const file = createCalculationFileRecord(sliceResult);
+		const records = createCalculationRecordsInput(sliceResult);
 		const inputSignature = [
 			sliceResult.requestSignature,
 			String(sliceResult.sourceModelVersion),
 			String(sliceResult.sourceVersion),
-			createCalculatedRecordsInputSignature({ [file.id]: file }, [file.id]),
+			createCalculatedRecordsInputSignature(records),
 		].join("\u001e");
 		return {
 			...normalized,
 			cacheKey,
-			file,
 			inputSignature,
+			records,
 			requestSignature: sliceResult.requestSignature,
 			sourceModelVersion: sliceResult.sourceModelVersion,
 			sourceVersion: sliceResult.sourceVersion,
@@ -274,15 +278,15 @@ export class CalculationService extends Disposable implements ICalculationServic
 }
 
 function createCalculatedRecordsOnMainThread(
-	file: CalculationFileRecord,
+	input: CalculationRecordsInput,
 	inputSignature: string,
 	requestId: number,
 ): CalculationRecordsBackendOutput {
-	const records = createCalculatedRecordsByFile({ [file.id]: file }, [file.id]);
+	const records = createCalculatedRecords(input);
 	return {
-		curves: records.curvesByFileId[file.id] ?? [],
+		curves: records.curves,
 		inputSignature,
-		metrics: records.metricsByFileId[file.id] ?? [],
+		metrics: records.metrics,
 		requestId,
 	};
 }
@@ -303,61 +307,61 @@ function createCalculationResourceResult(
 	pending: PendingCalculation,
 	records: CalculationRecordsBackendOutput,
 ): CalculationResourceResult {
-	const curvesByKey: Record<string, CurveRecord> = { ...pending.file.curvesByKey };
+	const curvesByKey: Record<string, CalculationCurveRecord> = {
+		...pending.records.baseCurvesByKey,
+	};
 	for (const curve of records.curves) {
 		curvesByKey[createCurveKey(curve)] = curve;
 	}
 	const metricsByKey = Object.fromEntries(
 		records.metrics.map(metric => [metric.key, metric]),
-	) as Record<string, MetricRecord>;
+	) as Record<string, CalculationMetricRecord>;
 	return {
-		axis: pending.file.axis ?? { xAxisRole: null },
+		axis: pending.records.axis,
 		completedAt: Date.now(),
 		curvesByKey,
 		inputSignature: pending.inputSignature,
 		metricsByKey,
 		requestSignature: pending.requestSignature,
 		resource: pending.resource,
-		seriesById: pending.file.seriesById,
-		seriesOrder: pending.file.seriesOrder,
+		seriesById: pending.records.seriesById,
+		seriesOrder: pending.records.seriesOrder,
 		sheetId: pending.sheetId ?? null,
 		sourceModelVersion: pending.sourceModelVersion,
 		sourceVersion: pending.sourceVersion,
 	};
 }
 
-function createCalculationFileRecord(result: SliceResourceResult): CalculationFileRecord {
-	const fileId = createCalculationResourceCacheKey(result.resource, result.sheetId);
+function createCalculationRecordsInput(
+	result: SliceResourceResult,
+): CalculationRecordsInput {
 	const seriesById = Object.fromEntries(
 		result.series.map(series => [
 			series.id,
 			{
-				fileId,
 				groupIndex: series.groupIndex,
 				id: series.id,
 				labelOverride: series.labelOverride,
 				legendValue: series.legendValue,
 				name: series.name,
-				sheetId: result.sheetId ?? undefined,
 				y: series.y,
 				yCol: series.yCol,
-			} satisfies SeriesRecord,
+			} satisfies CalculationSeriesRecord,
 		]),
 	);
-	const curvesByKey = Object.fromEntries(
+	const baseCurvesByKey = Object.fromEntries(
 		result.curves.map(curve => {
 			const curveKey = createBaseCurveKey(curve);
-			const record: BaseCurveRecord = {
+			const record: CalculationBaseCurveRecord = {
 				channels: curve.channels,
 				curveFamily: curve.curveFamily,
 				curveGeneration: "base",
 				domain: curve.domain,
-				fileId,
 				itMode: curve.itMode ?? null,
 				ivMode: curve.ivMode ?? null,
 				lineage: {
 					baseFamily: curve.curveFamily,
-					baseSeries: { fileId, seriesId: curve.seriesId },
+					baseSeries: { seriesId: curve.seriesId },
 					curveGeneration: "base",
 					itMode: curve.itMode ?? null,
 					ivMode: curve.ivMode ?? null,
@@ -371,14 +375,13 @@ function createCalculationFileRecord(result: SliceResourceResult): CalculationFi
 	);
 	return {
 		axis: createAxisProjection(result),
-		curvesByKey,
-		id: fileId,
+		baseCurvesByKey,
 		seriesById,
 		seriesOrder: result.series.map(series => series.id),
 	};
 }
 
-function createAxisProjection(result: SliceResourceResult): FileRecordAxisProjection {
+function createAxisProjection(result: SliceResourceResult): CalculationAxis {
 	const ivMode = result.curves.find(curve =>
 		curve.curveFamily === "iv" && curve.ivMode
 	)?.ivMode ?? null;
@@ -415,7 +418,7 @@ function createBaseCurveKey(
 	return `base:${curve.curveFamily}:${mode}:${curve.seriesId}` as BaseCurveKey;
 }
 
-function createCurveKey(curve: CurveRecord): CurveKey {
+function createCurveKey(curve: CalculationCurveRecord): CurveKey {
 	if (curve.curveGeneration === "base") {
 		const mode = curve.curveFamily === "iv"
 			? curve.ivMode ?? "default"

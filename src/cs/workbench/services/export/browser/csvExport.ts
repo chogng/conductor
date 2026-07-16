@@ -22,7 +22,7 @@ import {
   getFileRecordAxisProjection,
   getFileRecordCurveType,
   getFileRecordXGroups,
-} from "src/cs/workbench/services/calculation/common/canonicalFileProjection";
+} from "src/cs/workbench/services/session/common/sessionFileProjection";
 
 export type {
   OriginExportMode,
