@@ -4,7 +4,7 @@
 
 import { addDisposableListener, EventType, scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
-import { StepperActionViewItem, type Stepper, type StepperOptions } from "src/cs/base/browser/ui/stepper/stepper";
+import type { Stepper } from "src/cs/base/browser/ui/stepper/stepper";
 import {
   Action,
   toAction,
@@ -23,12 +23,14 @@ import {
   type TableControllerProps,
 } from "src/cs/workbench/contrib/table/browser/tableController";
 import { TableDropTarget } from "src/cs/workbench/contrib/table/browser/tableDropTarget";
+import {
+  createTableZoomStepperActionViewItem,
+  syncTableZoomStepper,
+  type TableStepperActions,
+} from "src/cs/workbench/contrib/table/browser/tableStepper";
 import { ITableWidgetService } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
 import { TableCommandId, TableViewId } from "src/cs/workbench/contrib/table/common/table";
-import {
-  TABLE_WIDGET_ZOOM_OPTIONS,
-  type ITableSize,
-} from "src/cs/base/browser/ui/table/table";
+import type { ITableSize } from "src/cs/base/browser/ui/table/table";
 import {
   type TableWidgetColumnHeaderSelection,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
@@ -66,6 +68,7 @@ export class TableViewPane extends ViewPane {
   private readonly zoomInAction: Action;
   private readonly zoomOutAction: Action;
   private readonly resetZoomAction: Action;
+  private readonly zoomStepperActions: TableStepperActions;
   private zoomControl: Stepper | null = null;
   private controller: TableController | null = null;
   private pendingControllerRender: IDisposable | null = null;
@@ -109,6 +112,11 @@ export class TableViewPane extends ViewPane {
       () => this.commandService.executeCommand(TableCommandId.zoomIn),
     ));
     this.zoomInAction.icon = LxIcon.add;
+    this.zoomStepperActions = {
+      decrease: this.zoomOutAction,
+      increase: this.zoomInAction,
+      reset: this.resetZoomAction,
+    };
     this.actionBar = new ActionBar({
       ariaLabel: localize("table.header.actions", "Table actions"),
       className: "table_view_actions",
@@ -117,7 +125,7 @@ export class TableViewPane extends ViewPane {
           return undefined;
         }
 
-        const item = new StepperActionViewItem(action, this.createZoomControlOptions());
+        const item = createTableZoomStepperActionViewItem(action, this.zoomStepperActions);
         this.zoomControl = item.stepper;
         this.updateZoomControl();
         return item;
@@ -243,25 +251,6 @@ export class TableViewPane extends ViewPane {
     this.updateHeaderRight();
   }
 
-  private createZoomControlOptions(): StepperOptions {
-    return {
-      ariaLabel: localize("table.zoomControl", "Table zoom"),
-      decrease: {
-        action: this.zoomOutAction,
-        keyShortcuts: "Control+-",
-      },
-      increase: {
-        action: this.zoomInAction,
-        keyShortcuts: "Control+=",
-      },
-      value: {
-        action: this.resetZoomAction,
-        kind: "button",
-        live: "polite",
-      },
-    };
-  }
-
   protected override layoutBody(_height: number, _width: number): void {
     this.controller?.layout();
   }
@@ -374,12 +363,11 @@ export class TableViewPane extends ViewPane {
   }
 
   private updateZoomControl(): void {
-    const zoomPercent = this.controller?.getZoomPercent() ?? TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
-    this.zoomOutAction.enabled = zoomPercent > TABLE_WIDGET_ZOOM_OPTIONS.minPercent;
-    this.zoomInAction.enabled = zoomPercent < TABLE_WIDGET_ZOOM_OPTIONS.maxPercent;
-    this.resetZoomAction.enabled = zoomPercent !== TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
-    this.zoomControl?.setValue(`${zoomPercent}%`);
-    this.zoomControl?.syncActions();
+    syncTableZoomStepper(
+      this.zoomControl,
+      this.zoomStepperActions,
+      this.controller?.getZoomPercent(),
+    );
   }
 
   private updateDimensions(): void {

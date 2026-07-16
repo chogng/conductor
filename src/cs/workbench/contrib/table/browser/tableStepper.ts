@@ -1,10 +1,15 @@
-import { Stepper } from "src/cs/base/browser/ui/stepper/stepper";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Stepper, StepperActionViewItem } from "src/cs/base/browser/ui/stepper/stepper";
+import { TABLE_WIDGET_ZOOM_OPTIONS } from "src/cs/base/browser/ui/table/table";
 import type { IAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 
-export type TableColumnScaleStepperActions = {
+export type TableStepperActions = {
   readonly decrease: IAction;
   readonly increase: IAction;
   readonly reset: IAction;
@@ -14,7 +19,7 @@ export const createTableColumnScaleStepper = ({
   decrease,
   increase,
   reset,
-}: TableColumnScaleStepperActions): Stepper => {
+}: TableStepperActions): Stepper => {
   const stepper = new Stepper({
     ariaLabel: localize("table.preview.columnScaleControl", "Column scale"),
     decrease: {
@@ -44,6 +49,31 @@ export const createTableColumnScaleStepper = ({
   return stepper;
 };
 
+export const createTableZoomStepperActionViewItem = (
+  action: IAction,
+  {
+    decrease,
+    increase,
+    reset,
+  }: TableStepperActions,
+): StepperActionViewItem =>
+  new StepperActionViewItem(action, {
+    ariaLabel: localize("table.zoomControl", "Table zoom"),
+    decrease: {
+      action: decrease,
+      keyShortcuts: "Control+-",
+    },
+    increase: {
+      action: increase,
+      keyShortcuts: "Control+=",
+    },
+    value: {
+      action: reset,
+      kind: "button",
+      live: "polite",
+    },
+  });
+
 export const syncTableColumnScaleStepper = (
   stepper: Stepper,
   colIndex: number,
@@ -69,6 +99,23 @@ export const syncTableColumnScaleStepper = (
   }
 
   return changed;
+};
+
+export const syncTableZoomStepper = (
+  stepper: Stepper | null,
+  {
+    decrease,
+    increase,
+    reset,
+  }: TableStepperActions,
+  zoomPercent: number | null | undefined,
+): void => {
+  const value = zoomPercent ?? TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
+  decrease.enabled = value > TABLE_WIDGET_ZOOM_OPTIONS.minPercent;
+  increase.enabled = value < TABLE_WIDGET_ZOOM_OPTIONS.maxPercent;
+  reset.enabled = value !== TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
+  stepper?.setValue(`${value}%`);
+  stepper?.syncActions();
 };
 
 export const isTableColumnScaleAdjustable = (profile: ColumnDisplayProfile): boolean =>
