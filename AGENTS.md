@@ -17,11 +17,9 @@ Before proposing or making repository code changes:
 3. Read `.github/instructions/commands.instructions.md` before changing command
    or action IDs, handlers, actions, menus, keybindings, contribution
    registration, or dispatch ownership.
-4. Inspect upstream VS Code when the responsibility has a plausible upstream
-   counterpart. Follow its ownership shape where applicable and justify any
-   intentional divergence. The upstream checkouts are:
-   - `C:\Users\lanxi\Desktop\vscode`
-   - `/Users/lance/Desktop/vscode`
+4. Inspect upstream VS Code when the responsibility has a plausible upstream counterpart. Follow its ownership shape where applicable and justify any intentional divergence. The upstream checkouts are:
+   - `..\vscode`
+   - `../vscode`
 5. Consult `.github/conductor-instructions.md` for repository overview and
    general conventions not covered by a more specific instruction.
 
