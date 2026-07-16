@@ -3,6 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { computeCentralDerivative } from "src/cs/workbench/services/calculation/common/gm";
+import type {
+  CalculationAnalysisBySeriesId,
+} from "src/cs/workbench/services/calculation/common/calculationAnalysis";
 import {
   computeBaseCurrentMetrics,
   isTransferLikeFile,
@@ -64,6 +67,7 @@ type DerivativePoint = {
   readonly y?: unknown;
 };
 export type CalculatedMetricRecordBuilderOptions = {
+  readonly analysisBySeriesId?: CalculationAnalysisBySeriesId;
   readonly derivativePointsBySeriesId?: Readonly<Record<SeriesId, readonly DerivativePoint[] | undefined>>;
 };
 type SsFit = {
@@ -141,6 +145,7 @@ export const createCalculatedMetricRecordsForFile = (
   const itMode = curves.find((curve) => curve.curveFamily === "it" && curve.itMode)?.itMode ?? null;
   const derivativeKind = ivMode === "output" ? "gds" : "gm";
   const rows = createMetricSourceRows({
+    analysisBySeriesId: options.analysisBySeriesId,
     curves,
     derivativePointsBySeriesId: options.derivativePointsBySeriesId,
     sourceFile,
@@ -232,10 +237,12 @@ const createMetricSourceFile = (file: FileRecord): MetricSourceFile => {
 };
 
 const createMetricSourceRows = ({
+  analysisBySeriesId,
   curves,
   derivativePointsBySeriesId,
   sourceFile,
 }: {
+  readonly analysisBySeriesId?: CalculationAnalysisBySeriesId;
   readonly curves: readonly CurveRecord[];
   readonly derivativePointsBySeriesId?: Readonly<Record<SeriesId, readonly DerivativePoint[] | undefined>>;
   readonly sourceFile: MetricSourceFile;
@@ -243,15 +250,19 @@ const createMetricSourceRows = ({
   const showTransferMetrics = isTransferLikeFile(sourceFile);
   return curves.map((curve, index): MetricSourceRow => {
     const points = curve.points;
-    const baseMetrics = computeBaseCurrentMetrics({
-      points,
-      sourceFile,
-    });
+    const analysis = analysisBySeriesId?.[curve.seriesId];
+    const baseMetrics = analysis?.baseCurrent ?? computeBaseCurrentMetrics({
+        points,
+        sourceFile,
+      });
     const derivativePoints = derivativePointsBySeriesId?.[curve.seriesId] ??
+      analysis?.gm ??
       (computeCentralDerivative(points) as DerivativePoint[]);
     const derivative = resolveMaxAbsPoint(derivativePoints);
     const ssFit = showTransferMetrics
-      ? resolveSsFit(computeSubthresholdSwingFitAuto(points))
+      ? resolveSsFit(
+          analysis?.ssFitAuto ?? computeSubthresholdSwingFitAuto(points),
+        )
       : { confidence: "fail" as const, value: null, x: null };
 
     return {

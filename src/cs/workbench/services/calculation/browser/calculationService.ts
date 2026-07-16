@@ -8,9 +8,9 @@ import {
 } from "src/cs/base/common/lifecycle";
 import { getPerfNow, logPerf, startPerf } from "src/cs/workbench/common/perf";
 import {
-  CalculationWorkerClient,
-  type CalculationRecordsWorkerOutput,
-} from "src/cs/workbench/services/calculation/browser/calculationWorkerClient";
+  type CalculationRecordsBackendOutput,
+  type ICalculationRecordsBackend,
+} from "src/cs/workbench/services/calculation/common/calculationRecordsBackend";
 import {
   createCalculatedRecordsByFile,
   createCalculatedRecordsInputSignature,
@@ -85,12 +85,12 @@ export class CalculationService extends Disposable implements ICalculationServic
   private readonly pendingCalculationWorkerSlots: PendingCalculationWorkerSlot[] = [];
 
   constructor(
-    private readonly calculationWorkerClient: CalculationWorkerClient,
+    private readonly calculationRecordsBackend: ICalculationRecordsBackend,
     @ISessionService private readonly sessionService: ISessionService,
   ) {
     super();
 
-    this._register(this.calculationWorkerClient);
+    this._register(this.calculationRecordsBackend);
     this._register(this.sessionService.onDidChangeSession(event => {
       if (shouldUpdateCalculationForSessionChange(event)) {
         this.update(event);
@@ -135,7 +135,7 @@ export class CalculationService extends Disposable implements ICalculationServic
       rememberedFileCount,
     });
     this.schedulePendingCalculation({
-      allowInteractivePriority: prioritizedFileCount === 0 || this.calculationWorkerClient.isSupported(),
+      allowInteractivePriority: prioritizedFileCount === 0 || this.calculationRecordsBackend.isSupported(),
     });
   }
 
@@ -209,7 +209,7 @@ export class CalculationService extends Disposable implements ICalculationServic
       ? this.processInteractivePriorityCalculation(event?.reason ?? "initial")
       : EMPTY_CALCULATION_CHUNK_RESULT;
     this.schedulePendingCalculation({
-      allowInteractivePriority: foregroundPriorityFileIds.length === 0 || this.calculationWorkerClient.isSupported(),
+      allowInteractivePriority: foregroundPriorityFileIds.length === 0 || this.calculationRecordsBackend.isSupported(),
     });
     endUpdatePerf({
       candidateFileCount: candidateFileIds.length,
@@ -324,7 +324,7 @@ export class CalculationService extends Disposable implements ICalculationServic
         return EMPTY_CALCULATION_CHUNK_RESULT;
       }
 
-      const workerResult = await this.calculationWorkerClient.calculateRecords({
+      const workerResult = await this.calculationRecordsBackend.calculateRecords({
         file,
         requestId,
         sessionVersion: chunkInput.sessionVersion,
@@ -588,9 +588,9 @@ export class CalculationService extends Disposable implements ICalculationServic
 
   private isCurrentCalculationWorkerResult(
     chunkInput: CalculationChunkInput,
-    result: CalculationRecordsWorkerOutput | null,
+    result: CalculationRecordsBackendOutput | null,
     requestId: number,
-  ): result is CalculationRecordsWorkerOutput {
+  ): result is CalculationRecordsBackendOutput {
     if (!result || result.requestId !== requestId) {
       return false;
     }
@@ -622,7 +622,7 @@ export class CalculationService extends Disposable implements ICalculationServic
     }
 
     this.cancelScheduledCalculation();
-    if (this.calculationWorkerClient.isSupported()) {
+    if (this.calculationRecordsBackend.isSupported()) {
       void this.flushInteractivePriorityCalculation(reason);
       return EMPTY_CALCULATION_CHUNK_RESULT;
     }

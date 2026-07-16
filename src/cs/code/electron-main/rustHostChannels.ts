@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { IpcMain, IpcMainInvokeEvent } from "electron";
 import type {
+  AnalyzeCalculationRequest,
   CalculateRcRequest,
   ExportOriginCsvRequest,
   IRustHostService,
@@ -12,6 +13,7 @@ import type { workbenchIpcChannels } from "../../workbench/common/ipcChannels.js
 type RegisterRustHandlersOptions = {
   ipcChannels: Pick<
     typeof workbenchIpcChannels,
+    | "rustHostAnalyzeCalculation"
     | "rustHostCalculateRc"
     | "rustHostExportOriginCsv"
     | "rustHostResolveStructuredContent"
@@ -55,6 +57,19 @@ export const registerRustHostChannels = ({
     return rustService.calculateRc(request);
   };
 
+  const handleRustAnalyzeCalculation = async (
+    _event: IpcMainInvokeEvent,
+    payload: unknown,
+  ) => {
+    const record = readObject(payload);
+    const request: AnalyzeCalculationRequest = {
+      fileId: readString(record?.fileId),
+      series: Array.isArray(record?.series) ? record.series : [],
+      sourceFile: readObject(record?.sourceFile) ?? undefined,
+    };
+    return runForeground(() => rustService.analyzeCalculation(request));
+  };
+
   const handleRustEngineExportOriginCsv = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
@@ -94,6 +109,10 @@ export const registerRustHostChannels = ({
   };
 
   ipcMain.handle(
+    ipcChannels.rustHostAnalyzeCalculation,
+    handleRustAnalyzeCalculation,
+  );
+  ipcMain.handle(
     ipcChannels.rustHostCalculateRc,
     handleRustEngineAnalyzeRc,
   );
@@ -107,6 +126,7 @@ export const registerRustHostChannels = ({
   );
   return {
     dispose() {
+      ipcMain.removeHandler(ipcChannels.rustHostAnalyzeCalculation);
       ipcMain.removeHandler(ipcChannels.rustHostCalculateRc);
       ipcMain.removeHandler(ipcChannels.rustHostExportOriginCsv);
       ipcMain.removeHandler(ipcChannels.rustHostResolveStructuredContent);

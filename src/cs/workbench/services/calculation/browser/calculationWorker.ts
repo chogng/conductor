@@ -4,6 +4,9 @@
 
 import { bootstrapWebWorker } from 'src/cs/base/common/worker/webWorker';
 import type { CalculationFileId } from 'src/cs/workbench/services/calculation/common/calculation';
+import type {
+	CalculationAnalysisBySeriesId,
+} from 'src/cs/workbench/services/calculation/common/calculationAnalysis';
 import { createCalculatedRecordsByFile } from 'src/cs/workbench/services/calculation/common/calculationRecordBuilder';
 import type { SliceRun } from 'src/cs/workbench/services/slice/common/slice';
 import type {
@@ -36,6 +39,7 @@ export type CalculationWorkerFile = {
 };
 
 export type CalculationRecordsWorkerRequest = {
+	readonly analysisBySeriesId?: CalculationAnalysisBySeriesId;
 	readonly file: CalculationWorkerFile;
 	readonly fileId: CalculationFileId;
 	readonly requestId: number;
@@ -66,6 +70,7 @@ class CalculationWorker implements ICalculationWorker {
 		const { curvesByFileId, metricsByFileId } = createCalculatedRecordsByFile(
 			{ [fileId]: input.file },
 			[fileId],
+			{ [fileId]: input.analysisBySeriesId },
 		);
 		return {
 			curves: curvesByFileId[fileId] ?? [],

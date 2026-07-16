@@ -8,6 +8,7 @@ export const workbenchIpcChannels = {
   originRunCsv: "conductor:origin:run-csv",
   originRuntimeCleanupRun: "conductor:origin:runtime-cleanup:run",
   demoFilesGet: "conductor:demo:files:get",
+  rustHostAnalyzeCalculation: "conductor:rust:analyze-calculation",
   rustHostCalculateRc: "conductor:rust:calculate-rc",
   rustHostExportOriginCsv: "conductor:rust:export-origin-csv",
   rustHostResolveStructuredContent: "conductor:rust:resolve-structured-content",

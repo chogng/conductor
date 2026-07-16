@@ -110,6 +110,38 @@ suite("workbench/services/calculation/test/common/calculationCurveRecordBuilder"
 			signature,
 		);
 	});
+
+	test("uses precomputed Rust analysis for gm and local SS curves", () => {
+		const recordsByFile = createCalculatedCurveRecordsByFile(
+			{ "file-a": createFileRecord() },
+			["file-a"],
+			{
+				"file-a": {
+					"series-a": {
+						gm: [{ x: 0.5, y: 42 }],
+						ss: [{ x: 1, y: 84 }],
+					},
+				},
+			},
+		);
+		const records = recordsByFile["file-a"] ?? [];
+		const gm = records.find(
+			(record) => record.curveGeneration === "derived" &&
+				record.curveFamily === "gm",
+		);
+		const ss = records.find(
+			(record) => record.curveGeneration === "derived" &&
+				record.curveFamily === "localSs",
+		);
+		const vth = records.find(
+			(record) => record.curveGeneration === "derived" &&
+				record.curveFamily === "thresholdFit",
+		);
+
+		assert.deepEqual(gm?.points, [{ x: 0.5, y: 42 }]);
+		assert.deepEqual(ss?.points, [{ x: 1, y: 84 }]);
+		assert.ok(vth?.points.length);
+	});
 });
 
 const createFileRecord = (): FileRecord => {

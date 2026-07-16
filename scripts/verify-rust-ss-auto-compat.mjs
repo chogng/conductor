@@ -64,6 +64,26 @@ const finitePairs = (xArr, yArr) =>
 
 const makeSeriesKey = (fileId, seriesId) => `${fileId}::${seriesId}`;
 
+const createAnalysisSourceFile = (file) => {
+  const curveType = String(file?.curveType ?? "").trim().toLowerCase();
+  const isTransfer = curveType === "transfer" || curveType.includes("transfer");
+  const isOutput = curveType === "output" || curveType.includes("output");
+  return {
+    curveType: file?.curveType ?? null,
+    supportsSs: isTransfer
+      ? true
+      : isOutput
+        ? false
+        : file?.supportsSs ?? null,
+    xAxisRole: isTransfer
+      ? "vg"
+      : isOutput
+        ? "vd"
+        : file?.xAxisRole ?? null,
+    xLabel: file?.xLabel ?? null,
+  };
+};
+
 const prepare = async () => {
   await fs.rm(OUTPUT_DIR, { force: true, recursive: true });
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
@@ -85,7 +105,8 @@ const prepare = async () => {
   for (const entry of entries) {
     if (!entry?.ok || !entry?.result) continue;
     const file = entry.result;
-    if (!isTransferLikeFile(file)) continue;
+    const sourceFile = createAnalysisSourceFile(file);
+    if (!isTransferLikeFile(sourceFile)) continue;
     const xGroups = safeArray(file.xGroups);
     const rustSeries = [];
     for (const item of safeArray(file.series)) {
@@ -102,7 +123,7 @@ const prepare = async () => {
         seriesId: item.id,
         baseCurrent: computeBaseCurrentMetrics({
           points,
-          sourceFile: file,
+          sourceFile,
         }),
         gm: computeCentralDerivative(points),
         ss: computeSubthresholdSwing(points),
@@ -121,12 +142,7 @@ const prepare = async () => {
         fileId: file.fileId ?? `phase3-ss-auto-ab-${requestId}`,
         id: requestId,
         series: rustSeries,
-        sourceFile: {
-          curveType: file.curveType ?? null,
-          supportsSs: file.supportsSs ?? null,
-          xAxisRole: file.xAxisRole ?? null,
-          xLabel: file.xLabel ?? null,
-        },
+        sourceFile,
       }));
     }
   }

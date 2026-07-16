@@ -11,6 +11,9 @@ import {
 	createCalculatedMetricRecordsInputSignature,
 } from "src/cs/workbench/services/calculation/common/calculationMetricRecordBuilder";
 import type {
+	CalculationAnalysisBySeriesId,
+} from "src/cs/workbench/services/calculation/common/calculationAnalysis";
+import type {
 	CurveRecord,
 	FileId,
 	FileRecord,
@@ -37,16 +40,22 @@ export const createCalculatedRecordsInputSignature = (
 export const createCalculatedRecordsByFile = (
 	filesById: Record<FileId, FileRecord>,
 	fileOrder: readonly FileId[],
+	analysisByFileId: Readonly<Record<FileId, CalculationAnalysisBySeriesId | undefined>> = {},
 ): CalculatedRecordsByFile => {
 	const curvesByFileId: Record<FileId, CurveRecord[]> = {};
 	const metricsByFileId: Record<FileId, MetricRecord[]> = {};
 	for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-		const curves = createCalculatedCurveRecordsForFile(file);
+		const analysisBySeriesId = analysisByFileId[file.id];
+		const curves = createCalculatedCurveRecordsForFile(
+			file,
+			analysisBySeriesId,
+		);
 		if (curves.length) {
 			curvesByFileId[file.id] = curves;
 		}
 
 		const metrics = createCalculatedMetricRecordsForFile(file, {
+			analysisBySeriesId,
 			derivativePointsBySeriesId: createDerivativePointsBySeriesId(curves),
 		});
 		if (metrics.length) {

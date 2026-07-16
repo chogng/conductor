@@ -7,6 +7,9 @@ import {
 	getCalculationDescriptor,
 } from "src/cs/workbench/services/calculation/common/calculationExecutor";
 import type { CalculationKind } from "src/cs/workbench/services/calculation/common/calculationTypes";
+import type {
+	CalculationAnalysisBySeriesId,
+} from "src/cs/workbench/services/calculation/common/calculationAnalysis";
 import { calculateSecondDerivativePoints } from "src/cs/workbench/services/calculation/common/gm";
 import { createCalculatedDataInputSignature } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type {
@@ -56,10 +59,14 @@ export const createCalculatedCurveRecordsInputSignature = (
 export const createCalculatedCurveRecordsByFile = (
 	filesById: Record<FileId, FileRecord>,
 	fileOrder: readonly FileId[],
+	analysisByFileId: Readonly<Record<FileId, CalculationAnalysisBySeriesId | undefined>> = {},
 ): Record<FileId, CurveRecord[]> => {
 	const recordsByFileId: Record<FileId, CurveRecord[]> = {};
 	for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-		const records = createCalculatedCurveRecordsForFile(file);
+		const records = createCalculatedCurveRecordsForFile(
+			file,
+			analysisByFileId[file.id],
+		);
 		if (records.length) {
 			recordsByFileId[file.id] = records;
 		}
@@ -70,12 +77,18 @@ export const createCalculatedCurveRecordsByFile = (
 
 export const createCalculatedCurveRecordsForFile = (
 	file: FileRecord,
+	analysisBySeriesId: CalculationAnalysisBySeriesId = {},
 ): CurveRecord[] => {
 	const records: CurveRecord[] = [];
 	const gmRecords: CurveRecord[] = [];
 	for (const input of collectBaseCurveInputs(file)) {
 		for (const kind of DerivedCalculationKinds) {
-			const record = createDerivedCurveRecord(file.id, input, kind);
+			const record = createDerivedCurveRecord(
+				file.id,
+				input,
+				kind,
+				analysisBySeriesId,
+			);
 			if (!record) {
 				continue;
 			}
@@ -117,11 +130,20 @@ const createDerivedCurveRecord = (
 	fileId: FileId,
 	input: BaseCurveInput,
 	kind: DerivedCalculationKind,
+	analysisBySeriesId: CalculationAnalysisBySeriesId,
 ): CurveRecord | null => {
-	const points = executeCalculation({
-		kind,
-		points: input.curve.points,
-	});
+	const analysis = analysisBySeriesId[input.curve.seriesId];
+	const precomputedPoints = kind === "gm"
+		? analysis?.gm
+		: kind === "ss"
+			? analysis?.ss
+			: undefined;
+	const points = precomputedPoints
+		? [...precomputedPoints]
+		: executeCalculation({
+			kind,
+			points: input.curve.points,
+		});
 	if (!points.length) {
 		return null;
 	}

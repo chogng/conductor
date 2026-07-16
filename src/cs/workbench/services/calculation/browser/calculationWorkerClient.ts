@@ -8,44 +8,22 @@ import type { WebWorkerDescriptor } from 'src/cs/platform/webWorker/browser/webW
 import type { IWebWorkerService } from 'src/cs/platform/webWorker/browser/webWorkerService';
 import type {
 	CalculationWorkerFile,
-	CalculationRecordsWorkerOutput,
 	ICalculationWorker,
 } from 'src/cs/workbench/services/calculation/browser/calculationWorker';
-import type { CalculationFileId } from 'src/cs/workbench/services/calculation/common/calculation';
+import type {
+	CalculationRecordsBackendInput,
+	CalculationRecordsBackendOutput,
+	ICalculationRecordsBackend,
+} from 'src/cs/workbench/services/calculation/common/calculationRecordsBackend';
 import type { SliceRun } from 'src/cs/workbench/services/slice/common/slice';
 import type {
 	CurveRecord,
-	MetricInputRecord,
 	SeriesRecord,
 } from 'src/cs/workbench/services/session/common/sessionModel';
 
 const CALCULATION_WORKER_TIMEOUT_MS = 30_000;
 
-type CalculationWorkerSourceFile = {
-	readonly curvesByKey: Readonly<Record<string, CurveRecord>>;
-	readonly id: CalculationFileId;
-	readonly kind: CalculationWorkerFile['kind'];
-	readonly latestSliceRunId?: string;
-	readonly metricInputsByKey?: Readonly<Record<string, MetricInputRecord>>;
-	readonly name: string;
-	readonly raw: {
-		readonly fileId: CalculationFileId;
-		readonly fileName: string;
-	};
-	readonly seriesById: Readonly<Record<string, SeriesRecord>>;
-	readonly seriesOrder: readonly string[];
-	readonly sliceRunsById?: Readonly<Record<string, SliceRun>>;
-};
-
-export type CalculationRecordsWorkerInput = {
-	readonly file: CalculationWorkerSourceFile;
-	readonly requestId: number;
-	readonly sessionVersion: number;
-};
-
-export type { CalculationRecordsWorkerOutput };
-
-export class CalculationWorkerClient extends Disposable {
+export class CalculationWorkerClient extends Disposable implements ICalculationRecordsBackend {
 	private readonly activeWorkers = new Set<IWebWorkerClient<ICalculationWorker>>();
 	private disposed = false;
 
@@ -61,8 +39,8 @@ export class CalculationWorkerClient extends Disposable {
 	}
 
 	public async calculateRecords(
-		input: CalculationRecordsWorkerInput,
-	): Promise<CalculationRecordsWorkerOutput | null> {
+		input: CalculationRecordsBackendInput,
+	): Promise<CalculationRecordsBackendOutput | null> {
 		if (!this.isSupported()) {
 			return null;
 		}
@@ -84,12 +62,13 @@ export class CalculationWorkerClient extends Disposable {
 		let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
 		try {
 			const workerRequest = worker.proxy.$calculateRecords({
+				analysisBySeriesId: input.analysisBySeriesId,
 				file: createCalculationWorkerFile(input.file),
 				fileId: input.file.id,
 				requestId: input.requestId,
 				sessionVersion: input.sessionVersion,
 			});
-			return await new Promise<CalculationRecordsWorkerOutput | null>(resolve => {
+			return await new Promise<CalculationRecordsBackendOutput | null>(resolve => {
 				timeout = globalThis.setTimeout(
 					() => resolve(null),
 					CALCULATION_WORKER_TIMEOUT_MS,
@@ -119,7 +98,7 @@ export class CalculationWorkerClient extends Disposable {
 }
 
 function createCalculationWorkerFile(
-	file: CalculationWorkerSourceFile,
+	file: CalculationRecordsBackendInput['file'],
 ): CalculationWorkerFile {
 	const latestSliceRun = getLatestCalculationWorkerSliceRun(file);
 	const curvesByKey: Record<string, CurveRecord> = {};
@@ -162,7 +141,7 @@ function createCalculationWorkerFile(
 }
 
 function getLatestCalculationWorkerSliceRun(
-	file: Pick<CalculationWorkerSourceFile, 'latestSliceRunId' | 'sliceRunsById'>,
+	file: Pick<CalculationRecordsBackendInput['file'], 'latestSliceRunId' | 'sliceRunsById'>,
 ): SliceRun | undefined {
 	const sliceRunId = file.latestSliceRunId;
 	return sliceRunId ? file.sliceRunsById?.[sliceRunId] : undefined;

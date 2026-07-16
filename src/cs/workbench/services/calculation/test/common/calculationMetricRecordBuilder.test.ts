@@ -68,6 +68,66 @@ suite("workbench/services/calculation/test/common/calculationMetricRecordBuilder
     );
   });
 
+  test("uses normalized Rust analysis for automatic current and SS metrics", () => {
+    const recordsWithBaseCurves = createTransferRecordsForTest(
+      [0, 0.5, 1],
+      [1e-9, 1e-7, 1e-5],
+    );
+
+    const records = createCalculatedMetricRecordsByFile(
+      recordsWithBaseCurves.filesById,
+      recordsWithBaseCurves.fileOrder,
+      {
+        "file-a": {
+          analysisBySeriesId: {
+            "series-1": {
+              baseCurrent: {
+                candidateWindows: [],
+                ioff: 2,
+                ioffWindow: null,
+                ion: 10,
+                ionIoff: 5,
+                ionWindow: null,
+                method: "auto",
+                xAtIoff: 0,
+                xAtIon: 1,
+              },
+              gm: [{ x: 0.25, y: -42 }],
+              ssFitAuto: {
+                strict: {
+                  ok: true,
+                  ss: 84,
+                  x1: 0.25,
+                  x2: 0.75,
+                },
+              },
+            },
+          },
+        },
+      },
+    )["file-a"] ?? [];
+    const current = records.find(record => record.metricFamily === "current");
+    const derivative = records.find(record => record.metricFamily === "derivative");
+    const subthreshold = records.find(record => record.metricFamily === "subthreshold");
+
+    assert.equal(
+      current?.metricFamily === "current" ? current.value.ion : null,
+      10,
+    );
+    assert.equal(
+      derivative?.metricFamily === "derivative" ? derivative.value.maxAbs : null,
+      42,
+    );
+    assert.equal(
+      subthreshold?.metricFamily === "subthreshold" ? subthreshold.value.ss : null,
+      84,
+    );
+    assert.equal(
+      subthreshold?.metricFamily === "subthreshold" ? subthreshold.value.xAtSs : null,
+      0.5,
+    );
+  });
+
   test("applies canonical manual metric inputs during metric generation", () => {
     const xValues = Array.from({ length: 21 }, (_value, index) => index / 20);
     const recordsWithBaseCurves = createTransferRecordsForTest(

@@ -38,10 +38,16 @@ import {
 	type IDataResourceStructuredContentReference,
 } from "src/cs/workbench/services/dataResource/common/dataResource";
 import {
-	readStructuredContentRows,
 	type StructuredContentGridSnapshot,
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
+import {
+	getPerfNow,
+	startPerf,
+} from "src/cs/workbench/common/perf";
 import { executeSlicePlan } from "src/cs/workbench/services/slice/common/sliceExecutor";
+import {
+	createSliceExecutionRowsFromStructuredContent,
+} from "src/cs/workbench/services/slice/common/sliceStructuredContent";
 import {
 	createSlicePlan,
 } from "src/cs/workbench/services/slice/common/slicePlanner";
@@ -365,8 +371,20 @@ export class SliceService extends Disposable implements ISliceServiceType {
 
 	private async processResourceSliceEntry(entry: ResourceSliceQueueEntry): Promise<void> {
 		const cacheKey = createSliceResourceCacheKey(entry.request.resource, entry.request.sheetId);
+		const endPerf = startPerf("sliceService.processResource", {
+			blockCount: entry.plan.blocks.length,
+			inputRangeCount: entry.plan.inputRanges.length,
+			queueLength: this.queue.length,
+			rowCount: entry.request.rowCount,
+		});
+		const resolveStartedAt = getPerfNow();
 		const resolved = await this.readRowsForResourceRequest(entry.request);
+		const resolveContentMs = getPerfNow() - resolveStartedAt;
 		if (entry.workspaceGeneration !== this.workspaceGeneration) {
+			endPerf({
+				resolveContentMs,
+				result: "staleWorkspace",
+			});
 			return;
 		}
 		if (!resolved) {
@@ -376,18 +394,34 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				message: "Resource table rows are unavailable for slicing.",
 			});
 			this.fireSliceStateChange();
+			endPerf({
+				resolveContentMs,
+				result: "rowsUnavailable",
+			});
 			return;
 		}
 
 		if (!this.isCurrentResourceSlicePlan(entry, resolved)) {
 			this.dropStaleSliceEntry(entry);
+			endPerf({
+				resolveContentMs,
+				result: "stalePlan",
+			});
 			return;
 		}
 
+		const projectRowsStartedAt = getPerfNow();
+		const rows = createSliceExecutionRowsFromStructuredContent(
+			resolved.content,
+			entry.plan,
+		);
+		const projectRowsMs = getPerfNow() - projectRowsStartedAt;
+		const executeStartedAt = getPerfNow();
 		const execution = executeSlicePlan({
 			plan: entry.plan,
-			rows: readStructuredContentRowsForSlicePlan(resolved.content, entry.plan),
+			rows,
 		});
+		const executeMs = getPerfNow() - executeStartedAt;
 		const result = createSliceResourceResult({
 			execution,
 			completedAt: Date.now(),
@@ -406,6 +440,23 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			}
 			: { state: "ready" });
 		this.fireSliceStateChange();
+		endPerf({
+			curveCount: execution.curves.length,
+			errorCount: execution.run.errors.length,
+			executeMs,
+			numericRunCount: countStructuredContentNumericRuns(resolved.content),
+			pointCount: execution.curves.reduce(
+				(total, curve) => total + curve.points.length,
+				0,
+			),
+			projectedRowCount: countProjectedRows(rows),
+			projectRowsMs,
+			resolveContentMs,
+			result: execution.run.errors.length ? "failed" : "ready",
+			seriesCount: execution.series.length,
+			sparseRows: resolved.content.sparseRows === true,
+			warningCount: execution.run.warnings.length,
+		});
 	}
 
 	private isCurrentResourceSlicePlan(
@@ -839,21 +890,19 @@ const getSliceQueueEntryStateKey = (
 	entry: SliceQueueEntry,
 ): string | null => createSliceResourceCacheKey(entry.request.resource, entry.request.sheetId);
 
-const readStructuredContentRowsForSlicePlan = (
+const countStructuredContentNumericRuns = (
 	content: StructuredContentGridSnapshot,
-	plan: SlicePlan,
-): readonly (readonly unknown[])[] => {
-	const rows: (readonly unknown[])[] = [];
-	for (const range of plan.inputRanges) {
-		const startRow = range.range.startRow;
-		const endRowExclusive = range.range.endRow + 1;
-		const rangeRows = readStructuredContentRows(content, startRow, endRowExclusive);
-		for (let index = 0; index < rangeRows.length; index += 1) {
-			rows[startRow + index] = rangeRows[index] ?? [];
-		}
-	}
-	return rows;
-};
+): number => content.columnFacts?.reduce(
+	(total, facts) => total + facts.numericRuns.length,
+	0,
+) ?? 0;
+
+const countProjectedRows = (
+	rows: readonly (readonly unknown[])[],
+): number => rows.reduce(
+	(count, row) => count + (row ? 1 : 0),
+	0,
+);
 
 const getSliceQueueEntryKey = (
 	entry: SliceQueueEntry,

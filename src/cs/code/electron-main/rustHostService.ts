@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { IRustWorkerHost } from "../../platform/rust/common/rustWorker.js";
 import type {
+  AnalyzeCalculationRequest,
   CalculateRcRequest,
   ExportOriginCsvRequest,
   IRustHostService,
@@ -53,6 +54,37 @@ export class RustHostService implements IRustHostService {
   constructor(
     private readonly options: ServiceOptions,
   ) {}
+
+  public async analyzeCalculation(
+    request: AnalyzeCalculationRequest,
+  ): Promise<RustHostResponse> {
+    if (!request.fileId || !request.series.length) {
+      return buildFailure(
+        "RUST_ENGINE_CALCULATION_MISSING_SERIES",
+        "Calculation analysis requires a file and at least one series.",
+      );
+    }
+
+    const startedAt = Date.now();
+    try {
+      const result = await this.options.rustWorkerHost.sendProcessingCommand(
+        "analyzeSeriesBatch",
+        {
+          fileId: request.fileId,
+          series: request.series,
+          sourceFile: request.sourceFile,
+        },
+        { timeoutMs: 120000 },
+      );
+      return buildSuccess(startedAt, result, "rust-pool");
+    } catch (error) {
+      return buildFailure(
+        "RUST_ENGINE_CALCULATION_FAILED",
+        (error as Error)?.message || "conductor-rs failed to analyze calculation series.",
+        startedAt,
+      );
+    }
+  }
 
   public async calculateRc(request: CalculateRcRequest): Promise<RustHostResponse> {
     if (!request.devices.length) {

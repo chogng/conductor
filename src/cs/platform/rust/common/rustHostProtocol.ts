@@ -25,6 +25,12 @@ export type CalculateRcRequest = {
   options: Record<string, unknown>;
 };
 
+export type AnalyzeCalculationRequest = {
+  fileId: string;
+  series: unknown[];
+  sourceFile?: Record<string, unknown>;
+};
+
 export type ExportOriginCsvRequest = {
   columns: unknown[];
   config: RustProcessConfig | null;
@@ -48,6 +54,7 @@ export type ResolveStructuredContentRequest = {
 };
 
 export interface IRustHostService {
+  analyzeCalculation(request: AnalyzeCalculationRequest): Promise<RustHostResponse>;
   calculateRc(request: CalculateRcRequest): Promise<RustHostResponse>;
   exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustHostResponse>;
   resolveStructuredContent(request: ResolveStructuredContentRequest): Promise<RustHostResponse>;

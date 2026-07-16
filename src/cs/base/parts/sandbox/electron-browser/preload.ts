@@ -120,6 +120,10 @@ function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
       return ipcRenderer.invoke(workbenchIpcChannels.rustHostCalculateRc, payload);
     },
 
+    async analyzeCalculationWithRust(payload: unknown) {
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostAnalyzeCalculation, payload);
+    },
+
     async exportOriginCsvWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.rustHostExportOriginCsv, payload);
     },
