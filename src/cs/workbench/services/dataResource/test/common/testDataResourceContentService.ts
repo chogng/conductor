@@ -59,6 +59,7 @@ export class TestDataResourceContentService extends Disposable implements IDataR
 		const contentSnapshot = toDataResourceContentSnapshot(snapshot);
 		this.snapshots.set(resource.toString(), contentSnapshot);
 		return {
+			kind: "provider",
 			object: contentSnapshot,
 			dispose: () => {
 				reference.dispose();
@@ -80,6 +81,10 @@ export class TestDataResourceContentService extends Disposable implements IDataR
 		return this.snapshots.get(key);
 	}
 
+	public getContentKind(resource: URI): "provider" | null {
+		return this.tableModelService.canHandleResource(resource) ? "provider" : null;
+	}
+
 	public registerContentProvider(provider: IDataResourceContentProvider): { dispose(): void } {
 		return {
 			dispose: () => {
@@ -95,6 +100,7 @@ const toDataResourceContentSnapshot = (
 	content: snapshot.content,
 	defaultSheetId: snapshot.defaultSheetId,
 	diagnostics: snapshot.diagnostics,
+	errorMessage: snapshot.loadState.state === "error" ? snapshot.loadState.message : null,
 	format: snapshot.format,
 	resource: snapshot.resource,
 	sheets: snapshot.sheets,

@@ -89,7 +89,6 @@ type ActiveUriReview = {
   readonly promise: Promise<UriReviewCacheEntry | null>;
 };
 
-const MaxUriReviewCacheEntries = 512;
 const ReviewChangeBatchDelayMs = 16;
 
 export class ReviewService extends Disposable implements IReviewService {
@@ -379,7 +378,6 @@ export class ReviewService extends Disposable implements IReviewService {
 
   private trackUriReviewTarget(key: string, target: NormalizedUriReviewTarget): void {
     this.uriReviewTargetsByKey.set(key, target, Touch.AsNew);
-    this.trimUriReviewCaches();
   }
 
   private storeUriReviewCacheEntry(key: string, entry: UriReviewCacheEntry): void {
@@ -392,7 +390,6 @@ export class ReviewService extends Disposable implements IReviewService {
     this.uriReviewCacheByKey.set(key, entry);
     this.staleUriReviewKeys.delete(key);
     this.pendingUriReviewRefreshTargetsByKey.delete(key);
-    this.trimUriReviewCaches();
   }
 
   private deleteUriReviewCacheEntry(key: string): void {
@@ -416,16 +413,6 @@ export class ReviewService extends Disposable implements IReviewService {
     }
     if (target && hadCachedReview) {
       this.fireReviewChange(target);
-    }
-  }
-
-  private trimUriReviewCaches(): void {
-    while (this.uriReviewTargetsByKey.size > MaxUriReviewCacheEntries) {
-      const key = this.uriReviewTargetsByKey.keys().next().value;
-      if (typeof key !== "string") {
-        return;
-      }
-      this.evictUriReviewTarget(key);
     }
   }
 

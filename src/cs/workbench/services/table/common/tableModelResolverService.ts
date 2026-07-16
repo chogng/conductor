@@ -80,7 +80,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
       count: previousReferenceCount + 1,
       resource,
     });
-    const provider = !this.tableFileService.canHandleResource(resource);
+    const provider = contentReference.kind === "provider";
     const endReferencePerf = startPerf("table.modelReference.resolve", {
       branch: provider ? "provider" : "file",
       previousReferenceCount,
@@ -95,7 +95,13 @@ export class TableModelResolverService extends Disposable implements ITableModel
         await this.resolveProviderModel(model, contentReference.object);
       } else {
         const fileEditorModel = this.tableFileService.getOrCreateFileEditorModel(resource, source);
-        await this.tableFileService.resolveModel(fileEditorModel);
+        if (contentReference.object.errorMessage) {
+          await fileEditorModel.applyResolveError(
+            new Error(contentReference.object.errorMessage),
+          );
+        } else {
+          await this.tableFileService.resolveModel(fileEditorModel);
+        }
         model = fileEditorModel.model;
       }
       endReferencePerf({
@@ -132,7 +138,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
   }
 
   public resolve(resource: URI, source?: TableSource | null): void {
-    if (this.tableFileService.canHandleResource(resource)) {
+    if (this.contentService.getContentKind(resource) === "file") {
       this.tableFileService.resolve(resource, source);
       return;
     }
@@ -196,7 +202,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
     const snapshot = model.getSnapshot();
     const key = model.resource.toString();
     if (
-      snapshot.loadState.state === "ready" &&
+      snapshot.loadState.state !== "idle" &&
       this.materializedProviderContents.get(key) === content
     ) {
       return;
@@ -212,7 +218,12 @@ export class TableModelResolverService extends Disposable implements ITableModel
     }
 
     const pendingResolve = model.resolve({
-      resolveContent: async () => toTableModelResolvedContent(content),
+      resolveContent: async () => {
+        if (content.errorMessage) {
+          throw new Error(content.errorMessage);
+        }
+        return toTableModelResolvedContent(content);
+      },
     }).finally(() => {
       if (this.pendingModelResolves.get(key) === pendingResolve) {
         this.pendingModelResolves.delete(key);
@@ -220,9 +231,7 @@ export class TableModelResolverService extends Disposable implements ITableModel
     });
     this.pendingModelResolves.set(key, pendingResolve);
     await pendingResolve;
-    if (model.getSnapshot().loadState.state === "ready") {
-      this.materializedProviderContents.set(key, content);
-    }
+    this.materializedProviderContents.set(key, content);
   }
 
 }

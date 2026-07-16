@@ -362,6 +362,32 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		assert.deepStrictEqual(readOptions, undefined);
 	});
 
+	test("returns an error model reference when file content cannot be read", async () => {
+		const resource = URI.file("/workspace/data/unreadable.csv");
+		const service = createResolverService(createFileServiceStub({
+			stat: async () => {
+				throw new Error("permission denied");
+			},
+		}));
+
+		const reference = await service.createModelReference(resource);
+		store.add(reference);
+		const snapshot = reference.object.getSnapshot();
+
+		assert.deepStrictEqual({
+			content: snapshot.content,
+			diagnosticCode: snapshot.diagnostics[0]?.code,
+			loadState: snapshot.loadState,
+		}, {
+			content: null,
+			diagnosticCode: "table.resolve.failed",
+			loadState: {
+				message: "permission denied",
+				state: "error",
+			},
+		});
+	});
+
 	test("keeps large file-backed table content in row windows", async () => {
 		const resource = URI.file("/workspace/data/large.csv");
 		const rowCount = PARSED_TABLE_ROW_WINDOW_SIZE + 3;
@@ -488,6 +514,62 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		contentReference.dispose();
 	});
 
+	test("keeps file changes from materializing a Review-only idle table model", async () => {
+		let text = "Vg,Id\n0,1";
+		let mtime = 10;
+		let readCount = 0;
+		const fileChanges = store.add(new Emitter<readonly IFileChange[]>());
+		const resource = URI.file("/workspace/data/review-refresh.csv");
+		const { contentService, service } = createResolverFixture(createFileServiceStub({
+			onDidFilesChange: fileChanges.event,
+			readFile: async () => {
+				readCount += 1;
+				return textFileContent(text);
+			},
+			stat: async () => ({
+				ctime: 1,
+				mtime,
+				path: resource.path,
+				size: text.length,
+				type: FileType.File,
+			}),
+		}));
+
+		const firstReference = await contentService.createContentReference(resource);
+		assert.equal(service.get(resource)?.getSnapshot().loadState.state, "idle");
+
+		text = "Vg,Id\n2,3";
+		mtime = 20;
+		fileChanges.fire([{ resource, type: FileChangeType.UPDATED }]);
+		await waitForTestCondition(() =>
+			contentService.get(resource)?.content?.rows[1]?.[0] === "2"
+		);
+
+		assert.deepStrictEqual({
+			cachedRows: contentService.get(resource)?.content?.rows,
+			modelState: service.get(resource)?.getSnapshot().loadState.state,
+			readCount,
+		}, {
+			cachedRows: [["Vg", "Id"], ["2", "3"]],
+			modelState: "idle",
+			readCount: 2,
+		});
+
+		const nextReference = await contentService.createContentReference(resource);
+		assert.deepStrictEqual({
+			contentRows: nextReference.object.content?.rows,
+			modelState: service.get(resource)?.getSnapshot().loadState.state,
+			readCount,
+		}, {
+			contentRows: [["Vg", "Id"], ["2", "3"]],
+			modelState: "idle",
+			readCount: 2,
+		});
+
+		nextReference.dispose();
+		firstReference.dispose();
+	});
+
 	test("releases file-backed model cache after the last reference is disposed", async () => {
 		let readCount = 0;
 		const resource = URI.file("/workspace/data/release.csv");
@@ -519,7 +601,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		let disposeCount = 0;
 		let resolveCount = 0;
 		const resource = URI.from({
-			path: "/generated/report",
+			path: "/generated/report.csv",
 			scheme: "table-memory",
 		});
 		const { contentService, service } = createResolverFixture();
@@ -691,35 +773,30 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		await waitForTestCondition(() => pendingReads.length === 1);
 
 		mtime = 20;
-		const didReload = new Promise<void>(resolve => {
-			let listener: { dispose(): void } | undefined;
-			listener = manager.onDidChangeModel(model => {
-				if (model.getSnapshot().sourceVersion === 20) {
-					listener?.dispose();
-					resolve();
-				}
-			});
-		});
 		fileChanges.fire([{ resource, type: FileChangeType.UPDATED }]);
 		await waitForTestCondition(() => pendingReads.length === 2);
 
 		pendingReads[1]!(textFileContent("A,B\n7,8"));
-		await didReload;
+		await waitForTestCondition(() =>
+			manager.getResolvedContent(resource)?.content.sourceVersion === 20
+		);
 		pendingReads[0]!(textFileContent("A,B\n1,2"));
 		const resolved = await firstResolve;
 
 		assert.deepStrictEqual({
 			cachedRows: manager.getResolvedContent(resource)?.content.content?.rows,
 			editorSourceVersion: fileEditorModel.getSourceVersion(),
+			modelState: fileEditorModel.model.getSnapshot().loadState.state,
 			modelRows: fileEditorModel.model.getSnapshot().content?.rows,
 			resolvedRows: resolved.content.content?.rows,
 			sourceVersion: fileEditorModel.model.getSnapshot().sourceVersion,
 		}, {
 			cachedRows: [["A", "B"], ["7", "8"]],
 			editorSourceVersion: 20,
-			modelRows: [["A", "B"], ["7", "8"]],
+			modelState: "idle",
+			modelRows: undefined,
 			resolvedRows: [["A", "B"], ["7", "8"]],
-			sourceVersion: 20,
+			sourceVersion: 0,
 		});
 	});
 
@@ -794,6 +871,9 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			dirty: fileEditorModel.getSnapshot().dirty,
 			rows: fileEditorModel.model.getSnapshot().content?.rows,
 			saving: fileEditorModel.getSnapshot().saving,
+			sharedRows: manager.getResolvedContent(resource)?.content.content?.rows,
+			sharedSourceVersion: manager.getResolvedContent(resource)?.content.sourceVersion,
+			sharedVersion: manager.getResolvedContent(resource)?.version,
 			sourceVersion: fileEditorModel.model.getSnapshot().sourceVersion,
 			writtenContent,
 		}, {
@@ -801,6 +881,9 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			dirty: false,
 			rows: [["A", "B"], ["9", "9"]],
 			saving: false,
+			sharedRows: [["A", "B"], ["9", "9"]],
+			sharedSourceVersion: 30,
+			sharedVersion: 2,
 			sourceVersion: 30,
 			writtenContent: "A,B\n9,9",
 		});
@@ -832,11 +915,17 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			conflict: fileEditorModel.getSnapshot().conflict,
 			dirty: fileEditorModel.getSnapshot().dirty,
 			rows: fileEditorModel.model.getSnapshot().content?.rows,
+			sharedRows: manager.getResolvedContent(resource)?.content.content?.rows,
+			sharedSourceVersion: manager.getResolvedContent(resource)?.content.sourceVersion,
+			sharedVersion: manager.getResolvedContent(resource)?.version,
 			sourceVersion: fileEditorModel.model.getSnapshot().sourceVersion,
 		}, {
 			conflict: false,
 			dirty: false,
 			rows: [["A", "B"], ["3", "4"]],
+			sharedRows: [["A", "B"], ["3", "4"]],
+			sharedSourceVersion: 20,
+			sharedVersion: 2,
 			sourceVersion: 20,
 		});
 	});

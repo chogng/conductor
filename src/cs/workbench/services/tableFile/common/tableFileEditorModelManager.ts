@@ -143,7 +143,7 @@ export class TableFileEditorModelManager extends Disposable {
               resolveOptions,
             });
           }
-          return this.storeResolvedContent(cacheKey, model, resolved);
+          return this.acceptResolvedContent(cacheKey, model, resolved);
         },
         (error): Promise<TableFileResolvedContent> => {
           if (this.fileEditorModels.get(cacheKey) !== model) {
@@ -226,6 +226,9 @@ export class TableFileEditorModelManager extends Disposable {
       this._register(createdModel.onDidChangeState(() => {
         this.onDidChangeModelEmitter.fire(createdModel.model);
       }));
+      this._register(createdModel.onDidResolveContent(resolved => {
+        this.cacheResolvedContent(cacheKey, resolved);
+      }));
       this._register(createdModel.model.onDidChange(changedModel => {
         this.onDidChangeModelEmitter.fire(changedModel);
       }));
@@ -239,9 +242,12 @@ export class TableFileEditorModelManager extends Disposable {
       const resourceChanges = changes.filter(change =>
         change.resource.toString() === model.resource.toString()
       );
+      let hadResolvedContent = false;
       if (resourceChanges.length) {
         const cacheKey = getModelCacheKey(model.resource);
         if (cacheKey) {
+          hadResolvedContent = this.resolvedContents.has(cacheKey) ||
+            this.pendingContentResolves.has(cacheKey);
           this.invalidateResolvedContent(cacheKey);
         }
         this.onDidChangeContentEmitter.fire(model.resource);
@@ -260,24 +266,44 @@ export class TableFileEditorModelManager extends Disposable {
           model.markConflict();
           continue;
         }
+        if (model.model.getSnapshot().loadState.state === "idle") {
+          if (hadResolvedContent) {
+            void this.resolveContent(model, { force: true }).catch(() => undefined);
+          }
+          continue;
+        }
         void this.resolveModel(model, { force: true }).catch(() => undefined);
       }
     }
   }
 
-  private storeResolvedContent(
+  private acceptResolvedContent(
     cacheKey: string,
     model: TableFileEditorModel,
     resolvedContent: TableFileEditorModelResolvedContent,
   ): TableFileResolvedContent {
+    model.acceptResolvedContent(resolvedContent);
+    const resolved = this.resolvedContents.get(cacheKey);
+    if (!resolved) {
+      throw new Error("The accepted table content was not cached.");
+    }
+    return resolved;
+  }
+
+  private cacheResolvedContent(
+    cacheKey: string,
+    resolvedContent: TableFileEditorModelResolvedContent,
+  ): void {
+    const previous = this.resolvedContents.get(cacheKey);
     const resolved = {
       content: resolvedContent.content,
       version: (this.contentVersions.get(cacheKey) ?? 0) + 1,
     };
-    model.acceptResolvedContent(resolvedContent);
     this.contentVersions.set(cacheKey, resolved.version);
     this.resolvedContents.set(cacheKey, resolved);
-    return resolved;
+    if (previous) {
+      this.onDidChangeContentEmitter.fire(resolvedContent.content.resource);
+    }
   }
 
   private resolveCurrentContentAfterStaleResult({

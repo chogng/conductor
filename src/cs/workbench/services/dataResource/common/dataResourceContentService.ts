@@ -14,6 +14,8 @@ export const IDataResourceContentService = createDecorator<IDataResourceContentS
 	"dataResourceContentService",
 );
 
+export type DataResourceContentKind = "file" | "provider";
+
 export type DataResourceContentSheetSnapshot = {
 	readonly content: StructuredContentGridSnapshot | null;
 	readonly diagnostics?: readonly TableParseDiagnostic[];
@@ -25,6 +27,7 @@ export type DataResourceContentSnapshot = {
 	readonly content: StructuredContentGridSnapshot | null;
 	readonly defaultSheetId: string | null;
 	readonly diagnostics: readonly TableParseDiagnostic[];
+	readonly errorMessage: string | null;
 	readonly format: TableFormatId | null;
 	readonly resource: URI;
 	readonly sheets: readonly DataResourceContentSheetSnapshot[];
@@ -47,6 +50,7 @@ export interface IDataResourceContentProvider extends IDisposable {
 }
 
 export interface IDataResourceContentReference extends IDisposable {
+	readonly kind: DataResourceContentKind;
 	readonly object: DataResourceContentSnapshot;
 }
 
@@ -61,5 +65,6 @@ export interface IDataResourceContentService extends IDisposable {
 	canHandleResource(resource: URI): boolean;
 	createContentReference(resource: URI): Promise<IDataResourceContentReference>;
 	get(resource: URI | null | undefined): DataResourceContentSnapshot | undefined;
+	getContentKind(resource: URI): DataResourceContentKind | null;
 	registerContentProvider(provider: IDataResourceContentProvider): IDisposable;
 }

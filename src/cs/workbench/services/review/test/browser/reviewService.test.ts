@@ -8,8 +8,14 @@ import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import {
+	FileSystemProviderCapabilities,
+	FileType,
+	type IFileService,
+} from "src/cs/platform/files/common/files";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
+import { DataResourceContentService } from "src/cs/workbench/services/dataResource/browser/dataResourceContentService";
 import { DataResourceService } from "src/cs/workbench/services/dataResource/browser/dataResourceService";
 import { testStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/test/common/testStructuredContentEvidenceService";
 import type {
@@ -17,6 +23,7 @@ import type {
 	IDataResourceService,
 	IDataResourceStructuredContentReference,
 } from "src/cs/workbench/services/dataResource/common/dataResource";
+import type { IStructuredContentEvidenceService } from "src/cs/workbench/services/dataResource/common/structuredContentEvidenceService";
 import {
 	createEmptyStructuredContentStructure,
 	type StructuredColumnProfile,
@@ -49,6 +56,9 @@ import type {
 	ITableModelReference,
 	ITableModelService,
 } from "src/cs/workbench/services/table/common/resolverService";
+import { parseTableStructure } from "src/cs/workbench/services/table/common/tableStructureParser";
+import type { ITableStructureParserService } from "src/cs/workbench/services/table/common/tableStructureParserService";
+import { TableFileService } from "src/cs/workbench/services/tableFile/browser/tableFileService";
 import { TestDataResourceContentService } from "src/cs/workbench/services/dataResource/test/common/testDataResourceContentService";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
@@ -670,6 +680,94 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(service.getLatestReviewSummary(target).reviewSignature, summary?.reviewSignature);
 	});
 
+	test("resolves Review through physical content while the table model stays idle", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/ReviewOnly.csv");
+		let readCount = 0;
+		let evidenceCreateCount = 0;
+		let releaseEvidence: () => void = () => undefined;
+		let signalEvidenceStarted: () => void = () => undefined;
+		const evidenceGate = new Promise<void>(resolve => {
+			releaseEvidence = resolve;
+		});
+		const evidenceStarted = new Promise<void>(resolve => {
+			signalEvidenceStarted = resolve;
+		});
+		const evidenceService: IStructuredContentEvidenceService = {
+			_serviceBrand: undefined,
+			create: async (content, patches) => {
+				evidenceCreateCount += 1;
+				signalEvidenceStarted();
+				await evidenceGate;
+				return testStructuredContentEvidenceService.create(content, patches);
+			},
+			dispose: () => undefined,
+		};
+		const fileService = {
+			_serviceBrand: undefined,
+			getProviderCapabilities: () => FileSystemProviderCapabilities.FileRead,
+			onDidFilesChange: Event.None,
+			readFile: async () => {
+				readCount += 1;
+				return {
+					value: new TextEncoder().encode("Vg,Id\n0,1\n1,2"),
+				};
+			},
+			stat: async () => ({
+				ctime: 1,
+				mtime: 10,
+				path: resource.path,
+				size: 16,
+				type: FileType.File,
+			}),
+		} as unknown as IFileService;
+		const tableStructureParserService: ITableStructureParserService = {
+			_serviceBrand: undefined,
+			dispose: () => undefined,
+			parse: parseTableStructure,
+		};
+		const tableFileService = store.add(new TableFileService(
+			fileService,
+			tableStructureParserService,
+		));
+		const contentService = store.add(new DataResourceContentService(tableFileService));
+		const dataResourceService = store.add(new DataResourceService(
+			contentService,
+			{
+				onDidChangeConductorSettings: Event.None,
+				getConductorSettings: () => null,
+			} as unknown as ISettingsService,
+			evidenceService,
+		));
+		const service = createReviewServiceForTest(userTemplateService, dataResourceService);
+
+		const resolvingSummary = service.resolveReviewSummary({ resource });
+		await evidenceStarted;
+
+		assert.deepStrictEqual({
+			evidenceCreateCount,
+			modelState: tableFileService.get(resource)?.getSnapshot().loadState.state,
+			readCount,
+		}, {
+			evidenceCreateCount: 1,
+			modelState: "idle",
+			readCount: 1,
+		});
+
+		releaseEvidence();
+		const summary = await resolvingSummary;
+
+		assert.deepStrictEqual({
+			readCount,
+			reviewedType: summary?.reviewedType,
+			state: summary?.state,
+		}, {
+			readCount: 1,
+			reviewedType: "transfer",
+			state: "ready",
+		});
+	});
+
 	test("derives IV output review from explicit drain voltage URI content", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Output.csv");
@@ -949,6 +1047,26 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(dataResourceService.resolveStructuredContentCalls, 1);
 	});
 
+	test("dispatches all independent URI reviews immediately without a concurrency cap", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const dataResourceService = store.add(new ControlledDataResourceService());
+		const service = createReviewServiceForTest(userTemplateService, dataResourceService);
+		const reviewCount = 64;
+
+		const reviews = Array.from({ length: reviewCount }, (_, index) =>
+			service.resolveReviewSummary({
+				resource: URI.file(`/workspace/Review-${index}.csv`),
+			})
+		);
+
+		assert.equal(dataResourceService.resolveStructuredContentCalls, reviewCount);
+		for (let index = 0; index < reviewCount; index += 1) {
+			dataResourceService.resolveNext({ kind: "missingContent" });
+		}
+		const summaries = await Promise.all(reviews);
+		assert.equal(summaries.length, reviewCount);
+	});
+
 	test("does not commit a superseded active Review through a later waiter", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
@@ -978,7 +1096,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready", 40, 5);
 	});
 
-	test("publishes a Review change when a cached target is evicted", async () => {
+	test("keeps cached Review results when more than 512 targets are tracked", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const service = createReviewServiceForTest(
@@ -989,8 +1107,6 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		await service.resolveReviewSummary(target);
 		await new Promise(resolve => setTimeout(resolve, 25));
 
-		const changedTargets: ReviewSummaryTarget[] = [];
-		store.add(service.onDidChangeReview(targets => changedTargets.push(...targets)));
 		const cacheProbe = service as unknown as {
 			trackUriReviewTarget(
 				key: string,
@@ -1002,13 +1118,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 				resource: URI.file(`/workspace/Other-${index}.csv`),
 			});
 		}
-		await new Promise(resolve => setTimeout(resolve, 25));
-
-		assert.equal(service.getLatestReviewSummary(target).state, "missing");
-		assert.equal(changedTargets.some(changedTarget =>
-			changedTarget.resource.toString() === resource.toString() &&
-			changedTarget.sheetId === "table-a",
-		), true);
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
 
 	test("publishes pending state when explicit URI review starts", async () => {

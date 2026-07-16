@@ -243,6 +243,7 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 				if (
 					currentSnapshot?.version === snapshot.version &&
 					currentSnapshot.sourceVersion === snapshot.sourceVersion &&
+					currentSnapshot.errorMessage === snapshot.errorMessage &&
 					semanticSettingsFingerprint === this.semanticSettingsFingerprint
 				) {
 					break;
@@ -319,6 +320,16 @@ const createStructuredContentResolution = async (
 	semanticPatches: TemplateSemanticPatches,
 	structuredContentEvidenceService: IStructuredContentEvidenceService,
 ): Promise<DataResourceStructuredContentResolution> => {
+	if (snapshot.errorMessage) {
+		return {
+			kind: "loadError",
+			loadState: {
+				state: "error",
+				message: snapshot.errorMessage,
+			},
+		};
+	}
+
 	const sheetResolution = resolveStructuredContentSheet(snapshot, target.sheetId ?? null);
 	if (sheetResolution.kind === "missing") {
 		return { kind: "missingSheet" };
@@ -365,6 +376,7 @@ const createStableStructuredContentSignature = (
 	const builder = createSignatureBuilder();
 	builder.append(semanticSettingsFingerprint);
 	builder.append(snapshot.sourceVersion);
+	builder.append(snapshot.errorMessage ?? "");
 	builder.append(snapshot.format ?? "");
 	builder.append(snapshot.defaultSheetId ?? "");
 	appendDiagnosticsSignature(builder, snapshot.diagnostics);

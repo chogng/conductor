@@ -58,6 +58,10 @@ export class TableFileEditorModel extends Disposable {
 	private readonly onDidChangeStateEmitter = this._register(new Emitter<TableFileEditorModel>());
 	public readonly onDidChangeState: Event<TableFileEditorModel> =
 		this.onDidChangeStateEmitter.event;
+	private readonly onDidResolveContentEmitter =
+		this._register(new Emitter<TableFileEditorModelResolvedContent>());
+	public readonly onDidResolveContent: Event<TableFileEditorModelResolvedContent> =
+		this.onDidResolveContentEmitter.event;
 
 	public readonly model: TableModel;
 
@@ -123,6 +127,7 @@ export class TableFileEditorModel extends Disposable {
 		} catch (error) {
 			this.acceptResolveError(error);
 			await this.applyResolveError(error);
+			throw error;
 		}
 	}
 
@@ -160,6 +165,7 @@ export class TableFileEditorModel extends Disposable {
 			errorMessage: "",
 			orphaned: false,
 		});
+		this.onDidResolveContentEmitter.fire(resolved);
 	}
 
 	public acceptResolveError(error: unknown): void {
