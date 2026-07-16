@@ -14,11 +14,11 @@ terminology.
 
 ## Ownership
 
-Pending decoration:
+Pending Review decoration:
 
 - Explorer UI only;
 - first-frame display and stable visual slot layout;
-- may show pending source status or pending Review summary only;
+- comes only from a pending Review summary for a resource-backed Explorer row;
 - must not infer semantic labels from file name, path, extension, sheet name, header rows, or source rows;
 - must not read files, write Session, alter converter output, select templates, or drive table/chart decisions.
 
@@ -102,6 +102,8 @@ not be written into Explorer decoration state.
 
 Every file row renders a stable badge slot in the first frame. Row layout must
 not wait for full table-model, Review, or Slice production.
+Source collection and preparation state must not be represented as Explorer
+rows or custom badge state.
 
 Virtualized rows are reusable DOM. Bind badge updates to the current row key
 before writing text, state, title, or classes. Repeated renders with the same

@@ -10,7 +10,6 @@ import {
   createExplorerTreeStructureSignature,
   getExplorerFileSourceIdentityKey,
   getExplorerTreeFileKey,
-  mergeExplorerSourceEntries,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { URI } from "src/cs/base/common/uri";
@@ -23,21 +22,25 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       itemKey: "source-item",
       fileName: "raw.csv",
       relativePath: "batch/raw.csv",
+      resource: URI.file("/workspace/raw.csv"),
     };
     const fileIdItemKeyEntry = {
       fileId: "file-a",
       fileName: "raw.csv",
       relativePath: "batch/raw.csv",
       itemKey: "item-key",
+      resource: URI.file("/workspace/raw.csv"),
     };
     const itemKeyEntry = {
       itemKey: "source-item",
       fileName: "raw.csv",
       relativePath: "batch/raw.csv",
+      resource: URI.file("/workspace/raw.csv"),
     };
     const fallbackEntry = {
       fileName: "raw.csv",
       relativePath: "batch/raw.csv",
+      resource: URI.file("/workspace/raw.csv"),
     };
 
     assert.equal(getExplorerTreeFileKey(emptyFileIdEntry), "source-item");
@@ -60,6 +63,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     const file = {
       fileId: "file-a",
       fileName: "A.csv",
+      resource: URI.file("/workspace/A.csv"),
     } as const;
 
     assert.equal(
@@ -80,12 +84,14 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         fileName: "A.csv",
         itemKey: "raw:a",
         relativePath: "folder/A.csv",
+        resource: URI.file("/workspace/folder/A.csv"),
       },
       {
         fileId: "file-b",
         fileName: "B.csv",
         itemKey: "raw:b",
         relativePath: "folder/B.csv",
+        resource: URI.file("/workspace/folder/B.csv"),
       },
     ];
 
@@ -159,88 +165,6 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     );
   });
 
-  test("mergeExplorerSourceEntries appends only unresolved pending sources", () => {
-    assert.deepEqual(
-      mergeExplorerSourceEntries({
-        files: [
-          {
-            fileId: "file-1",
-            fileName: "ready.csv",
-            itemKey: "source-ready",
-          },
-        ],
-        pendingSourceEntries: [
-          {
-            fileName: "ready.csv",
-            itemKey: "source-ready",
-            sourceStatus: "preparing",
-          },
-          {
-            fileName: "later.csv",
-            itemKey: "source-later",
-            sourceStatus: "pending",
-          },
-        ],
-      }),
-      [
-        {
-          fileId: "file-1",
-          fileName: "ready.csv",
-          itemKey: "source-ready",
-        },
-        {
-          fileName: "later.csv",
-          itemKey: "source-later",
-          sourceStatus: "pending",
-        },
-      ],
-    );
-  });
-
-  test("mergeExplorerSourceEntries replaces by item order and prefers committed files", () => {
-    assert.deepEqual(
-      mergeExplorerSourceEntries({
-        files: [
-          {
-            fileId: "old",
-            fileName: "old.csv",
-            itemKey: "source-old",
-          },
-          {
-            fileId: "ready",
-            fileName: "ready.csv",
-            itemKey: "source-ready",
-          },
-        ],
-        pendingSourceEntries: [
-          {
-            fileName: "ready.csv",
-            itemKey: "source-ready",
-            sourceStatus: "preparing",
-          },
-          {
-            fileName: "later.csv",
-            itemKey: "source-later",
-            sourceStatus: "pending",
-          },
-        ],
-        replaceItemKeys: ["source-ready", "source-later"],
-      }),
-      [
-        {
-          fileId: "ready",
-          fileName: "ready.csv",
-          itemKey: "source-ready",
-        },
-        {
-          fileName: "later.csv",
-          itemKey: "source-later",
-          sourceStatus: "pending",
-        },
-      ],
-    );
-  });
-
   test("buildExplorerTree nests related files by configured patterns", () => {
     const tree = buildExplorerTree(
       [
@@ -248,16 +172,19 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           fileId: "parent",
           fileName: "device.csv",
           relativePath: "batch/device.csv",
+          resource: URI.file("/workspace/batch/device.csv"),
         },
         {
           fileId: "child",
           fileName: "device.meta.csv",
           relativePath: "batch/device.meta.csv",
+          resource: URI.file("/workspace/batch/device.meta.csv"),
         },
         {
           fileId: "other-dir-child",
           fileName: "device.meta.csv",
           relativePath: "other/device.meta.csv",
+          resource: URI.file("/workspace/other/device.meta.csv"),
         },
       ],
       {

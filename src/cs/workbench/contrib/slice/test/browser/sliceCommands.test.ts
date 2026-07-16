@@ -95,12 +95,12 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.equal(notifications[0]?.message, "slice.runWithTemplate.noResourceTables");
 	});
 
-	test("does not run while explorer has pending sources", () => {
+	test("does not run while Files is importing sources", () => {
 		const sliceService = new TestSliceService();
 		const notifications: INotification[] = [];
 
 		runSliceWithTemplateHandler(createAccessor({
-			hasPendingSourceFiles: true,
+			isImportingSources: true,
 			notifications,
 			sliceService,
 		}));
@@ -426,7 +426,7 @@ const createResourceSheetKey = (
 
 const createAccessor = ({
 	explorerFiles = [],
-	hasPendingSourceFiles = false,
+	isImportingSources = false,
 	notifications = [],
 	reviewService = createReviewServiceForTest(),
 	sliceService,
@@ -434,7 +434,7 @@ const createAccessor = ({
 	userTemplateService = createUserTemplateServiceForTest(),
 }: {
 	readonly explorerFiles?: readonly unknown[];
-	readonly hasPendingSourceFiles?: boolean;
+	readonly isImportingSources?: boolean;
 	readonly notifications?: INotification[];
 	readonly reviewService?: IReviewServiceType;
 	readonly sliceService: ISliceService;
@@ -446,7 +446,7 @@ const createAccessor = ({
 			_serviceBrand: undefined,
 			files: explorerFiles,
 			getPaneInput: () => ({ mode: "table", selectedResource: null, selectionKind: "table" }),
-			hasPendingSourceFiles,
+			isImportingSources,
 		}],
 		[INotificationService, {
 			_serviceBrand: undefined,

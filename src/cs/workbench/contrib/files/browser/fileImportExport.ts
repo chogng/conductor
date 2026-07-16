@@ -53,6 +53,10 @@ import {
 } from "src/cs/workbench/services/notification/common/notificationService";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import { WorkspaceWatcher } from "src/cs/workbench/contrib/files/browser/workspaceWatcher";
+import {
+  ProgressLocation,
+  type IProgressService,
+} from "src/cs/platform/progress/common/progress";
 import type { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
 import { WORKSPACE_STORAGE_FOLDER_NAME } from "src/cs/platform/storage/common/storage";
 import { resolveWorkspaceExternalChanges } from "src/cs/workbench/services/workspaces/common/externalChanges";
@@ -207,13 +211,6 @@ export type PendingImportFileResult =
   | { readonly ok: true; readonly entry: ExplorerFileEntry }
   | { readonly ok: false; readonly error: FileImportPrepareFailure };
 
-export type PendingImportSourceStatus = "pending" | "preparing" | "failed";
-
-export type PendingImportSourceStatusChange = {
-  readonly message?: string | null;
-  readonly status: PendingImportSourceStatus;
-};
-
 export type FirstExplorerFilePreparation = {
   readonly attemptedIndexes: Set<number>;
   readonly result: {
@@ -248,22 +245,18 @@ export type FileSourceWorkflowOptions = {
   readonly getSelectedRelativePath: () => string | null;
   readonly isDisposed: () => boolean;
   readonly notificationService: INotificationService;
+  readonly progressService: IProgressService;
   readonly onWillOpenFolder?: (folder: URI) => Promise<void>;
   readonly uriIdentityService: IUriIdentityService;
   readonly onAppendExplorerFiles: (entries: readonly ExplorerFileEntry[]) => void;
-  readonly onAppendPendingSourceFiles?: (pendingFiles: readonly PendingImportFile[]) => void;
-  readonly onClearPendingSourceFiles?: () => void;
+  readonly onBeginSourceReplace?: () => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
+  readonly onFinishSourceReplace?: (completed: boolean) => void;
+  readonly onImportingSourcesChange?: (isImportingSources: boolean) => void;
   readonly onRemoveSourceItems: (itemKeys: readonly string[]) => void;
   readonly onReplaceExplorerFiles: (
     entries: readonly ExplorerFileEntry[],
     selectedImportItemKey: string | null,
-  ) => void;
-  readonly onReplacePendingSourceFiles?: (pendingFiles: readonly PendingImportFile[]) => void;
-  readonly onFinishPendingSourceReplace?: () => void;
-  readonly onUpdatePendingSourceFile?: (
-    pendingFile: PendingImportFile,
-    change: PendingImportSourceStatusChange,
   ) => void;
   readonly syncView: () => void;
 };
@@ -355,6 +348,8 @@ export class FileSourceWorkflow implements IDisposable {
   }
 
   public dispose(): void {
+    this.options.onImportingSourcesChange?.(false);
+    this.options.onFinishSourceReplace?.(false);
     this.clearImportError();
     this.folderWatcher.dispose();
     this.clearExternalChanges();
@@ -366,7 +361,8 @@ export class FileSourceWorkflow implements IDisposable {
     this.importRunId += 1;
     this.folderRefreshRunId += 1;
     this.excludedSourcePaths.clear();
-    this.options.onClearPendingSourceFiles?.();
+    this.options.onImportingSourcesChange?.(false);
+    this.options.onFinishSourceReplace?.(false);
     this.clearImportedFolderWatch();
   }
 
@@ -475,8 +471,19 @@ export class FileSourceWorkflow implements IDisposable {
       readonly shouldContinue?: () => boolean;
     } = {},
   ): Promise<void> {
-    const runId = this.importRunId + 1;
-    this.importRunId = runId;
+    await this.runImportTask(runId => this.doImportFiles(runId, newFiles, options));
+  }
+
+  private async doImportFiles(
+    runId: number,
+    newFiles: readonly FileSource[],
+    options: {
+      readonly preserveSelection?: boolean;
+      readonly readFailures?: readonly FolderFileReadFailure[];
+      readonly replaceWhenEmpty?: boolean;
+      readonly shouldContinue?: () => boolean;
+    },
+  ): Promise<void> {
     const finishBatchPerf = startPerf("import:add-files", {
       currentCount: 0,
       incomingCount: newFiles.length,
@@ -521,7 +528,6 @@ export class FileSourceWorkflow implements IDisposable {
       return;
     }
 
-    this.options.onAppendPendingSourceFiles?.(pendingImportFiles);
     const selectedRelativePath = options.preserveSelection
       ? this.options.getSelectedRelativePath()
       : null;
@@ -529,7 +535,6 @@ export class FileSourceWorkflow implements IDisposable {
       canApplyResult,
       failedFiles,
       filesService: this.options.filesService,
-      onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
       pendingImportFiles,
       selectedRelativePath,
     });
@@ -545,7 +550,6 @@ export class FileSourceWorkflow implements IDisposable {
         canApplyResult,
         failedFiles,
         filesService: this.options.filesService,
-        onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
         onExplorerFiles: entries => this.options.onAppendExplorerFiles(entries),
         pendingImportFiles,
         skippedIndexes: firstImport.attemptedIndexes,
@@ -570,8 +574,24 @@ export class FileSourceWorkflow implements IDisposable {
   }
 
   private async importFolderIncrementally(folder: URI): Promise<void> {
-    const runId = this.importRunId + 1;
-    this.importRunId = runId;
+    await this.runImportTask(async runId => {
+      this.options.onBeginSourceReplace?.();
+      let completed = false;
+      try {
+        await this.doImportFolderIncrementally(runId, folder);
+        completed = true;
+      } finally {
+        if (runId === this.importRunId) {
+          this.options.onFinishSourceReplace?.(completed);
+        }
+      }
+    });
+  }
+
+  private async doImportFolderIncrementally(
+    runId: number,
+    folder: URI,
+  ): Promise<void> {
     const finishBatchPerf = startPerf("import:add-files", {
       currentCount: 0,
       source: "folder",
@@ -582,7 +602,6 @@ export class FileSourceWorkflow implements IDisposable {
     let acceptedCount = 0;
     let discoveredFileCount = 0;
     let hasReplacedExplorerFiles = false;
-    let hasPublishedPendingSources = false;
     let prepareQueue: Promise<void> = Promise.resolve();
     let prepareQueueError: unknown = null;
 
@@ -599,7 +618,6 @@ export class FileSourceWorkflow implements IDisposable {
             canApplyResult,
             failedFiles,
             filesService: this.options.filesService,
-            onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
             onExplorerFiles: entries => {
               if (hasReplacedExplorerFiles) {
                 this.options.onAppendExplorerFiles(entries);
@@ -640,13 +658,6 @@ export class FileSourceWorkflow implements IDisposable {
             folderPath: folder.fsPath,
           });
 
-          if (hasPublishedPendingSources) {
-            this.options.onAppendPendingSourceFiles?.(pendingImportFiles);
-          } else {
-            this.options.onReplacePendingSourceFiles?.(pendingImportFiles);
-            hasPublishedPendingSources = true;
-          }
-
           queuePendingImportFiles(pendingImportFiles);
         },
       },
@@ -679,7 +690,6 @@ export class FileSourceWorkflow implements IDisposable {
       readFailures: result.readFailures,
     }));
     this.options.syncView();
-    this.options.onFinishPendingSourceReplace?.();
     finishBatchPerf({
       acceptedCount,
       failedCount: failedFiles.length,
@@ -904,8 +914,17 @@ export class FileSourceWorkflow implements IDisposable {
       readonly shouldContinue?: () => boolean;
     } = {},
   ): Promise<void> {
-    const runId = this.importRunId + 1;
-    this.importRunId = runId;
+    await this.runImportTask(runId => this.doAppendFiles(runId, newFiles, options));
+  }
+
+  private async doAppendFiles(
+    runId: number,
+    newFiles: readonly FileSource[],
+    options: {
+      readonly readFailures?: readonly FolderFileReadFailure[];
+      readonly shouldContinue?: () => boolean;
+    },
+  ): Promise<void> {
     const finishBatchPerf = startPerf("import:add-files", {
       currentCount: this.options.getFiles().length,
       incomingCount: newFiles.length,
@@ -924,7 +943,6 @@ export class FileSourceWorkflow implements IDisposable {
     let acceptedCount = 0;
 
     if (pendingImportFiles.length > 0) {
-      this.options.onAppendPendingSourceFiles?.(pendingImportFiles);
       markTemplateApplyPerformanceTrace("import.sources.collected", {
         fileCount: pendingImportFiles.length,
         source: "workspace-change",
@@ -934,7 +952,6 @@ export class FileSourceWorkflow implements IDisposable {
         canApplyResult,
         failedFiles,
         filesService: this.options.filesService,
-        onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
         onExplorerFiles: entries => this.options.onAppendExplorerFiles(entries),
         pendingImportFiles,
         skippedIndexes: new Set<number>(),
@@ -956,6 +973,41 @@ export class FileSourceWorkflow implements IDisposable {
       failedCount: failedFiles.length,
       unsupportedCount,
     });
+  }
+
+  private startImportRun(): number {
+    const runId = this.importRunId + 1;
+    this.importRunId = runId;
+    this.options.onImportingSourcesChange?.(true);
+    return runId;
+  }
+
+  private finishImportRun(runId: number): void {
+    if (runId !== this.importRunId) {
+      return;
+    }
+
+    this.options.onImportingSourcesChange?.(false);
+  }
+
+  private async runImportTask<R>(
+    task: (runId: number) => Promise<R>,
+  ): Promise<R> {
+    return await this.options.progressService.withProgress(
+      {
+        delay: 800,
+        location: ProgressLocation.Window,
+        title: localize("files.import.progress", "Importing Files"),
+      },
+      async () => {
+        const runId = this.startImportRun();
+        try {
+          return await task(runId);
+        } finally {
+          this.finishImportRun(runId);
+        }
+      },
+    );
   }
 
   private logImportDiagnostics(
@@ -1300,17 +1352,12 @@ export async function prepareFirstPendingImportFile({
   canApplyResult,
   failedFiles,
   filesService,
-  onPendingFileStatusChange,
   pendingImportFiles,
   selectedRelativePath,
 }: {
   readonly canApplyResult: () => boolean;
   readonly failedFiles: FileImportPrepareFailure[];
   readonly filesService: IFileService;
-  readonly onPendingFileStatusChange?: (
-    pendingFile: PendingImportFile,
-    change: PendingImportSourceStatusChange,
-  ) => void;
   readonly pendingImportFiles: readonly PendingImportFile[];
   readonly selectedRelativePath: string | null;
 }): Promise<FirstExplorerFilePreparation> {
@@ -1329,19 +1376,12 @@ export async function prepareFirstPendingImportFile({
     }
 
     attemptedIndexes.add(index);
-    onPendingFileStatusChange?.(pendingImportFile, {
-      status: "preparing",
-    });
     const fileResult = await preparePendingImportFile(
       filesService,
       pendingImportFile,
     );
     if (!fileResult.ok) {
       failedFiles.push(fileResult.error);
-      onPendingFileStatusChange?.(pendingImportFile, {
-        message: fileResult.error.message,
-        status: "failed",
-      });
       continue;
     }
     return {
@@ -1362,7 +1402,6 @@ export async function prepareRemainingPendingImportFiles({
   canApplyResult,
   failedFiles,
   filesService,
-  onPendingFileStatusChange,
   onExplorerFiles,
   pendingImportFiles,
   skippedIndexes,
@@ -1370,10 +1409,6 @@ export async function prepareRemainingPendingImportFiles({
   readonly canApplyResult: () => boolean;
   readonly failedFiles: FileImportPrepareFailure[];
   readonly filesService: IFileService;
-  readonly onPendingFileStatusChange?: (
-    pendingFile: PendingImportFile,
-    change: PendingImportSourceStatusChange,
-  ) => void;
   readonly onExplorerFiles: (entries: readonly ExplorerFileEntry[]) => void;
   readonly pendingImportFiles: readonly PendingImportFile[];
   readonly skippedIndexes: ReadonlySet<number>;
@@ -1484,9 +1519,6 @@ export async function prepareRemainingPendingImportFiles({
           return;
         }
 
-        onPendingFileStatusChange?.(pendingImportFile, {
-          status: "preparing",
-        });
         const fileResult = await preparePendingImportFile(
           filesService,
           pendingImportFile,
@@ -1499,10 +1531,6 @@ export async function prepareRemainingPendingImportFiles({
           readyByIndex.set(index, fileResult.entry);
         } else {
           failedFiles.push(fileResult.error);
-          onPendingFileStatusChange?.(pendingImportFile, {
-            message: fileResult.error.message,
-            status: "failed",
-          });
         }
         completedIndexes.add(index);
         acceptedCount += flushReadyImportsWhenUseful();

@@ -16,12 +16,12 @@ import type { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import { FileService } from "src/cs/platform/files/common/fileService";
 import type { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
+import type { IProgressService } from "src/cs/platform/progress/common/progress";
 import { UriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentityService";
 import type { IWorkspaceContextService } from "src/cs/platform/workspace/common/workspace";
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
 import { ExplorerView } from "src/cs/workbench/contrib/files/browser/views/explorerView";
 import { ExplorerViewer } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
-import type { PendingImportFile } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   type ExplorerPaneInput,
@@ -133,12 +133,6 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       },
     });
     const resource = URI.file("/workspace/293K/output/Output_.csv");
-    const pendingFile = createPendingImportFile({
-      fileName: "Output_.csv",
-      itemKey: "source-output",
-      relativePath: "293K/output/Output_.csv",
-      resource,
-    });
     const explorerEntry = createExplorerImportEntry({
       fileName: "Output_.csv",
       itemKey: "source-output",
@@ -148,8 +142,8 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 
     try {
       (pane as unknown as {
-        replacePendingSourceFiles(pendingFiles: readonly PendingImportFile[]): void;
-      }).replacePendingSourceFiles([pendingFile]);
+        beginSourceReplace(): void;
+      }).beginSourceReplace();
       (pane as unknown as {
         replaceExplorerFiles(
           entries: readonly ExplorerFileEntry[],
@@ -161,8 +155,8 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       assert.deepEqual(reviewedResources, [resource.toString()]);
 
       (pane as unknown as {
-        finishPendingSourceReplace(): void;
-      }).finishPendingSourceReplace();
+        finishSourceReplace(completed: boolean): void;
+      }).finishSourceReplace(true);
 
       assert.deepEqual(openedResources, [resource.toString()]);
       assert.deepEqual(reviewedResources, [resource.toString()]);
@@ -243,6 +237,10 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     {
       notify: () => undefined,
     } as unknown as INotificationService,
+    {
+      _serviceBrand: undefined,
+      withProgress: async (_options, task) => task({ report: () => undefined }),
+    } as IProgressService,
     {
       open: (source: TableSource | null) => options.onOpenTable?.(source),
     } as unknown as ITableService,
@@ -374,13 +372,12 @@ const createExplorerService = (
     get files() {
       return files;
     },
-    hasPendingSourceFiles: false,
+    isImportingSources: false,
     hoveredResource: null,
     onDidChangeExpandedFolderKeys: Event.None,
     onDidChangeFiles: Event.None,
     onDidChangeHoveredResource: Event.None,
     onDidChangePaneInput: Event.None,
-    onDidChangePendingSourceFiles: Event.None,
     onDidChangeSelection: Event.None,
     onDidChangeViewLayout: Event.None,
     onDidChangeVisibleTargets: Event.None,
@@ -428,7 +425,7 @@ const createExplorerService = (
     setEditable: () => undefined,
     setExpandedFolderKeys: () => undefined,
     setHoveredResource: () => undefined,
-    setPendingSourceFiles: () => undefined,
+    setImportingSources: () => undefined,
     setToCopy: () => undefined,
     setViewLayout: () => undefined,
     setVisibleTargets: () => undefined,
@@ -438,32 +435,6 @@ const createExplorerService = (
     },
   } as unknown as IExplorerService;
 };
-
-const createPendingImportFile = ({
-  fileName,
-  itemKey,
-  relativePath,
-  resource,
-}: {
-  readonly fileName: string;
-  readonly itemKey: string;
-  readonly relativePath: string;
-  readonly resource: URI;
-}): PendingImportFile => ({
-  canUseNativePath: true,
-  finishFilePerf: () => undefined,
-  itemKey,
-  kind: "path",
-  lastModified: 1,
-  loadFile: async () => new File(["A,B\n1,2"], fileName, {
-    lastModified: 1,
-    type: "text/csv",
-  }),
-  relativePath,
-  resource,
-  sourceName: fileName,
-  sourceSize: 7,
-});
 
 const createExplorerImportEntry = ({
   fileName,

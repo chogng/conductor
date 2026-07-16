@@ -91,14 +91,13 @@ export interface IExplorerView {
 export interface IExplorerService {
   readonly _serviceBrand: undefined;
 
-  readonly hasPendingSourceFiles: boolean;
+  readonly isImportingSources: boolean;
   readonly files: readonly ExplorerFileEntry[];
   readonly selectedResource: URI | null;
   readonly selectedSheetId: string | null;
   readonly hoveredResource: ExplorerResourceIdentity | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
-  readonly onDidChangePendingSourceFiles: Event<boolean>;
   readonly onDidChangeSelection: Event<ExplorerSelectionChangeEvent>;
   readonly onDidChangeHoveredResource: Event<ExplorerHoveredResourceChangeEvent>;
   readonly onDidChangeExpandedFolderKeys: Event<ExplorerFolderExpansionChangeEvent>;
@@ -122,7 +121,7 @@ export interface IExplorerService {
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];
   getCollapsedFolderKeys(folderKeys: readonly string[]): readonly string[];
-  setPendingSourceFiles(hasPendingSourceFiles: boolean): void;
+  setImportingSources(isImportingSources: boolean): void;
   setVisibleTargets(visibleTargets: readonly ExplorerResourceIdentity[], nearbyTargets?: readonly ExplorerResourceIdentity[]): void;
   setViewLayout(viewLayout: ExplorerViewLayout): void;
   toggleViewLayout(): void;

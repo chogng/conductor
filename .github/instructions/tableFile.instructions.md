@@ -68,7 +68,7 @@ explicitly write canonical records:
 This remaining raw-table import ledger does not own:
 
 - URI-backed preview projections, file working-copy reload/watch state, or model caches;
-- Explorer tree, selection, expansion, drag/drop UI, or pending-source rows;
+- Explorer tree, selection, expansion, drag/drop UI, or Files source-import workflow state;
 - Table preview selection, row cache, reveal/highlight, or column widths;
 - table-model detection, Review candidate derivation, Review decisions, or Slice
   execution;

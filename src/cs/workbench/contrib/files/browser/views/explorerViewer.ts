@@ -73,7 +73,6 @@ import {
   getExplorerTreeFileName,
   type ExplorerFileEntry,
   type ExplorerResourceIdentity,
-  type ExplorerSourceStatus,
   type ExplorerTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
@@ -164,14 +163,6 @@ const getFileHoverThumbnailWidth = (): number =>
     Math.floor(window.innerWidth * FILE_HOVER_THUMBNAIL_VIEWPORT_RATIO),
   ));
 
-type FileSourceStatusBadge = {
-  readonly label: string;
-  readonly isWarning: boolean;
-  readonly state: "source";
-  readonly status: ExplorerSourceStatus;
-  readonly title: string | null;
-};
-
 type FileHoverContext = {
   readonly fileName: string;
   readonly path: string;
@@ -257,39 +248,6 @@ type ThumbnailGridItemCacheEntry = {
 
 type FileItemHoverView = {
   close(): void;
-};
-
-const createFileSourceStatusBadge = (
-  fileEntry: ExplorerFileEntry,
-): FileSourceStatusBadge | null => {
-  switch (fileEntry.sourceStatus) {
-    case "failed":
-      return {
-        label: localize("files.source.failed", "Failed"),
-        isWarning: true,
-        state: "source",
-        status: "failed",
-        title: String(fileEntry.sourceStatusMessage ?? "").trim() || null,
-      };
-    case "preparing":
-      return {
-        label: localize("files.source.loading", "Loading"),
-        isWarning: false,
-        state: "source",
-        status: "preparing",
-        title: null,
-      };
-    case "pending":
-      return {
-        label: localize("files.source.pending", "Pending"),
-        isWarning: false,
-        state: "source",
-        status: "pending",
-        title: null,
-      };
-    default:
-      return null;
-  }
 };
 
 const getFileRenderKey = (
@@ -434,52 +392,17 @@ const normalizeFileHoverText = (
 
 const createBadgePresentation = (
   fileKey: string,
-  badge: IDecorationData | FileSourceStatusBadge | null,
-  badgeColors: FilesExplorerBadgeColors,
+  badge: IDecorationData | null | undefined,
 ): ExplorerBadgePresentation => {
   if (!badge) {
     return null;
   }
 
   return {
-    color: resolveBadgePresentationColor(badge, badgeColors),
+    color: normalizeDecorationColor(badge.color),
     fileKey,
-    isWarning: "isWarning" in badge ? badge.isWarning : false,
-    label: "label" in badge ? badge.label : badge.letter ?? "",
-    source: getBadgePresentationSource(badge),
-    state: "state" in badge ? badge.state : "decoration",
-    title: "title" in badge ? badge.title : badge.tooltip ?? null,
+    label: badge.letter ?? "",
   };
-};
-
-const getBadgePresentationSource = (
-  badge: IDecorationData | FileSourceStatusBadge,
-): string | null => {
-  if (!("source" in badge)) {
-    return null;
-  }
-
-  const source = String(badge.source ?? "").trim();
-  return source || null;
-};
-
-const resolveBadgePresentationColor = (
-  badge: IDecorationData | FileSourceStatusBadge,
-  badgeColors: FilesExplorerBadgeColors,
-): string | null => {
-  if (!("state" in badge)) {
-    return normalizeDecorationColor(badge.color);
-  }
-  if (badge.state === "source" || badge.state === "pending") {
-    return null;
-  }
-
-  if (badge.state === "unknown") {
-    return badgeColors.unknown ?? "orange";
-  }
-
-  const label = badge.label.trim().toLowerCase();
-  return badgeColors[label] ?? "neutral";
 };
 
 const normalizeDecorationColor = (
@@ -1614,13 +1537,13 @@ export class ExplorerViewer implements IDisposable {
         this.props.editable?.isEditing === true &&
         areExplorerFileResourceIdentitiesEqual(this.props.editable.resource, fileResourceIdentity),
     );
-    const sourceStatus = createFileSourceStatusBadge(fileEntry);
     const { host } = template;
     const fileKey = getFileRenderKey(fileEntry);
     const treeFileKey = getExplorerTreeFileKey(fileEntry);
-    const decorationResource = fileEntry.resource
-      ? createExplorerDecorationResource(URI.revive(fileEntry.resource), fileEntry.sheetId)
-      : null;
+    const decorationResource = createExplorerDecorationResource(
+      URI.revive(fileEntry.resource),
+      fileEntry.sheetId,
+    );
     const presentationSignature = this.createFilePresentationSignature(fileEntry, this.props);
     if (this.hoverAnchor === host && template.fileId !== fileId) {
       this.hideFileItemHover(host);
@@ -1676,11 +1599,6 @@ export class ExplorerViewer implements IDisposable {
     template.filePresentationSignature = presentationSignature;
     template.badge.bind(fileKey);
     host.dataset.treeFileKey = treeFileKey;
-    if (sourceStatus) {
-      host.dataset.sourceStatus = sourceStatus.status;
-    } else {
-      delete host.dataset.sourceStatus;
-    }
     template.editorStore.clear();
     template.label.element.style.display = "";
     template.label.setResource(
@@ -1690,12 +1608,10 @@ export class ExplorerViewer implements IDisposable {
       },
       {
         extraClasses: ["explorer-item"],
-        ...(decorationResource ? {
-          fileDecorations: {
-            resource: decorationResource,
-            showTooltip: false,
-          },
-        } : {}),
+        fileDecorations: {
+          resource: decorationResource,
+          showTooltip: false,
+        },
         fileKind: FileKind.FILE,
       },
     );
@@ -2478,17 +2394,12 @@ export class ExplorerViewer implements IDisposable {
     template: FileItemTemplate,
   ): void {
     const fileKey = getFileRenderKey(fileEntry);
-    const sourceStatus = createFileSourceStatusBadge(fileEntry);
     const decoration = template.decorationResource
       ? this.decorationsService.getDecorationData(template.decorationResource, false)[0]
       : undefined;
-    const badge = sourceStatus?.status === "failed"
-      ? sourceStatus
-      : decoration ?? sourceStatus;
     template.badge.setBadge(fileKey, createBadgePresentation(
       fileKey,
-      badge,
-      this.explorerAppearance.badgeColors,
+      decoration,
     ));
   }
 

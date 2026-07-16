@@ -8,6 +8,7 @@ import { IContextMenuService } from "src/cs/platform/contextview/browser/context
 import { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
 import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
+import { IProgressService } from "src/cs/platform/progress/common/progress";
 import { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
 import { IWorkspaceContextService } from "src/cs/platform/workspace/common/workspace";
 import {
@@ -52,6 +53,7 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
     @IAppearanceService appearanceService: IAppearanceService,
     @IViewsService viewsService: IViewsService,
     @INotificationService notificationService: INotificationService,
+    @IProgressService progressService: IProgressService,
     @ITableService tableService: ITableService,
     @ISliceService sliceService: ISliceService,
     @IThumbnailPreviewService thumbnailPreviewService: IThumbnailPreviewService,
@@ -72,6 +74,7 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
       appearanceService,
       viewsService,
       notificationService,
+      progressService,
       tableService,
       sliceService,
       thumbnailPreviewService,

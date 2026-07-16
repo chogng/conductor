@@ -12,8 +12,6 @@ import {
 	type ExplorerFileNestingPattern,
 } from "src/cs/workbench/contrib/files/common/explorerFileNestingTrie";
 
-export type ExplorerSourceStatus = "pending" | "preparing" | "failed";
-
 export type ExplorerFileEntry = {
 	readonly chartMessage?: string | null;
 	readonly chartState?: "none" | "queued" | "processing" | "ready" | "failed" | "skipped";
@@ -25,12 +23,10 @@ export type ExplorerFileEntry = {
 	readonly localImport?: boolean;
 	readonly normalizedCsvPath?: string | null;
 	readonly relativePath?: string | null;
-	readonly resource?: URI | null;
+	readonly resource: URI;
 	readonly sheetId?: string | null;
 	readonly sheetName?: string | null;
 	readonly sourcePath?: string | null;
-	readonly sourceStatus?: ExplorerSourceStatus;
-	readonly sourceStatusMessage?: string | null;
 	readonly fileVersion?: number;
 };
 
@@ -124,8 +120,6 @@ export const createExplorerFilePresentationSignature = (
 ): string => {
 	return [
 		entry.fileId ?? "",
-		entry.sourceStatus ?? "",
-		entry.sourceStatusMessage ?? "",
 		options.badgeColorSignature,
 		options.templateLabel,
 		options.templateSelectionId,
@@ -152,36 +146,18 @@ export const getExplorerFileSourceIdentityKey = (
 		return null;
 	}
 
-	const resource = entry.resource ? URI.revive(entry.resource) : null;
-	const resourceIdentity = resource?.toString();
-	if (resourceIdentity) {
-		return `resource:${resourceIdentity}\u001f${getExplorerFileResourceSheetKey(entry.sheetId) ?? ""}`;
-	}
-
-	const sourcePath = getOptionalString(entry.sourcePath) ??
-		getOptionalString(entry.normalizedCsvPath);
-	if (sourcePath) {
-		return `path:${sourcePath}`;
-	}
-
-	const relativePath = getOptionalString(entry.relativePath);
-	const fileName = getExplorerFileName(entry).trim();
-	if (relativePath || fileName) {
-		return `name:${relativePath ?? ""}\u001f${fileName}`;
-	}
-
-	const itemKey = normalizeExplorerItemKey(entry.itemKey);
-	return itemKey ? `item:${itemKey}` : null;
+	const resource = URI.revive(entry.resource);
+	return `resource:${resource.toString()}\u001f${getExplorerFileResourceSheetKey(entry.sheetId) ?? ""}`;
 };
 
 export const getExplorerFileResourceIdentity = (
 	entry: ExplorerFileEntry | null | undefined,
 ): ExplorerResourceIdentity | null => {
-	const resource = entry?.resource ? URI.revive(entry.resource) : null;
-	if (!resource) {
+	if (!entry) {
 		return null;
 	}
 
+	const resource = URI.revive(entry.resource);
 	const sheetId = normalizeExplorerItemKey(entry?.sheetId);
 	return {
 		resource,
@@ -386,58 +362,8 @@ export const isExplorerPathInFolder = (
 	);
 };
 
-const getOptionalString = (value: unknown): string | undefined => {
-	const text = String(value ?? "").trim();
-	return text || undefined;
-};
-
 const getExplorerFileResourceSheetKey = (sheetId: unknown): string | null =>
 	normalizeExplorerItemKey(sheetId);
-
-export const mergeExplorerSourceEntries = ({
-	files,
-	pendingSourceEntries,
-	replaceItemKeys,
-}: {
-	readonly files: readonly ExplorerFileEntry[];
-	readonly pendingSourceEntries: readonly ExplorerFileEntry[];
-	readonly replaceItemKeys?: readonly string[] | null;
-}): ExplorerFileEntry[] => {
-	if (!pendingSourceEntries.length && !replaceItemKeys?.length) {
-		return [...files];
-	}
-
-	const pendingByItemKey = mapExplorerFilesByItemKey(pendingSourceEntries);
-	const committedByItemKey = mapExplorerFilesByItemKey(files);
-	if (replaceItemKeys?.length) {
-		const result: ExplorerFileEntry[] = [];
-		const seenItemKeys = new Set<string>();
-		for (const itemKey of replaceItemKeys) {
-			if (seenItemKeys.has(itemKey)) {
-				continue;
-			}
-			seenItemKeys.add(itemKey);
-			const committed = committedByItemKey.get(itemKey);
-			const pending = pendingByItemKey.get(itemKey);
-			if (committed) {
-				result.push(committed);
-			} else if (pending) {
-				result.push(pending);
-			}
-		}
-
-		return result;
-	}
-
-	const committedItemKeys = new Set(committedByItemKey.keys());
-	return [
-		...files,
-		...pendingSourceEntries.filter(entry => {
-			const itemKey = normalizeExplorerItemKey(entry.itemKey);
-			return !itemKey || !committedItemKeys.has(itemKey);
-		}),
-	];
-};
 
 export const filterNewExplorerFiles = (
 	entries: readonly ExplorerFileEntry[],
@@ -499,18 +425,4 @@ export const getExplorerFileEntryKey = (file: ExplorerFileEntry | undefined): st
 const normalizeExplorerItemKey = (itemKey: unknown): string | null => {
 	const normalized = String(itemKey ?? "").trim();
 	return normalized || null;
-};
-
-const mapExplorerFilesByItemKey = (
-	files: readonly ExplorerFileEntry[],
-): Map<string, ExplorerFileEntry> => {
-	const result = new Map<string, ExplorerFileEntry>();
-	for (const file of files) {
-		const itemKey = normalizeExplorerItemKey(file.itemKey);
-		if (!itemKey || result.has(itemKey)) {
-			continue;
-		}
-		result.set(itemKey, file);
-	}
-	return result;
 };

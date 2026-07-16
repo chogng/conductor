@@ -43,7 +43,7 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 		assert.deepStrictEqual(removedFileIds, ["old-b"]);
 	});
 
-	test("opens the selected URI import after pending source replacement", () => {
+	test("opens the selected URI import after source replacement", () => {
 		const resourceEntry = createExplorerFileEntry({
 			fileId: "file-b",
 			itemKey: "source-b",
@@ -131,7 +131,6 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 				selectedSheetId: null,
 				selectionKind: "table",
 			},
-			removePendingSourceFiles: () => undefined,
 			reviewService: {
 				resolveReviewSummary: (target: { readonly resource: URI; readonly sheetId?: string | null }) => {
 					reviewTargets.push(target);
@@ -202,8 +201,6 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 				selectedSheetId: null,
 				selectionKind: "chart",
 			},
-			pendingSourceEntries: [],
-			replaceItemKeys: null,
 			sliceService: {
 				getResourceResult: (resource: URI) => resource.toString() === readyResource.toString()
 					? { resource: readyResource, sheetId: null }

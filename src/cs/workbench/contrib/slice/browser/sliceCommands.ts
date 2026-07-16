@@ -56,7 +56,7 @@ export const runSliceWithTemplateHandler = (
 ): void => {
 	const explorerService = accessor.get(IExplorerService);
 	const notificationService = accessor.get(INotificationService);
-	if (explorerService.hasPendingSourceFiles) {
+	if (explorerService.isImportingSources) {
 		notificationService.notify({
 			id: "slice.notification",
 			message: localize("slice.runWithTemplate.importing", "Files are still importing. Try again after import finishes."),
@@ -353,11 +353,7 @@ const getSliceCommandResources = (
 const createSliceCommandResource = (
 	file: ExplorerFileEntry,
 ): SliceCommandResource | null => {
-	const resource = file.resource ? URI.revive(file.resource) : null;
-	if (!resource || file.sourceStatus) {
-		return null;
-	}
-
+	const resource = URI.revive(file.resource);
 	const sheetId = normalizeText(file.sheetId) || null;
 	return {
 		resource,

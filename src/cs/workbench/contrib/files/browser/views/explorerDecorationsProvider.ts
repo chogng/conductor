@@ -136,7 +136,6 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 			return;
 		}
 
-		let loadingSourceCount = 0;
 		let pendingBadgeCount = 0;
 		let reviewDecorationCount = 0;
 		let totalFileCount = 0;
@@ -146,9 +145,6 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 				continue;
 			}
 			totalFileCount += 1;
-			if (entry.sourceStatus === "pending" || entry.sourceStatus === "preparing") {
-				loadingSourceCount += 1;
-			}
 			const decoration = createExplorerDecorationDataFromReviewSummary(
 				this.reviewService.getLatestReviewSummary({
 					resource,
@@ -167,7 +163,6 @@ export class ExplorerDecorationsProvider extends Disposable implements IDecorati
 
 		markTemplateApplyPerformanceTrace("import.badge.projection", {
 			confirmedBadgeCount: reviewDecorationCount,
-			loadingSourceCount,
 			pendingBadgeCount,
 			reviewDecorationCount,
 			totalFileCount,
@@ -181,10 +176,7 @@ const normalizeResourceKey = (
 
 const getExplorerEntryDecorationResource = (
 	entry: ExplorerFileEntry,
-): URI | null => {
-	const resource = entry.resource ? URI.revive(entry.resource) : null;
-	return resource ?? null;
-};
+): URI => URI.revive(entry.resource);
 
 type ReviewTargetIndex = ReadonlyMap<string, ReadonlySet<string> | null>;
 

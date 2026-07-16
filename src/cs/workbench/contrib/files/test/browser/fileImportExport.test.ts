@@ -13,6 +13,13 @@ import {
   FileType,
   type IFileStat,
 } from "../../../../../platform/files/common/files.ts";
+import {
+  ProgressLocation,
+  type IProgress,
+  type IProgressOptions,
+  type IProgressService,
+  type IProgressStep,
+} from "../../../../../platform/progress/common/progress.ts";
 import { UriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentityService";
 import { IMPORT_ERROR_NOTIFICATION_ID } from "../../browser/fileConstants.ts";
 import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
@@ -899,7 +906,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       filesService,
       onExplorerFiles: entries => {
         resourcePaths.push(...entries.map(file =>
-          String(file.resource?.fsPath ?? "").replace(/\\/g, "/")
+          file.resource.fsPath.replace(/\\/g, "/")
         ));
       },
       pendingImportFiles: [
@@ -938,6 +945,8 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
   test("dropped file import appends instead of replacing existing files", async () => {
     const appendedFileNames: string[] = [];
+    const importingStates: boolean[] = [];
+    const progressOptions: IProgressOptions[] = [];
     const replacedFileNames: string[] = [];
     const filesService = store.add(new FileService());
     store.add(filesService.registerProvider("file", store.add(new HTMLFileSystemProvider())));
@@ -950,15 +959,20 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         fileId: "existing-file",
         fileName: "Existing.csv",
         itemKey: "Existing.csv::8::1",
+        resource: URIClass.file("/workspace/Existing.csv"),
       }],
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
+      progressService: createProgressServiceForTest(options => progressOptions.push(options)),
       uriIdentityService: store.add(new UriIdentityService(filesService)),
       onAppendExplorerFiles: entries => {
         appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
       },
       onDraggingChange: () => undefined,
+      onImportingSourcesChange: isImportingSources => {
+        importingStates.push(isImportingSources);
+      },
       onRemoveSourceItems: () => undefined,
       onReplaceExplorerFiles: entries => {
         replacedFileNames.push(...entries.map(file => file.fileName ?? ""));
@@ -969,10 +983,18 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     await (workflow as unknown as {
       importFiles(files: readonly FileSource[]): Promise<void>;
     }).importFiles([createDataFileSource("Added.csv")]);
-    workflow.dispose();
 
     assert.deepEqual(appendedFileNames, ["Added.csv"]);
+    assert.deepEqual(importingStates, [true, false]);
+    assert.deepEqual(progressOptions.map(options => ({
+      delay: options.delay,
+      location: options.location,
+    })), [{
+      delay: 800,
+      location: ProgressLocation.Window,
+    }]);
     assert.deepEqual(replacedFileNames, []);
+    workflow.dispose();
   });
 
   test("closing imported sources prevents delayed Explorer files from appending", async () => {
@@ -989,6 +1011,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
+      progressService: createProgressServiceForTest(),
       uriIdentityService: store.add(new UriIdentityService(filesService)),
       onAppendExplorerFiles: entries => {
         appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
@@ -1043,6 +1066,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
       notificationService,
+      progressService: createProgressServiceForTest(),
       uriIdentityService: store.add(new UriIdentityService(filesService)),
       onAppendExplorerFiles: () => undefined,
       onDraggingChange: () => undefined,
@@ -1066,6 +1090,19 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.ok(message?.includes("293K/blocked.csv"), String(message));
     assert.ok(message?.includes("Permission denied"), String(message));
   });
+});
+
+const createProgressServiceForTest = (
+  onOptions?: (options: IProgressOptions) => void,
+): IProgressService => ({
+  _serviceBrand: undefined,
+  withProgress: async <R>(
+    options: IProgressOptions,
+    task: (progress: IProgress<IProgressStep>) => Promise<R>,
+  ): Promise<R> => {
+    onOptions?.(options);
+    return await task({ report: () => undefined });
+  },
 });
 
 class NativeDroppedFolderFileService extends FileService {

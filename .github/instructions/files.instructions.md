@@ -133,9 +133,10 @@ table records, row readers, measurement detection, template apply, plot
 generation, Session mutation, or DOM rendering outside its own views.
 
 Explorer import workflows must not infer semantic badges during source
-collection or source preparation. Pending source rows may show only pending, preparing,
-or failed UI state until the file has a resolved resource and downstream Review/Slice
-state arrives through their owning services.
+collection or source preparation. Explorer publishes a row only after the source
+has a resolved resource. Import activity may be exposed as a nonvisual task fact
+for command gating, but it must not create resource-less rows or custom source
+status badges.
 
 ## Core Files
 
@@ -206,7 +207,8 @@ active view input to Session.
 ```txt
 Explorer drop/dialog/clipboard/folder
   -> command/editor/source workflow support check
-  -> source collection / pending Explorer entries
+  -> IProgressService.withProgress({ location: ProgressLocation.Window, delay })
+  -> source collection and preparation outside the Explorer row model
   -> assign table resource URI / register browser File with file provider when needed
   -> resource-backed ExplorerFileEntry rows
   -> ExplorerViewPane commits rows through IExplorerService file-model APIs
@@ -215,7 +217,7 @@ Explorer drop/dialog/clipboard/folder
   -> TableFileEditorModel / ITableModel own URI-backed model lifecycle
 ```
 
-For folder source replacement, Explorer may publish pending/resource-backed rows in
+For folder source replacement, Explorer may publish resource-backed rows in
 batches, but it defers the table-resource open until the replacement completes.
 That keeps the Explorer tree update ahead of table model resolution, matching
 the upstream Explorer-then-editor ordering.
@@ -287,12 +289,11 @@ Explorer item context menu Delete
   -> ExplorerViewPane removes the row from Explorer-owned visible state after success
 ```
 
-Pending source entries are display-only Explorer rows. They must not be
-committed to Session, selected as real files, used for duplicate detection, or
-participate in file actions. When source preparation resolves the real file,
-Explorer replaces the pending projection and explicitly asks Review to evaluate
-the resolved `{ resource, sheetId? }` identity; Explorer still does not infer semantic badges during
-source collection or preparation.
+Source preparation is workflow state, not an Explorer row projection. It must
+not be committed to Session, used for duplicate detection, or participate in
+file actions. When preparation resolves a real file, Explorer commits the
+resource-backed row and explicitly asks Review to evaluate the resolved
+`{ resource, sheetId? }` identity.
 
 Review input changes for already-visible Explorer rows are owned by Review and
 projected into Files; Explorer does not reschedule every visible row:
@@ -366,8 +367,12 @@ Rules:
 - Do not reach `ExplorerViewPane` through `IViewsService.getViewWithId(...)`.
 - Do not publish `onDidRequest*` events from `IExplorerService` as hidden commands.
 
-`ExplorerSourceState` is the preferred target name for source workflow state.
-Existing migration code may still call it `ExplorerImportState`.
+`IExplorerService.isImportingSources` is a nonvisual task fact used only where
+another command must wait for the Files-owned import workflow. It is not row
+state, readiness, or decoration data. The asynchronous import lifetime itself
+must run through `IProgressService`; the Files fact is only the domain-specific
+execution gate. Until Explorer owns a progress renderer, use delayed Window
+progress rather than adding a Files-local ProgressBar.
 
 ## Naming
 

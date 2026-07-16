@@ -150,6 +150,7 @@ Runtime folders:
 | Owner | Domain |
 | --- | --- |
 | `IFileService` | platform filesystem bytes/stat/watch/provider capability |
+| `IProgressService` | cross-feature asynchronous task lifecycle and presentation-location handoff; it does not own domain readiness or result state |
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | Explorer source helpers | source collection/import contracts for ordinary Explorer URI-backed imports |
 | `IDataResourceService` | URI-backed Conductor data-resource snapshots: structured content, semantic title matching, X/data-block/binding evidence, sheet sub-targets, source versions, and parser diagnostics for Review/Table/Search/Slice consumers |

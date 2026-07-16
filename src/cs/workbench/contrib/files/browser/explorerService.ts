@@ -35,8 +35,6 @@ import {
 export class ExplorerService extends Disposable implements IExplorerService {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly onDidChangePendingSourceFilesEmitter = this._register(new Emitter<boolean>());
-  public readonly onDidChangePendingSourceFiles = this.onDidChangePendingSourceFilesEmitter.event;
   private readonly onDidChangeSelectionEmitter = this._register(new Emitter<ExplorerSelectionChangeEvent>());
   public readonly onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
   private readonly onDidChangeHoveredResourceEmitter = this._register(new Emitter<ExplorerHoveredResourceChangeEvent>());
@@ -60,7 +58,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   private currentNearbyTargets: readonly ExplorerResourceIdentity[] = [];
   private currentVisibleTargets: readonly ExplorerResourceIdentity[] = [];
   private currentViewLayout: ExplorerViewLayout = "tree";
-  private currentHasPendingSourceFiles = false;
+  private currentIsImportingSources = false;
   private currentFiles: ExplorerFileEntry[] = [];
   private paneInput: ExplorerPaneInput | null = null;
   private readonly views = new Set<IExplorerView>();
@@ -78,8 +76,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return this.currentSelectedSheetId;
   }
 
-  public get hasPendingSourceFiles(): boolean {
-    return this.currentHasPendingSourceFiles;
+  public get isImportingSources(): boolean {
+    return this.currentIsImportingSources;
   }
 
   public get files(): readonly ExplorerFileEntry[] {
@@ -261,14 +259,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
       .filter(folderKey => !expandedFolderKeys.has(folderKey));
   }
 
-  public setPendingSourceFiles(hasPendingSourceFiles: boolean): void {
-    const next = Boolean(hasPendingSourceFiles);
-    if (this.currentHasPendingSourceFiles === next) {
-      return;
-    }
-
-    this.currentHasPendingSourceFiles = next;
-    this.onDidChangePendingSourceFilesEmitter.fire(next);
+  public setImportingSources(isImportingSources: boolean): void {
+    this.currentIsImportingSources = Boolean(isImportingSources);
   }
 
   public setVisibleTargets(
@@ -576,14 +568,12 @@ const areExplorerFilesEqual = (
       file.sheetId === nextFile.sheetId &&
       file.sheetName === nextFile.sheetName &&
       file.sourcePath === nextFile.sourcePath &&
-      file.sourceStatus === nextFile.sourceStatus &&
-      file.sourceStatusMessage === nextFile.sourceStatusMessage &&
       file.fileVersion === nextFile.fileVersion;
   });
 
 const areExplorerResourcesEqual = (
-  current: ExplorerFileEntry["resource"],
-  next: ExplorerFileEntry["resource"],
+  current: URI | null | undefined,
+  next: URI | null | undefined,
 ): boolean => {
   if (current === next) {
     return true;
@@ -591,8 +581,7 @@ const areExplorerResourcesEqual = (
   if (!current || !next) {
     return false;
   }
-
-  return URI.revive(current)?.toString() === URI.revive(next)?.toString();
+  return URI.revive(current).toString() === URI.revive(next).toString();
 };
 
 const areExplorerResourceIdentitiesEqual = (

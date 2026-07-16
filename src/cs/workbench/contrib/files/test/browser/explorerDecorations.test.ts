@@ -124,27 +124,6 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 		assert.equal(calls[0]?.sheetId, "sheet-a");
 	});
 
-	test("does not query review summaries for entries without resources", () => {
-		const resource = URI.file("/workspace/PathOnly.xlsx");
-		const calls: ReviewSummaryTarget[] = [];
-		const provider = store.add(new ExplorerDecorationsProvider(
-			createExplorerServiceForTest([{
-				fileId: "file-a",
-				fileName: "PathOnly.xlsx",
-				sheetId: "sheet-a",
-				sourcePath: resource.fsPath,
-			}]),
-			createReviewServiceForTest(calls),
-		));
-
-		const decoration = provider.provideDecorations(
-			createExplorerDecorationResource(resource, "sheet-a"),
-		);
-
-		assert.equal(decoration, undefined);
-		assert.deepEqual(calls, []);
-	});
-
 	test("fires decoration changes for the changed resource entry", () => {
 		const resource = URI.file("/workspace/Transfer.xlsx");
 		const reviewChanged = new Emitter<ReviewChangeEvent>();
@@ -281,25 +260,6 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
     assert.deepEqual(calls, []);
   });
 
-	test("does not fire decoration changes for entries without resources", () => {
-		const resource = URI.file("/workspace/PathOnly.xlsx");
-		const reviewChanged = new Emitter<ReviewChangeEvent>();
-		const changedResources: URI[][] = [];
-		const provider = store.add(new ExplorerDecorationsProvider(
-			createExplorerServiceForTest([{
-				fileId: "file-a",
-				fileName: "PathOnly.xlsx",
-				sheetId: "sheet-a",
-				sourcePath: resource.fsPath,
-			}]),
-			createReviewServiceForTest([], reviewChanged.event),
-		));
-		store.add(provider.onDidChange(resources => changedResources.push([...resources])));
-
-		reviewChanged.fire([{ resource, sheetId: "sheet-a" }]);
-
-		assert.deepEqual(changedResources, []);
-	});
 });
 
 const createExplorerServiceForTest = (
@@ -313,7 +273,7 @@ const createExplorerServiceForTest = (
 		selectedSheetId: null,
 		selectionKind: "table",
 	}),
-	hasPendingSourceFiles: false,
+	isImportingSources: false,
 	onDidChangeFiles: Event.None as Event<void>,
 	onDidChangePaneInput: Event.None as Event<void>,
 	setEditable: () => undefined,

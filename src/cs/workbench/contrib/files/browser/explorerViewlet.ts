@@ -14,6 +14,7 @@ import { IContextMenuService } from "src/cs/platform/contextview/browser/context
 import { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
 import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
+import { IProgressService } from "src/cs/platform/progress/common/progress";
 import { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
 import { IWorkspaceContextService } from "src/cs/platform/workspace/common/workspace";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
@@ -23,8 +24,6 @@ import { IViewsService } from "src/cs/workbench/services/views/common/viewsServi
 import {
   FileSourceWorkflow,
   getFolderImportSupportForFileService,
-  type PendingImportFile,
-  type PendingImportSourceStatusChange,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
   ExplorerView,
@@ -50,7 +49,6 @@ import {
   getExplorerResourceIdentityKey,
   getExplorerFileSourceIdentityKey,
   isExplorerPathInFolder,
-  mergeExplorerSourceEntries,
   type ExplorerFileEntry,
   type ExplorerResourceIdentity,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
@@ -107,14 +105,11 @@ export abstract class BaseExplorerViewPane extends ViewPane {
   private readonly surfaceViewLayout: FilesViewLayout;
   private explorerView: ExplorerView | null = null;
   private input: ExplorerPaneInput | null = null;
-  private pendingSourceEntries: ExplorerFileEntry[] = [];
-  private replaceItemKeys: string[] | null = null;
   private deferTableOpenUntilSourceReplace = false;
   private deferredSourceReplaceOpenTarget: ExplorerResourceIdentity | null = null;
   private isDragging = false;
   private disposed = false;
   private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
-  private cancelPendingSourceSyncView: (() => void) | null = null;
   private reviewedExplorerResourceSignature = "";
 
   protected constructor(
@@ -128,6 +123,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     @IAppearanceService private readonly appearanceService: IAppearanceService,
     @IViewsService private readonly viewsService: IViewsService,
     @INotificationService private readonly notificationService: INotificationService,
+    @IProgressService private readonly progressService: IProgressService,
     @ITableService private readonly tableService: ITableService,
     @ISliceService private readonly sliceService: ISliceService,
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
@@ -165,22 +161,21 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       getSelectedRelativePath: () => this.getSelectedRelativePath(),
       isDisposed: () => this.disposed,
       notificationService: this.notificationService,
+      progressService: this.progressService,
       onWillOpenFolder: folder => this.workspaceContextService.openFolder(folder),
       uriIdentityService: this.uriIdentityService,
       onAppendExplorerFiles: entries => this.appendExplorerFiles(entries),
-      onAppendPendingSourceFiles: pendingFiles => this.appendPendingSourceFiles(pendingFiles),
-      onClearPendingSourceFiles: () => this.clearPendingSourceFiles(),
+      onBeginSourceReplace: () => this.beginSourceReplace(),
       onDraggingChange: isDragging => {
         this.isDragging = isDragging;
+      },
+      onFinishSourceReplace: completed => this.finishSourceReplace(completed),
+      onImportingSourcesChange: isImportingSources => {
+        this.explorerService.setImportingSources(isImportingSources);
       },
       onRemoveSourceItems: itemKeys => this.removeImportedSourceItemsFromExplorer(itemKeys),
       onReplaceExplorerFiles: (entries, selectedImportItemKey) => {
         this.replaceExplorerFiles(entries, selectedImportItemKey);
-      },
-      onReplacePendingSourceFiles: pendingFiles => this.replacePendingSourceFiles(pendingFiles),
-      onFinishPendingSourceReplace: () => this.finishPendingSourceReplace(),
-      onUpdatePendingSourceFile: (pendingFile, change) => {
-        this.updatePendingSourceFile(pendingFile, change);
       },
       syncView: () => this.syncView(),
     });
@@ -249,9 +244,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     }
 
     this.disposed = true;
-    this.cancelPendingSourceSyncView?.();
-    this.cancelPendingSourceSyncView = null;
-    this.explorerService.setPendingSourceFiles(false);
+    this.explorerService.setImportingSources(false);
     this.sourceWorkflow.dispose();
     this.explorerView?.dispose();
     this.explorerView = null;
@@ -321,18 +314,9 @@ export abstract class BaseExplorerViewPane extends ViewPane {
 
   private get visibleEntries(): ExplorerFileEntry[] {
     const renderFiles = this.createExplorerRenderEntries(this.committedFiles);
-    const visibleFiles = this.shouldFilterChartThumbnailFiles()
+    return this.shouldFilterChartThumbnailFiles()
       ? renderFiles.filter(isChartThumbnailVisibleFile)
       : renderFiles;
-    if (!this.pendingSourceEntries.length && !this.replaceItemKeys?.length) {
-      return visibleFiles;
-    }
-
-    return mergeExplorerSourceEntries({
-      files: visibleFiles,
-      pendingSourceEntries: this.pendingSourceEntries,
-      replaceItemKeys: this.replaceItemKeys,
-    });
   }
 
   private get committedFiles(): readonly ExplorerFileEntry[] {
@@ -455,171 +439,24 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     this.explorerView?.setProps(this.createExplorerViewProps());
   }
 
-  private appendPendingSourceFiles(pendingFiles: readonly PendingImportFile[]): void {
-    this.upsertPendingSourceFiles(pendingFiles);
-  }
-
-  private replacePendingSourceFiles(pendingFiles: readonly PendingImportFile[]): void {
+  private beginSourceReplace(): void {
     this.deferTableOpenUntilSourceReplace = true;
     this.deferredSourceReplaceOpenTarget = null;
-    this.pendingSourceEntries = [];
-    this.replaceItemKeys = [];
-    this.upsertPendingSourceFiles(pendingFiles);
   }
 
-  private upsertPendingSourceFiles(pendingFiles: readonly PendingImportFile[]): void {
-    if (!pendingFiles.length) {
-      return;
-    }
-
-    const entriesByItemKey = new Map(
-      this.pendingSourceEntries
-        .map(entry => [normalizeItemKey(entry.itemKey), entry] as const)
-        .filter((entry): entry is readonly [string, ExplorerFileEntry] => Boolean(entry[0])),
-    );
-    const replaceItemKeys = this.replaceItemKeys ? [...this.replaceItemKeys] : null;
-    for (const pendingFile of pendingFiles) {
-      const itemKey = normalizeItemKey(pendingFile.itemKey);
-      if (!itemKey) {
-        continue;
-      }
-
-      entriesByItemKey.set(itemKey, createPendingSourceEntry({
-        message: entriesByItemKey.get(itemKey)?.sourceStatusMessage ?? null,
-        pendingFile,
-        status: entriesByItemKey.get(itemKey)?.sourceStatus ?? "pending",
-      }));
-      if (replaceItemKeys && !replaceItemKeys.includes(itemKey)) {
-        replaceItemKeys.push(itemKey);
-      }
-    }
-
-    this.pendingSourceEntries = [...entriesByItemKey.values()];
-    if (replaceItemKeys) {
-      this.replaceItemKeys = replaceItemKeys;
-    }
-    this.schedulePendingSourceSyncView();
-  }
-
-  private updatePendingSourceFile(
-    pendingFile: PendingImportFile,
-    change: PendingImportSourceStatusChange,
-  ): void {
-    const itemKey = normalizeItemKey(pendingFile.itemKey);
-    if (!itemKey) {
-      return;
-    }
-
-    const pendingEntries = this.pendingSourceEntries.map(entry =>
-      normalizeItemKey(entry.itemKey) === itemKey
-        ? createPendingSourceEntry({
-            message: change.message ?? null,
-            pendingFile,
-            status: change.status,
-          })
-        : entry,
-    );
-    if (!pendingEntries.some(entry => normalizeItemKey(entry.itemKey) === itemKey)) {
-      pendingEntries.push(createPendingSourceEntry({
-        message: change.message ?? null,
-        pendingFile,
-        status: change.status,
-      }));
-    }
-    this.pendingSourceEntries = pendingEntries;
-    this.schedulePendingSourceSyncView();
-  }
-
-  private removePendingSourceFiles(itemKeys: readonly string[]): void {
-    const removedItemKeys = new Set(
-      itemKeys
-        .map(itemKey => normalizeItemKey(itemKey))
-        .filter((itemKey): itemKey is string => Boolean(itemKey)),
-    );
-    if (!removedItemKeys.size) {
-      return;
-    }
-
-    this.pendingSourceEntries = this.pendingSourceEntries.filter(
-      entry => !removedItemKeys.has(normalizeItemKey(entry.itemKey) ?? ""),
-    );
-    if (this.pendingSourceEntries.length === 0) {
-      this.replaceItemKeys = null;
-    }
-    this.schedulePendingSourceSyncView();
-  }
-
-  private removePendingSourceFilesInFolder(folderPath: string): boolean {
-    const previousCount = this.pendingSourceEntries.length;
-    this.pendingSourceEntries = this.pendingSourceEntries.filter(
-      entry => !isExplorerPathInFolder(entry.relativePath, folderPath),
-    );
-    if (this.pendingSourceEntries.length === 0) {
-      this.replaceItemKeys = null;
-    }
-    return previousCount !== this.pendingSourceEntries.length;
-  }
-
-  private clearPendingSourceFiles(): void {
-    if (
-      !this.pendingSourceEntries.length &&
-      !this.replaceItemKeys?.length &&
-      !this.deferTableOpenUntilSourceReplace
-    ) {
-      return;
-    }
-
-    this.deferTableOpenUntilSourceReplace = false;
-    this.deferredSourceReplaceOpenTarget = null;
-    this.pendingSourceEntries = [];
-    this.replaceItemKeys = null;
-    this.schedulePendingSourceSyncView();
-  }
-
-  private finishPendingSourceReplace(): void {
+  private finishSourceReplace(completed: boolean): void {
     const shouldOpenDeferredTable = this.deferTableOpenUntilSourceReplace;
-    if (!this.replaceItemKeys?.length && !shouldOpenDeferredTable) {
+    if (!shouldOpenDeferredTable) {
       return;
     }
 
-    this.replaceItemKeys = null;
     this.deferTableOpenUntilSourceReplace = false;
-    if (shouldOpenDeferredTable) {
+    if (completed) {
       this.openDeferredSourceReplaceTable();
+    } else {
+      this.deferredSourceReplaceOpenTarget = null;
     }
-    this.schedulePendingSourceSyncView();
-  }
-
-  private schedulePendingSourceSyncView(): void {
-    if (this.disposed) {
-      return;
-    }
-
-    this.explorerService.setPendingSourceFiles(
-      this.pendingSourceEntries.some(entry => entry.sourceStatus !== "failed"),
-    );
-
-    if (this.cancelPendingSourceSyncView) {
-      return;
-    }
-
-    const run = (): void => {
-      this.cancelPendingSourceSyncView = null;
-      this.syncView();
-    };
-
-    if (typeof globalThis.requestAnimationFrame === "function") {
-      const handle = globalThis.requestAnimationFrame(run);
-      this.cancelPendingSourceSyncView = () => {
-        globalThis.cancelAnimationFrame(handle);
-      };
-      return;
-    }
-
-    const handle = globalThis.setTimeout(run, 0);
-    this.cancelPendingSourceSyncView = () => {
-      globalThis.clearTimeout(handle);
-    };
+    this.syncView();
   }
 
   private openFileDialog(): void {
@@ -782,8 +619,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
         .map((entry) => entry.fileId)
         .filter((fileId): fileId is string => typeof fileId === "string"),
     );
-    const removedPendingSources = this.removePendingSourceFilesInFolder(folderPath);
-    if (removedFileIds.size === 0 && !removedPendingSources) {
+    if (removedFileIds.size === 0) {
       return;
     }
 
@@ -906,7 +742,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     this.explorerService.replaceFiles(entries);
     this.reviewExplorerEntries(entries);
 
-    this.removePendingSourceFiles(getImportItemKeys(entries));
     const selectedEntry = resolveSelectedExplorerImportEntry(entries, selectedImportItemKey);
     if (!selectedEntry) {
       this.syncView();
@@ -933,7 +768,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     assertSupportedExplorerImportEntries(entries);
     const importedEntries = this.explorerService.appendFiles(entries);
     this.reviewExplorerEntries(entries);
-    this.removePendingSourceFiles(getImportItemKeys(entries));
     if (!importedEntries.length) {
       this.syncView();
       return;
@@ -1123,6 +957,7 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
     @IAppearanceService appearanceService: IAppearanceService,
     @IViewsService viewsService: IViewsService,
     @INotificationService notificationService: INotificationService,
+    @IProgressService progressService: IProgressService,
     @ITableService tableService: ITableService,
     @ISliceService sliceService: ISliceService,
     @IThumbnailPreviewService thumbnailPreviewService: IThumbnailPreviewService,
@@ -1143,6 +978,7 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
       appearanceService,
       viewsService,
       notificationService,
+      progressService,
       tableService,
       sliceService,
       thumbnailPreviewService,
@@ -1153,43 +989,6 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
       workspaceContextService,
     );
   }
-}
-
-function createPendingSourceEntry({
-  message,
-  pendingFile,
-  status,
-}: {
-  readonly message: string | null;
-  readonly pendingFile: PendingImportFile;
-  readonly status: ExplorerFileEntry["sourceStatus"];
-}): ExplorerFileEntry {
-  const relativePath = normalizeRelativePath(pendingFile.relativePath);
-  return {
-    fileName: pendingFile.sourceName,
-    itemKey: pendingFile.itemKey,
-    relativePath,
-    sourcePath: getPendingSourcePath(pendingFile),
-    sourceStatus: status,
-    sourceStatusMessage: message,
-  };
-}
-
-function getPendingSourcePath(pendingFile: PendingImportFile): string | null {
-  if (!pendingFile.canUseNativePath) {
-    return null;
-  }
-
-  const fsPath = String(pendingFile.resource?.fsPath ?? "").trim();
-  return fsPath || null;
-}
-
-function getImportItemKeys(
-  entries: readonly ExplorerFileEntry[],
-): readonly string[] {
-  return entries
-    .map(entry => entry.itemKey)
-    .filter((itemKey): itemKey is string => typeof itemKey === "string");
 }
 
 function resolveSelectedExplorerImportEntry(
@@ -1387,13 +1186,7 @@ function createTableSourceFromExplorerFile(
 }
 
 function getExplorerFileTableResource(file: ExplorerFileEntry | null | undefined): URI | null {
-  const resource = file?.resource ? URI.revive(file.resource) : null;
-  if (resource) {
-    return resource;
-  }
-
-  const path = getExplorerFileTablePath(file);
-  return path ? URI.file(path) : null;
+  return file ? URI.revive(file.resource) : null;
 }
 
 function getExplorerFileTablePath(file: ExplorerFileEntry | null | undefined): string | null {
@@ -1418,7 +1211,7 @@ function getImportedTableFileNameCandidates(
   return [
     file.fileName,
     file.sourcePath,
-    file.resource?.path,
+    file.resource.path,
     file.itemKey,
   ]
     .map(value => String(value ?? "").trim())

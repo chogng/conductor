@@ -240,18 +240,6 @@
   white-space: nowrap;
 }
 
-.file-list-item-review-decoration[data-state="pending"] {
-  color: rgb(var(--text-secondary) / 0.72);
-}
-
-.file-list-item-review-decoration[data-source="fast"] {
-  color: rgb(var(--text-secondary) / 0.9);
-}
-
-.file-list-item-review-decoration[data-state="unknown"] {
-  color: rgb(var(--text-secondary) / 0.9);
-}
-
 .file-list-tree-root[data-show-badges="false"] .file-list-item-review-decoration {
   display: none;
 }
@@ -284,18 +272,6 @@
 .file-list-item-review-decoration[data-color="cyan"] {
   background-color: rgb(8 145 178 / 0.12);
   color: rgb(8 145 178 / 1);
-}
-
-.file-list-item-review-decoration[data-warning="true"] {
-  background-color: rgb(217 119 6 / 0.12);
-  border-color: rgb(217 119 6 / 0.45);
-  color: rgb(217 119 6 / 1);
-}
-
-.file-list-item-review-decoration[data-warning="true"]:is(.dark *) {
-  background-color: rgb(251 191 36 / 0.14);
-  border-color: rgb(251 191 36 / 0.45);
-  color: rgb(251 191 36 / 1);
 }
 
 .file-list-item-remove {

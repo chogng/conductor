@@ -261,6 +261,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         fileName: "A.csv",
         itemKey: "file-a",
         relativePath: "Folder/A.csv",
+        resource: URI.file("/data/Folder/A.csv"),
       }],
     }, labels, contextViewService);
 
@@ -621,7 +622,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     }
   });
 
-  test("requests URI resource row thumbnails and ignores unresolved rows", () => {
+  test("requests URI resource row thumbnails", () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
@@ -638,6 +639,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       files: [{
         fileId: "file-a",
         fileName: "A.csv",
+        resource: URI.file("/data/A.csv"),
       }, {
         fileId: "uri-a",
         fileName: "Uri A.csv",
@@ -669,10 +671,16 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     try {
       viewer.setProps(props);
 
-      assert.deepEqual(requestedTargets, [{
-        resource: "file:///data/UriA.csv",
-        sheetId: null,
-      }]);
+      assert.deepEqual(requestedTargets, [
+        {
+          resource: "file:///data/A.csv",
+          sheetId: null,
+        },
+        {
+          resource: "file:///data/UriA.csv",
+          sheetId: null,
+        },
+      ]);
     } finally {
       viewer.dispose();
       labels.dispose();
@@ -1297,6 +1305,7 @@ const createViewerProps = (): ExplorerViewerProps => ({
     fileId: "file-a",
     fileName: "A.csv",
     itemKey: "file-a",
+    resource: URI.file("/data/A.csv"),
   }],
   mode: "table",
   onListScroll: () => undefined,
