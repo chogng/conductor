@@ -25,8 +25,8 @@ export const registerTableActions = (): IDisposable => {
         });
       }
 
-      public async run(accessor: ServicesAccessor): Promise<boolean> {
-        return command.run(accessor);
+      public async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<boolean> {
+        return command.run(accessor, ...args);
       }
     }));
   }

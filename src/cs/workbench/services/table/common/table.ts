@@ -34,6 +34,27 @@ export type TableSelection = {
 	readonly ranges?: readonly TableRange[];
 };
 
+export const resolveTableColumnDisplayScaleTarget = (
+	selection: TableSelection,
+): number | null => {
+	const selectedColumns = Array.from(new Set(
+		Array.isArray(selection.selectedColumns)
+			? selection.selectedColumns
+				.map(columnIndex => Math.floor(Number(columnIndex)))
+				.filter(columnIndex => Number.isInteger(columnIndex) && columnIndex >= 0)
+			: [],
+	));
+	if (selectedColumns.length === 1) {
+		return selectedColumns[0]!;
+	}
+	if (selectedColumns.length > 1) {
+		return null;
+	}
+
+	const activeColumn = Math.floor(Number(selection.activeCell?.colIndex));
+	return Number.isInteger(activeColumn) && activeColumn >= 0 ? activeColumn : null;
+};
+
 export type TableRangeDecorationKind =
 	| "reviewProof"
 	| "templateBlock"

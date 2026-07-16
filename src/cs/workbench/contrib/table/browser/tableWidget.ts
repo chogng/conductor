@@ -6,6 +6,7 @@ import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { Action } from "src/cs/base/common/actions";
 import { Stepper } from "src/cs/base/browser/ui/stepper/stepper";
 import { localize } from "src/cs/nls";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import {
   TableWidget as BaseTableWidget,
 } from "src/cs/base/browser/ui/table/tableWidget";
@@ -35,6 +36,7 @@ import {
   isTableColumnScaleBadgeVisible,
   syncTableColumnScaleStepper,
 } from "src/cs/workbench/contrib/table/browser/tableStepper";
+import { TableCommandId } from "src/cs/workbench/contrib/table/common/table";
 import {
   createPerformanceStageRecorder,
   type PerformanceStageContext,
@@ -52,6 +54,7 @@ import {
   type TableColumnWidth,
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import {
+  resolveTableColumnDisplayScaleTarget,
   toTableSheetKey,
   type TableRangeDecoration,
   type TableSource,
@@ -163,10 +166,9 @@ export type TableWidgetProps = {
   readonly canAdjustColumnScale?: boolean;
   readonly columnHeaderSelection?: TableWidgetColumnHeaderSelection;
   readonly columnSizingMode: TableColumnSizingMode;
+  readonly commandService?: Pick<ICommandService, "executeCommand">;
   readonly getColumnWidths?: (source: TableSource | null | undefined) => readonly TableColumnWidth[];
   readonly onCopySelection?: () => void;
-  readonly onAdjustColumnDisplayScale?: (colIndex: number, deltaExponent: number) => boolean;
-  readonly onResetColumnDisplayScale?: (colIndex: number) => boolean;
   readonly onSelect: (
     target: TableWidgetSelectionTarget | null,
     reveal?: TableWidgetRevealMode,
@@ -294,25 +296,25 @@ export class TableWidget {
     this.element.setAttribute("role", "region");
     this.element.setAttribute("aria-label", localize("table.view.ariaLabel", "Table"));
     this.columnScaleDecreaseAction = this.store.add(new Action(
-      "table.columnScale.decrease",
+      TableCommandId.decreaseColumnDisplayScale,
       localize("table.preview.decreaseColumnScale", "Decrease column scale exponent"),
       "",
       true,
-      () => this.onColumnScaleControlAction("decrease"),
+      () => this.runColumnScaleCommand(TableCommandId.decreaseColumnDisplayScale),
     ));
     this.columnScaleIncreaseAction = this.store.add(new Action(
-      "table.columnScale.increase",
+      TableCommandId.increaseColumnDisplayScale,
       localize("table.preview.increaseColumnScale", "Increase column scale exponent"),
       "",
       true,
-      () => this.onColumnScaleControlAction("increase"),
+      () => this.runColumnScaleCommand(TableCommandId.increaseColumnDisplayScale),
     ));
     this.columnScaleResetAction = this.store.add(new Action(
-      "table.columnScale.reset",
+      TableCommandId.resetColumnDisplayScale,
       localize("table.preview.resetColumnScale", "Reset column scale to automatic"),
       "",
       true,
-      () => this.onColumnScaleControlAction("reset"),
+      () => this.runColumnScaleCommand(TableCommandId.resetColumnDisplayScale),
     ));
     this.columnScaleControl = this.store.add(createTableColumnScaleStepper({
       decrease: this.columnScaleDecreaseAction,
@@ -1318,7 +1320,12 @@ export class TableWidget {
     this.focus();
   }
 
-  private onColumnScaleControlAction(action: "decrease" | "increase" | "reset"): void {
+  private async runColumnScaleCommand(
+    commandId:
+      | typeof TableCommandId.decreaseColumnDisplayScale
+      | typeof TableCommandId.increaseColumnDisplayScale
+      | typeof TableCommandId.resetColumnDisplayScale,
+  ): Promise<void> {
     if (!this.canAdjustColumnScale()) {
       return;
     }
@@ -1328,15 +1335,7 @@ export class TableWidget {
       return;
     }
 
-    let changed = false;
-    if (action === "decrease") {
-      changed = this.props.onAdjustColumnDisplayScale?.(colIndex, -1) ?? false;
-    } else if (action === "increase") {
-      changed = this.props.onAdjustColumnDisplayScale?.(colIndex, 1) ?? false;
-    } else if (action === "reset") {
-      changed = this.props.onResetColumnDisplayScale?.(colIndex) ?? false;
-    }
-
+    const changed = await this.props.commandService?.executeCommand<boolean>(commandId, colIndex) ?? false;
     if (!changed) {
       return;
     }
@@ -1351,11 +1350,9 @@ export class TableWidget {
       return;
     }
 
-    const colIndex = resolveTableColumnScaleTarget(
-      this.getSelection(),
-      this.props.tableState.file?.columnCount ?? this.grid.getSize().columnCount,
-    );
-    if (colIndex === null) {
+    const columnCount = this.props.tableState.file?.columnCount ?? this.grid.getSize().columnCount;
+    const colIndex = resolveTableColumnDisplayScaleTarget(this.getSelection()) ?? (columnCount > 0 ? 0 : null);
+    if (colIndex === null || colIndex >= columnCount) {
       this.hideColumnScaleControl();
       return;
     }
@@ -1772,26 +1769,6 @@ const resolveHeaderSelectedColumns = (
 const normalizeWidgetColumnIndex = (value: unknown): number | null => {
   const index = Math.floor(Number(value));
   return Number.isInteger(index) && index >= 0 ? index : null;
-};
-
-const resolveTableColumnScaleTarget = (
-  selection: TableWidgetSelection,
-  columnCount: number,
-): number | null => {
-  const normalizedColumnCount = Math.max(0, Math.floor(Number(columnCount) || 0));
-  if (normalizedColumnCount === 0) {
-    return null;
-  }
-
-  const selectedColumns = selection.selectedColumns;
-  if (selectedColumns?.length === 1) {
-    const selectedColumn = normalizeWidgetColumnIndex(selectedColumns[0]);
-    if (selectedColumn !== null && selectedColumn < normalizedColumnCount) {
-      return selectedColumn;
-    }
-  }
-
-  return 0;
 };
 
 const getColumnScaleValueText = (profile: ColumnDisplayProfile): string =>

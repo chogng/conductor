@@ -19,6 +19,10 @@ import {
 	type ITableWidgetController,
 } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
 import { TableCommandId } from "src/cs/workbench/contrib/table/common/table";
+import {
+	ITableService,
+	type TableSelection,
+} from "src/cs/workbench/services/table/common/table";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/table/test/browser/tableCommands", () => {
@@ -59,6 +63,66 @@ suite("workbench/contrib/table/test/browser/tableCommands", () => {
 		} finally {
 			zoomControllerRegistration.dispose();
 			tableWidgetService.dispose();
+			registration.dispose();
+		}
+	});
+
+	test("column display scale actions use explicit or selected columns", async () => {
+		const registration = registerTableActions();
+		const calls: string[] = [];
+		let selection: TableSelection = {
+			activeCell: { colIndex: 4, rowIndex: 2 },
+		};
+		const tableService = {
+			adjustColumnDisplayScale: (colIndex: number, deltaExponent: number) => {
+				calls.push(`adjust:${colIndex}:${deltaExponent}`);
+				return true;
+			},
+			getSelection: () => selection,
+			resetColumnDisplayScale: (colIndex: number) => {
+				calls.push(`reset:${colIndex}`);
+				return true;
+			},
+		} as unknown as ITableService;
+		const accessor = {
+			get: (serviceId: unknown) => {
+				if (serviceId === ITableService) {
+					return tableService;
+				}
+				throw new Error("column display scale commands must resolve only ITableService");
+			},
+		} as unknown as ServicesAccessor;
+
+		try {
+			assert.equal(
+				await CommandsRegistry.getCommand(TableCommandId.increaseColumnDisplayScale)?.handler(accessor, 2),
+				true,
+			);
+			assert.equal(
+				await CommandsRegistry.getCommand(TableCommandId.decreaseColumnDisplayScale)?.handler(accessor),
+				true,
+			);
+			selection = {
+				activeCell: { colIndex: 4, rowIndex: 2 },
+				selectedColumns: [1],
+			};
+			assert.equal(
+				await CommandsRegistry.getCommand(TableCommandId.resetColumnDisplayScale)?.handler(accessor),
+				true,
+			);
+			selection = {
+				selectedColumns: [1, 2],
+			};
+			assert.equal(
+				await CommandsRegistry.getCommand(TableCommandId.increaseColumnDisplayScale)?.handler(accessor),
+				false,
+			);
+			assert.deepEqual(calls, [
+				"adjust:2:1",
+				"adjust:4:-1",
+				"reset:1",
+			]);
+		} finally {
 			registration.dispose();
 		}
 	});

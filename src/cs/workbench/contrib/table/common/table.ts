@@ -11,6 +11,9 @@ export const TableViewId = "workbench.table";
 export const TableCommandId = {
 	clearSelection: "workbench.table.clearSelection",
 	copySelection: "workbench.table.copySelection",
+	decreaseColumnDisplayScale: "workbench.table.decreaseColumnDisplayScale",
+	increaseColumnDisplayScale: "workbench.table.increaseColumnDisplayScale",
+	resetColumnDisplayScale: "workbench.table.resetColumnDisplayScale",
 	resetZoom: "workbench.table.resetZoom",
 	selectAllColumns: "workbench.table.selectAllColumns",
 	zoomIn: "workbench.table.zoomIn",

@@ -1,5 +1,6 @@
 import type { Event } from "src/cs/base/common/event";
 import type { ITableSize } from "src/cs/base/browser/ui/table/table";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import {
   TableWidget,
   type TableWidgetColumnHeaderSelection,
@@ -10,7 +11,7 @@ import {
   type TableWidgetSelectionTarget,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
 import type { TableColumnSizingMode, TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
-import type { ITableService, TableSource } from "src/cs/workbench/services/table/common/table";
+import type { TableSource } from "src/cs/workbench/services/table/common/table";
 
 export type TableControllerViewModel = TableWidgetModel;
 
@@ -21,6 +22,7 @@ export type TableControllerProps = {
   readonly canAdjustColumnScale?: boolean;
   readonly columnHeaderSelection?: TableWidgetColumnHeaderSelection;
   readonly columnSizingMode: TableColumnSizingMode;
+  readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly getColumnWidths?: (source: TableSource | null | undefined) => readonly TableColumnWidth[];
   readonly onCopySelection?: () => void;
   readonly onSelect: (
@@ -32,7 +34,6 @@ export type TableControllerProps = {
     widths: readonly TableColumnWidth[],
   ) => void;
   readonly tableViewModel: TableControllerViewModel;
-  readonly tableService: ITableService;
   readonly tableState: TableState;
 };
 
@@ -115,23 +116,20 @@ const toWidgetProps = ({
   canAdjustColumnScale,
   columnHeaderSelection,
   columnSizingMode,
+  commandService,
   tableViewModel,
   tableState,
   getColumnWidths,
   onCopySelection,
   onSelect,
   storeColumnWidths,
-  tableService,
 }: TableControllerProps): TableWidgetProps => ({
   canAdjustColumnScale,
   columnHeaderSelection,
   columnSizingMode,
+  commandService,
   getColumnWidths,
   onCopySelection,
-  onAdjustColumnDisplayScale: (colIndex, deltaExponent) =>
-    tableService.adjustColumnDisplayScale(colIndex, deltaExponent),
-  onResetColumnDisplayScale: colIndex =>
-    tableService.resetColumnDisplayScale(colIndex),
   onSelect,
   storeColumnWidths,
   tableViewModel,

@@ -11,6 +11,7 @@ import {
 	createTableDecorationResource,
 	normalizeTableSource,
 	parseTableDecorationResource,
+	resolveTableColumnDisplayScaleTarget,
 	toTableSheetKey,
 } from "src/cs/workbench/services/table/common/table";
 
@@ -80,5 +81,27 @@ suite("workbench/services/table/test/common/table", () => {
 		});
 
 		assert.equal(parseTableDecorationResource(resource), null);
+	});
+
+	test("resolves a unique column display scale target from table selection", () => {
+		assert.deepStrictEqual({
+			activeCell: resolveTableColumnDisplayScaleTarget({
+				activeCell: { colIndex: 3, rowIndex: 4 },
+			}),
+			multipleColumns: resolveTableColumnDisplayScaleTarget({
+				activeCell: { colIndex: 3, rowIndex: 4 },
+				selectedColumns: [1, 2],
+			}),
+			selectedColumn: resolveTableColumnDisplayScaleTarget({
+				activeCell: { colIndex: 3, rowIndex: 4 },
+				selectedColumns: [1, 1],
+			}),
+			withoutSelection: resolveTableColumnDisplayScaleTarget({}),
+		}, {
+			activeCell: 3,
+			multipleColumns: null,
+			selectedColumn: 1,
+			withoutSelection: null,
+		});
 	});
 });

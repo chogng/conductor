@@ -4,7 +4,6 @@
 
 import assert from "assert";
 
-import { Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import {
 	TableController,
@@ -14,12 +13,7 @@ import {
 import type {
 	ColumnDisplayProfile,
 } from "src/cs/workbench/services/table/common/tableDisplayProfile";
-import type {
-	ITableService,
-	TableSelection,
-	TableSource,
-	TableState,
-} from "src/cs/workbench/services/table/common/table";
+import type { TableSelection, TableSource, TableState } from "src/cs/workbench/services/table/common/table";
 import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -127,11 +121,13 @@ function createTableControllerProps(options: TableControllerTestOptions = {}): T
 
 	return {
 		columnSizingMode: "fixed",
+		commandService: {
+			executeCommand: async () => undefined,
+		},
 		getColumnWidths: options.getColumnWidths,
 		onSelect: () => true,
 		storeColumnWidths: options.storeColumnWidths,
 		tableViewModel,
-		tableService: createTableService(),
 		tableState,
 	};
 }
@@ -192,31 +188,6 @@ function createTableViewModel(
 			`C${rowIndex + 1}`,
 		],
 		subscribeRowsVersion: () => noopDisposable,
-	};
-}
-
-function createTableService(): ITableService {
-	return {
-		_serviceBrand: undefined,
-		onDidChangeSelection: Event.None as Event<TableSelection>,
-		onDidChangeTableViewInput: Event.None as Event<void>,
-		adjustColumnDisplayScale: () => false,
-		clearHighlight: () => undefined,
-		clearSelection: () => false,
-		findCell: async () => ({ kind: "empty" }),
-		getCellValue: async () => ({ kind: "empty" }),
-		getColumnWidths: () => [],
-		getPreviewRow: () => null,
-		getSelection: (): TableSelection => ({}),
-		getSelectionText: async () => ({ kind: "empty" }),
-		getViewInput: () => null,
-		highlightColumns: () => undefined,
-		open: () => undefined,
-		reveal: () => false,
-		resetColumnDisplayScale: () => false,
-		select: () => false,
-		selectAllColumns: () => false,
-		storeColumnWidths: () => undefined,
 	};
 }
 

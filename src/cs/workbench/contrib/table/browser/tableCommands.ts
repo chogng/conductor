@@ -2,7 +2,10 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITableService } from "src/cs/workbench/services/table/common/table";
+import {
+  ITableService,
+  resolveTableColumnDisplayScaleTarget,
+} from "src/cs/workbench/services/table/common/table";
 import {
   TableCommandId,
   type TableCommandId as TableCommandIdValue,
@@ -17,7 +20,7 @@ import { ITableWidgetService } from "src/cs/workbench/contrib/table/browser/tabl
 
 export type TableCommandRegistration = {
   readonly id: TableCommandIdValue;
-  readonly run: (accessor: ServicesAccessor) => boolean | Promise<boolean>;
+  readonly run: (accessor: ServicesAccessor, ...args: unknown[]) => boolean | Promise<boolean>;
   readonly title: string;
 };
 
@@ -34,6 +37,21 @@ const tableCommandRegistrations: readonly TableCommandRegistration[] = [
       accessor.get(INotificationService),
     ),
     title: localize("table.commands.copySelection", "Copy table selection"),
+  },
+  {
+    id: TableCommandId.decreaseColumnDisplayScale,
+    run: (accessor, colIndex) => adjustColumnDisplayScale(accessor, colIndex, -1),
+    title: localize("table.commands.decreaseColumnDisplayScale", "Decrease Column Display Scale"),
+  },
+  {
+    id: TableCommandId.increaseColumnDisplayScale,
+    run: (accessor, colIndex) => adjustColumnDisplayScale(accessor, colIndex, 1),
+    title: localize("table.commands.increaseColumnDisplayScale", "Increase Column Display Scale"),
+  },
+  {
+    id: TableCommandId.resetColumnDisplayScale,
+    run: (accessor, colIndex) => resetColumnDisplayScale(accessor, colIndex),
+    title: localize("table.commands.resetColumnDisplayScale", "Reset Column Display Scale"),
   },
   {
     id: TableCommandId.resetZoom,
@@ -59,6 +77,41 @@ const tableCommandRegistrations: readonly TableCommandRegistration[] = [
 
 export const getTableCommandRegistrations = (): readonly TableCommandRegistration[] =>
   tableCommandRegistrations;
+
+const adjustColumnDisplayScale = (
+  accessor: ServicesAccessor,
+  rawColumnIndex: unknown,
+  deltaExponent: number,
+): boolean => {
+  const tableService = accessor.get(ITableService);
+  const columnIndex = resolveColumnDisplayScaleCommandTarget(tableService, rawColumnIndex);
+  return columnIndex === null
+    ? false
+    : tableService.adjustColumnDisplayScale(columnIndex, deltaExponent);
+};
+
+const resetColumnDisplayScale = (
+  accessor: ServicesAccessor,
+  rawColumnIndex: unknown,
+): boolean => {
+  const tableService = accessor.get(ITableService);
+  const columnIndex = resolveColumnDisplayScaleCommandTarget(tableService, rawColumnIndex);
+  return columnIndex === null
+    ? false
+    : tableService.resetColumnDisplayScale(columnIndex);
+};
+
+const resolveColumnDisplayScaleCommandTarget = (
+  tableService: ITableService,
+  rawColumnIndex: unknown,
+): number | null => {
+  if (rawColumnIndex === undefined) {
+    return resolveTableColumnDisplayScaleTarget(tableService.getSelection());
+  }
+
+  const columnIndex = Math.floor(Number(rawColumnIndex));
+  return Number.isInteger(columnIndex) && columnIndex >= 0 ? columnIndex : null;
+};
 
 const copyTableSelection = async (
   tableService: ITableService,

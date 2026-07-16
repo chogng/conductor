@@ -20,10 +20,12 @@ import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable
 import {
   TableWidget,
   type TableWidgetModel,
+  type TableWidgetProps,
   type TableWidgetSelection,
   type TableWidgetSelectionTarget,
   type TableWidgetState,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
+import { TableCommandId } from "src/cs/workbench/contrib/table/common/table";
 import {
   getCanAdjustColumnScale,
   getTableColumnHeaderSelection,
@@ -788,8 +790,6 @@ suite("base/browser/workbench tableWidget layout", () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({
       columnSizingMode: "fixed",
-      onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
-      onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
       tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
@@ -868,10 +868,10 @@ suite("base/browser/workbench tableWidget layout", () => {
 
   test("adjusts the first column scale from the bottom control by default", async () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
+    const commandCalls: string[] = [];
     const widget = new TableWidget({
       columnSizingMode: "fixed",
-      onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
-      onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
+      commandService: createColumnScaleCommandService(dynamicModel, commandCalls),
       onSelect: () => true,
       tableViewModel: dynamicModel.model,
       tableState: createTableWidgetState(),
@@ -915,6 +915,12 @@ suite("base/browser/workbench tableWidget layout", () => {
       getVisibleColumnScaleControlButton(widget.element, "value").click();
       assert.equal(getVisibleScaleText(widget.element), "×10⁻⁶");
       assert.equal(getVisibleCellText(widget.element, 0, 0), "1");
+      assert.deepEqual(commandCalls, [
+        `${TableCommandId.increaseColumnDisplayScale}:0`,
+        `${TableCommandId.decreaseColumnDisplayScale}:0`,
+        `${TableCommandId.decreaseColumnDisplayScale}:0`,
+        `${TableCommandId.resetColumnDisplayScale}:0`,
+      ]);
     } finally {
       widget.dispose();
     }
@@ -937,8 +943,6 @@ suite("base/browser/workbench tableWidget layout", () => {
     const widget = new TableWidget({
       columnSizingMode: "fixed",
       columnHeaderSelection: "single",
-      onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
-      onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: target => {
         selection = applySelectionTarget(selection, target);
         for (const callback of Array.from(selectionListeners)) {
@@ -979,8 +983,6 @@ suite("base/browser/workbench tableWidget layout", () => {
       columnSizingMode: "fixed",
       canAdjustColumnScale: false,
       columnHeaderSelection: "multi",
-      onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
-      onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: target => {
         selection = applySelectionTarget(selection, target);
         selectedColumns.push([...(selection.selectedColumns ?? [])]);
@@ -1501,6 +1503,29 @@ function createDynamicScaleTableWidgetModel(): {
     },
     setScaleExponent: nextScaleExponent => {
       scaleExponent = nextScaleExponent;
+    },
+  };
+}
+
+function createColumnScaleCommandService(
+  dynamicModel: ReturnType<typeof createDynamicScaleTableWidgetModel>,
+  calls: string[],
+): NonNullable<TableWidgetProps["commandService"]> {
+  return {
+    executeCommand: async <R = unknown>(
+      commandId: string,
+      ...args: unknown[]
+    ): Promise<R | undefined> => {
+      const columnIndex = Math.floor(Number(args[0]));
+      calls.push(`${commandId}:${columnIndex}`);
+      const result = commandId === TableCommandId.decreaseColumnDisplayScale
+        ? dynamicModel.adjustColumnDisplayScale(columnIndex, -1)
+        : commandId === TableCommandId.increaseColumnDisplayScale
+          ? dynamicModel.adjustColumnDisplayScale(columnIndex, 1)
+          : commandId === TableCommandId.resetColumnDisplayScale
+            ? dynamicModel.resetColumnDisplayScale(columnIndex)
+            : false;
+      return result as R;
     },
   };
 }

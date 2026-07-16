@@ -445,13 +445,13 @@ const toControllerProps = (
   ...props,
   canAdjustColumnScale: getCanAdjustColumnScale(templateMode),
   columnHeaderSelection: getTableColumnHeaderSelection(templateMode),
+  commandService,
   getColumnWidths: source => tableService.getColumnWidths(source),
   onCopySelection: () => {
     void commandService.executeCommand(TableCommandId.copySelection);
   },
   onSelect: (target, reveal) => tableService.select(target, reveal),
   storeColumnWidths: (source, widths) => tableService.storeColumnWidths(source, widths),
-  tableService,
 });
 
 export default TableViewPane;
