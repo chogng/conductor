@@ -3,9 +3,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
+import {
+  Action2,
+  MenuId,
+  MenuRegistry,
+  registerAction2,
+} from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import {
+  ActiveAuxiliaryBarViewContext,
+  ActivePanelViewContainerContext,
+} from "src/cs/workbench/common/contextkeys";
 import {
   IExportService,
 } from "src/cs/workbench/services/export/common/export";
@@ -36,6 +46,17 @@ export const registerExportCommands = (): IDisposable => {
 		public run(accessor: ServicesAccessor): void {
 			showChartAuxiliaryView(accessor, "export");
 		}
+	}));
+	disposables.add(MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
+		command: {
+			id: SHOW_EXPORT_COMMAND_ID,
+			title: localize("chart.views.export", "Export"),
+			icon: LxIcon.origin,
+			toggled: ActiveAuxiliaryBarViewContext.isEqualTo("export"),
+		},
+		group: "navigation",
+		order: 10,
+		when: ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
 	}));
 
 	disposables.add(registerAction2(class OpenInOriginAction extends Action2 {

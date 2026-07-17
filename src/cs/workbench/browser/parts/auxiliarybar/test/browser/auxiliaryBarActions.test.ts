@@ -14,7 +14,10 @@ import {
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
-import { SHOW_PARAMETERS_COMMAND_ID } from "src/cs/workbench/contrib/parameters/browser/parametersCommands";
+import {
+  registerParametersCommands,
+  SHOW_PARAMETERS_COMMAND_ID,
+} from "src/cs/workbench/contrib/parameters/browser/parametersCommands";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 await import("src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions");
@@ -33,9 +36,11 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
 
   test("parameters action uses the parameters command id", () => {
     const disposables = store.add(new DisposableStore());
+    disposables.add(registerParametersCommands());
     const auxiliaryBarPart = disposables.add(new AuxiliaryBarPart());
     const contextKeyService = disposables.add(new ContextKeyService());
     const menuService = disposables.add(new MenuService(createCommandService()));
+    contextKeyService.setContext("activeAuxiliaryBarView", "parameters");
     contextKeyService.setContext("activePanelViewContainer", ChartViewContainerId);
 
     const actions = auxiliaryBarPart.updateState({
@@ -54,6 +59,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
 
   test("filters view switch actions by active panel view container context", () => {
     const disposables = store.add(new DisposableStore());
+    disposables.add(registerParametersCommands());
     const auxiliaryBarPart = disposables.add(new AuxiliaryBarPart());
     const contextKeyService = disposables.add(new ContextKeyService());
     const menuService = disposables.add(new MenuService(createCommandService()));
@@ -74,6 +80,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
 
   test("omits title actions when table auxiliary bar has no view switch actions", () => {
     const disposables = store.add(new DisposableStore());
+    disposables.add(registerParametersCommands());
     const auxiliaryBarPart = disposables.add(new AuxiliaryBarPart());
     const contextKeyService = disposables.add(new ContextKeyService());
     const menuService = disposables.add(new MenuService(createCommandService()));

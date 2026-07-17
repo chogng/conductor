@@ -60,6 +60,11 @@ Use `registerAction2({ f1: true, ... })` or explicit menu registration. Do not
 make quick access scan bare `CommandsRegistry` to compensate for missing action
 registration.
 
+A feature that owns a command also owns its menu and keybinding contributions.
+Shared surfaces expose `MenuId` and context-key contracts, then render the
+resulting actions; they must not import and centrally enumerate every feature
+command.
+
 ## Command Flow
 
 ```txt

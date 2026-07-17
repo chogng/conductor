@@ -3,9 +3,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
+import {
+	Action2,
+	MenuId,
+	MenuRegistry,
+	registerAction2,
+} from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import {
+	ActiveAuxiliaryBarViewContext,
+	ActivePanelViewContainerContext,
+} from "src/cs/workbench/common/contextkeys";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
@@ -35,6 +45,17 @@ export const registerOriginCommands = (): IDisposable => {
 			);
 			layoutService.selectAuxiliaryBarView("settings");
 		}
+	}));
+	disposables.add(MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
+		command: {
+			id: SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID,
+			title: localize("origin.curveSettings.title", "Origin Settings"),
+			icon: LxIcon.settings,
+			toggled: ActiveAuxiliaryBarViewContext.isEqualTo("settings"),
+		},
+		group: "navigation",
+		order: 30,
+		when: ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
 	}));
 
 	return disposables;

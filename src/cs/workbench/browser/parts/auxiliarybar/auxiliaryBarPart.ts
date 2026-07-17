@@ -16,10 +16,6 @@ import {
 import type { IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
 import type { TemplateMode } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import { TemplateViewContainerId } from "src/cs/workbench/contrib/template/common/template";
-import { SHOW_EXPORT_COMMAND_ID } from "src/cs/workbench/contrib/export/browser/exportCommands";
-import { SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID } from "src/cs/workbench/contrib/origin/browser/originCommands";
-import { SHOW_PARAMETERS_COMMAND_ID } from "src/cs/workbench/contrib/parameters/browser/parametersCommands";
-import { SHOW_SEARCH_COMMAND_ID } from "src/cs/workbench/contrib/search/browser/searchCommands";
 import { ExportViewContainerId } from "src/cs/workbench/services/export/common/export";
 import { OriginExportSettingsViewContainerId } from "src/cs/workbench/services/origin/common/origin";
 import { ParametersViewContainerId } from "src/cs/workbench/services/parameters/common/parameters";
@@ -46,7 +42,6 @@ export type AuxiliaryBarView = "template" | "search" | "export" | "parameters" |
 type AuxiliaryBarViewDescriptor = {
   readonly containerId: string;
   readonly id: AuxiliaryBarView;
-  readonly commandId?: string;
   readonly panelViewContainerId: string;
 };
 
@@ -63,25 +58,21 @@ const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
   {
     containerId: SearchViewContainerId,
     id: "search",
-    commandId: SHOW_SEARCH_COMMAND_ID,
     panelViewContainerId: ChartViewContainerId,
   },
   {
     containerId: ExportViewContainerId,
     id: "export",
-    commandId: SHOW_EXPORT_COMMAND_ID,
     panelViewContainerId: ChartViewContainerId,
   },
   {
     containerId: ParametersViewContainerId,
     id: "parameters",
-    commandId: SHOW_PARAMETERS_COMMAND_ID,
     panelViewContainerId: ChartViewContainerId,
   },
   {
     containerId: OriginExportSettingsViewContainerId,
     id: "settings",
-    commandId: SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID,
     panelViewContainerId: ChartViewContainerId,
   },
 ];
@@ -246,10 +237,8 @@ export class AuxiliaryBarPart extends Disposable {
     return {
       actions: input.visible && activeView
         ? createAuxiliaryBarActions({
-            activeView,
             contextKeyService: input.contextKeyService,
             menuService: input.menuService,
-            activePanelViewContainerId: input.activePanelViewContainerId,
           })
         : [],
       title: input.visible
@@ -327,35 +316,23 @@ const resolveAuxiliaryBarView = (
     : getDefaultAuxiliaryBarView(activePanelViewContainerId);
 
 const createAuxiliaryBarActions = ({
-  activePanelViewContainerId,
-  activeView,
   contextKeyService,
   menuService,
 }: {
-  readonly activePanelViewContainerId: string;
-  readonly activeView: AuxiliaryBarView;
   readonly contextKeyService: IContextKeyService;
   readonly menuService: IMenuService;
 }): IAction[] => {
-  const viewsByCommandId = new Map(
-    getAuxiliaryBarViews(activePanelViewContainerId)
-      .filter((view): view is AuxiliaryBarViewDescriptor & {
-        readonly commandId: string;
-      } => !!view.commandId)
-      .map((view) => [view.commandId, view]),
-  );
   return cleanGroupedActions(
     menuService.getMenuActions(MenuId.AuxiliaryBarTitle, contextKeyService),
   ).flatMap((menuAction): IAction[] => {
-    const view = viewsByCommandId.get(menuAction.id);
-    if (view && menuAction.icon) {
+    if (menuAction.icon) {
       const action = toAction({
         id: menuAction.id,
         label: menuAction.label,
         tooltip: menuAction.tooltip || menuAction.label,
         class: AuxiliaryBarViewSwitchActionClass,
         enabled: menuAction.enabled,
-        checked: activeView === view.id,
+        checked: menuAction.checked,
         icon: menuAction.icon,
         run: (...args) => menuAction.run(...args),
       });

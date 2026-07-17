@@ -40,12 +40,14 @@ suite("workbench/contrib/origin/test/browser/originCommands", () => {
 		try {
 			CommandsRegistry.getCommand(SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID)?.handler(accessor);
 			const commandPaletteIds = getCommandPaletteIds();
+			const auxiliaryBarTitleIds = getAuxiliaryBarTitleIds();
 
 			assert.deepEqual(calls, [
 				`container:${ChartViewContainerId}`,
 				"aux:settings",
 			]);
 			assert.ok(commandPaletteIds.has(SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID));
+			assert.ok(auxiliaryBarTitleIds.has(SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID));
 		} finally {
 			registration.dispose();
 		}
@@ -64,6 +66,12 @@ function createAccessor(
 
 function getCommandPaletteIds(): Set<string> {
 	return new Set(MenuRegistry.getMenuItems(MenuId.CommandPalette)
+		.filter(isIMenuItem)
+		.map(item => item.command.id));
+}
+
+function getAuxiliaryBarTitleIds(): Set<string> {
+	return new Set(MenuRegistry.getMenuItems(MenuId.AuxiliaryBarTitle)
 		.filter(isIMenuItem)
 		.map(item => item.command.id));
 }
