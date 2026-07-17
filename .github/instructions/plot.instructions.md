@@ -36,7 +36,7 @@ production, template execution, or thumbnail bitmap cache.
 | `services/plot/browser/plotDisplayModel.ts` | pure display-model builder. |
 | `services/plot/browser/plotRenderModel.ts` | calculated data -> render model. |
 | `services/plot/browser/plotViewModel.ts` | domains, ticks, downsampling, signed-log helpers. |
-| `contrib/plot/browser/plotMainView.ts` | DOM adapter from Plot model to chart widget props. No Session reads. |
+| `contrib/plot/browser/plotMainView.ts` | DOM adapter from Plot model to chart widget props. No domain-service reads. |
 | `contrib/plot/browser/plotMainChart.ts` | low-level drawing widget; props only. |
 
 ## Flow
@@ -75,7 +75,7 @@ uses platform storage; callers should not write settings/storage directly.
 - Consumers that need Plot-owned axis/unit/scale settings call `getAxisSettings()`.
 - Calculated/display reads resolve the current result through `ICalculationService`.
 - Display-model worker requests send calculated data plus presentation inputs;
-  they do not send Session records or raw table stores.
+  they do not send source-domain records or raw table stores.
 - Use bounded interactive/background worker lanes. Reserve interactive capacity for active chart and hover work.
 - Prefetch priority follows user-facing urgency: active chart, hover thumbnail, visible thumbnails, recent interactive targets, nearby thumbnails, idle.
 - Visible/nearby thumbnail backfill runs only while Explorer is in chart thumbnail layout.
@@ -132,4 +132,4 @@ Recommended files:
 - Do not let Chart rebuild curve domains from Calculation records.
 - Do not duplicate downsampling logic in Thumbnail.
 - Do not compute table model or template outputs in Plot.
-- Do not store Plot display state in Session unless it becomes saved project state.
+- Do not store Plot display state outside `IPlotService` unless it becomes saved project state.

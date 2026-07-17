@@ -5,7 +5,7 @@ applyTo: 'src/cs/base/browser/ui/table/**,src/cs/base/test/browser/ui/table/**,s
 # Table
 
 For the table URI/editor-model migration, `.github/instructions/迁移说明.md`
-has higher priority than this file and other table/model/session notes. If a
+has higher priority than this file and other table/model notes. If a
 rule here conflicts with that migration document, follow the migration document.
 
 Table shows raw tables and table-model block ranges. It does not identify
@@ -29,8 +29,7 @@ measurement structure.
 It consumes URI-backed `ITableModel` snapshots plus service-projected view source data, table-model ranges,
 settings for visual display preferences, and resource-backed `TableSource`
 open intents. It does not own import,
-table-model production, template execution, plot/chart models, or canonical
-Session records.
+table-model production, template execution, or plot/chart models.
 
 `TableSource.resource` is the primary open identity for file -> table preview,
 matching the upstream file -> editor shape. `TableSource.sheetId`, when
@@ -47,7 +46,7 @@ sheet-key derivation rules in service/view files.
 | File | Responsibility |
 | --- | --- |
 | `services/table/common/table.ts` | service contract, model contracts, URI-backed sheet-key helper, and table source normalization helpers. |
-| `services/table/common/model.ts` | URI-backed `ITableModel` content model, ranges, selection value helpers, decorations, parser diagnostics, resource/formatted content snapshots, `defaultSheetId`, and version events; service-local, not Session. Sheet snapshots store `sheetId`/`sheetName`/content plus sheet-level parser diagnostics; derived `sheetKey` stays in table service/view adapters. Model snapshots do not own view projection or Explorer item identity. |
+| `services/table/common/model.ts` | URI-backed `ITableModel` content model, ranges, selection value helpers, decorations, parser diagnostics, resource/formatted content snapshots, `defaultSheetId`, and version events. Sheet snapshots store `sheetId`/`sheetName`/content plus sheet-level parser diagnostics; derived `sheetKey` stays in table service/view adapters. Model snapshots do not own view projection or Explorer item identity. |
 | `services/table/common/resolverService.ts` | URI -> `ITableModel` reference service contract, following upstream resolver service shape. |
 | `services/table/common/tableModelResolverService.ts` | `ITableModelService` implementation: URI -> `ITableModel` reference, support check, reference/cache entry, content-provider/file-backed dispatch, and reference-counted cache release. |
 | `services/table/common/tableFormatRegistry.ts` | known `TableFormatId` registrations, materialization capability, and default extension metadata. |
@@ -105,7 +104,7 @@ explicitly changed.
 ## Flow
 
 ```txt
-Session/settings/command/search bridge
+Settings/command/search bridge
   -> ITableService.open(source) / reveal / select
   -> ITableService holds the active ITableModelService.createModelReference(resource) for the preview lifetime
   -> resource sources resolve through ITableModelService / services/table/common/tableModelResolverService by URI
@@ -306,7 +305,6 @@ Keep domain behavior out of the base table:
 
 Selection belongs to the active `TableWidget` interaction surface and is synced
 to `ITableService` as a snapshot for commands, copy, and cross-feature reveal.
-It is not Session canonical data.
 
 Targets are pure records:
 
@@ -336,13 +334,11 @@ Data/selection/copy commands delegate to `ITableService`. Zoom commands resolve
 `ITableWidgetService.activeController` and call the widget/controller API.
 
 Search result navigation may dispatch to table commands when a result points to
-URI `ResourceTableRangeRef`; `RawTableRangeRef` is legacy Session navigation.
+URI `ResourceTableRangeRef`; `RawTableRangeRef` is legacy navigation.
 
-`WorkbenchDomainBridge` may derive a `TableSource` from Explorer resource rows,
-including migration-ledger rows already projected with a URI. It must not read
-Session raw file paths to manufacture table sources. External callers pass only
-the source target; they do not pass raw rows, files, table models, or widget
-lifecycle callbacks.
+`WorkbenchDomainBridge` may derive a `TableSource` from Explorer resource rows.
+External callers pass only the source target; they do not pass raw rows, files,
+table models, or widget lifecycle callbacks.
 
 Table panes subscribe to `ITableService.onDidChangeTableViewInput` and reread
 `ITableService.getViewInput()`. Do not use event payloads as the data path.
@@ -351,6 +347,6 @@ Table panes subscribe to `ITableService.onDidChangeTableViewInput` and reread
 
 - Do not detect headers or block boundaries in table code.
 - Do not apply templates from table code.
-- Do not put row caches or worker refs in Session.
+- Do not put row caches or worker refs in a global compatibility ledger.
 - Do not call Chart/Plot directly from table selection logic.
 - Do not let `TableWidget` import table services, storage services, or command services.

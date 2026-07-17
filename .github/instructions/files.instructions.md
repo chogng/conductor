@@ -8,9 +8,9 @@ The files domain has four layers that must stay separate:
 
 | Layer | Owns | Must not own |
 | --- | --- | --- |
-| `platform/files` | URI filesystem providers, read/write/stat/watch, provider registration, browser/desktop adapters | Explorer state, raw table records, source preparation, Session records |
+| `platform/files` | URI filesystem providers, read/write/stat/watch, provider registration, browser/desktop adapters | Explorer state, domain records, source preparation |
 | `workbench/services/tableFile` | URI-backed table file working-copy lifecycle, reader, and table text/byte helpers for file-backed models | Explorer UI, Table view state, preview projection, table-model inference, DataResource/Review/Slice decisions, explicit import ledger commits |
-| `workbench/contrib/files` | Files feature UI: `IExplorerService`, Explorer model/view, source workflow, commands/actions/context menus | CSV/TSV/XLS/XLSX parsing internals, platform provider contracts, canonical Session ownership |
+| `workbench/contrib/files` | Files feature UI: `IExplorerService`, Explorer model/view, source workflow, commands/actions/context menus | CSV/TSV/XLS/XLSX parsing internals, platform provider contracts, another domain's canonical state |
 
 `Explorer` is the UI-state layer inside Files. Its service contract belongs
 under `workbench/contrib/files`, following upstream VS Code shape.
@@ -48,9 +48,9 @@ the closest-looking name.
 | file transfer / upload / download | moving bytes/resources | `contrib/files/browser/fileImportExport.ts` and platform file APIs |
 | source collection | dialog/drop/folder/clipboard/manual -> supported table file sources | Explorer workflow/helpers plus table format policy |
 | table editor support check | URI/file-name support checks before opening a table editor/preview or before read/parse where possible; `.csv`/`.tsv`/`.xls`/`.xlsx` are table formats, not URI schemes, read encodings, or languageIds | `services/table/common/tableFormatService.ts`, command/editor/model resolver |
-| table editor/model lifecycle | service-local URI/input model for open, preview, cache, reload, watch, save, and source-version state | `services/tableFile` working-copy owner plus table model resolver; no resource record and not Session |
+| table editor/model lifecycle | service-local URI/input model for open, preview, cache, reload, watch, save, and source-version state | `services/tableFile` working-copy owner plus table model resolver |
 | source preparation result | Explorer-local row metadata, table resource URI, and diagnostics before table resource open | `ExplorerFileEntry` |
-| Explorer local import | explicit user import that updates Explorer-visible rows and opens a table resource without Session | `ExplorerViewPane` |
+| Explorer local import | explicit user import that updates Explorer-visible rows and opens a table resource | `ExplorerViewPane` |
 
 Use user-facing "Import" in labels if appropriate, but use precise internal
 names: collect sources, prepare imported files, open table resources, upload,
@@ -67,7 +67,7 @@ The JSON marshalling helper for this belongs in `src/cs/base/common/marshalling.
 Files/TableFile code must not duplicate desktop byte revival.
 
 `IFileService` does not own Explorer tree state, selected resource, CSV/Excel
-parsing, raw table records, table model, or Session records.
+parsing, domain records, or table models.
 
 Forbidden dependency:
 
@@ -127,10 +127,9 @@ Explorer source workflow owns:
 - browser `File` provider registration when a dropped source has no durable resource URI;
 - resource-backed `ExplorerFileEntry` rows, resource URIs, and source diagnostics.
 
-Migration-ledger raw-table records are Session contracts, and migration-ledger
-raw-row reading is a Slice execution detail. Files/Explorer does not own raw
-table records, row readers, measurement detection, template apply, plot
-generation, Session mutation, or DOM rendering outside its own views.
+Files/Explorer does not own raw-row reading, measurement detection, template
+application, plot generation, another domain's state mutation, or DOM rendering
+outside its own views.
 
 Explorer import workflows must not infer semantic badges during source
 collection or source preparation. Explorer publishes a row only after the source
@@ -170,7 +169,7 @@ status badges.
 
 `FileSourceWorkflow` is a private Explorer view helper, not a service boundary.
 It may collect sources, watch imported folders, prepare resource-backed rows, and
-return Explorer rows to the caller. It must not own Session records or
+return Explorer rows to the caller. It must not own another domain's records or
 subscribe to table/template/table-model state.
 
 ## Format Boundary
@@ -200,7 +199,7 @@ Explorer/drop/dialog/folder URI
 This lifecycle is service-local. Do not introduce `TableResourceRecord`,
 `TableResourceImporter`, or any table-resource ledger for it. Do not write
 resource/editor models, preview projections, watch/reload state, cache entries, or
-active view input to Session.
+active view input to a parallel global ledger.
 
 ## Explorer Import/Open Workflow
 
@@ -222,11 +221,9 @@ batches, but it defers the table-resource open until the replacement completes.
 That keeps the Explorer tree update ahead of table model resolution, matching
 the upstream Explorer-then-editor ordering.
 
-This workflow does not create Session raw-table records. Passing a URI through a
-support check, preparing it for Explorer display, selecting it, or opening it
-for preview is not a Session commit. Session raw-table commits remain a
-migration ledger for domains that still explicitly own Session records; they are
-not the ordinary Explorer file-to-table path.
+Passing a URI through a support check, preparing it for Explorer display,
+selecting it, or opening it for preview does not create a parallel raw-table
+record. The Explorer file-to-table path remains URI-backed end to end.
 
 Per-resource template selection is a Files command surface but not Files state:
 
@@ -290,7 +287,7 @@ Explorer item context menu Delete
 ```
 
 Source preparation is workflow state, not an Explorer row projection. It must
-not be committed to Session, used for duplicate detection, or participate in
+not be written to another global model, used for duplicate detection, or participate in
 file actions. When preparation resolves a real file, Explorer commits the
 resource-backed row and explicitly asks Review to evaluate the resolved
 `{ resource, sheetId? }` identity.
@@ -316,7 +313,7 @@ Explorer view code may:
 - call commands or `IExplorerService` for user intent.
 
 Explorer view code must not parse files, read raw table rows directly, call the
-review pipeline, mutate Session,
+review pipeline, mutate another domain's state,
 build plot models, or clear global thumbnail bitmap cache on ordinary prop
 changes.
 
@@ -326,10 +323,7 @@ workflow wiring. Thumbnail rendering details live in `thumbnail.instructions.md`
 When a table file has multiple table entries, Explorer selection uses the table
 resource plus `sheetId` for the exact visible row. Explorer-local imports open
 table resources directly through `ITableService.open({ resource })`.
-Migration-ledger raw rows that still carry `sourcePath` are projected into
-Explorer resource rows before Table opens them; `WorkbenchDomainBridge` must
-not derive table resources directly from Session raw records. File
-close/delete/reveal commands operate on `{ resource, sheetId }`; the template
+File close/delete/reveal commands operate on `{ resource, sheetId }`; the template
 command delegates the current `resource` and optional `sheetId` directly to
 `ISliceService.setTemplateSelection(...)`.
 
@@ -418,9 +412,8 @@ those APIs as product command surfaces.
 
 - Do not put `curveType`, axis role, template need, table-model confidence, or review confidence in source preparation/import results.
 - Do not generate measurement blocks, plot series, or template outputs in files source preparation.
-- Do not commit Session from Explorer source preparation.
+- Do not write Explorer source preparation into another domain model.
 - Do not let Explorer view code parse XLS/XLSX or raw rows.
-- Do not let Session read files from disk.
 - Do not expose Explorer UI state from `IFileService`.
 - Do not put source collection/source preparation semantics into `platform/files`.
 - Do not create thumbnail-specific duplicates of Explorer file item commands.

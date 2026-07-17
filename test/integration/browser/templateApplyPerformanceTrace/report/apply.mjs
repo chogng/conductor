@@ -11,8 +11,6 @@ export const createApplyReportBlock = ({
     applyLongTaskCount: metricsRow.metrics.applyLongTaskCount,
     applyLongTaskP95Ms: metricsRow.metrics.applyLongTaskP95Ms,
     applyProcessingMs: metricsRow.metrics.applyProcessingMs,
-    sessionCalculatedCommitP95Ms: metricsRow.metrics.sessionCalculatedCommitP95Ms,
-    sessionTemplateCommitP95Ms: metricsRow.metrics.sessionTemplateCommitP95Ms,
   },
   phaseWindows: pickPhaseWindows(analysis, ["applyClick", "applyProcessing"]),
   thumbnailApply,

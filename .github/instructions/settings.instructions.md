@@ -276,7 +276,7 @@ Do not add one command per raw setting field and do not add a generic
 ## Side Effects
 
 `ISettingsService` publishes changed settings; it does not directly mutate
-theme, layout, chart, plot, template, Session, or Explorer state. Feature
+theme, layout, chart, plot, template, or Explorer state. Feature
 owners subscribe, reread settings, and apply their own state.
 
 `IAppearanceService` may normalize appearance settings into a shared snapshot.

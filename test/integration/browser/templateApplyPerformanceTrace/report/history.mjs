@@ -279,12 +279,6 @@ export const createPerformanceMetricRow = ({
     plotInspectorPrefetchScheduled: readNumber(plotCache.inspectorPrefetchScheduler.scheduled),
     plotInspectorPrefetchSkipped: readNumber(plotCache.inspectorPrefetchScheduler.skipped),
     plotInspectorQueueCleared: readNumber(plotCache.inspectorDisplayQueue.cleared),
-    sessionCalculatedCommitP95Ms: summaryP95(
-      applyProcessing?.perf?.stageDurationMs?.["sessionService.commitCalculatedRecordsBatch"],
-    ),
-    sessionTemplateCommitP95Ms: summaryP95(
-      applyProcessing?.perf?.stageDurationMs?.["sessionService.commitTemplateOutput"],
-    ),
     ...tableMetrics,
     thumbnailAfterNonBlankP95Ms: summaryP95(thumbnailAfter?.targetCanvasNonBlankMs),
     thumbnailDuringNonBlankP95Ms: summaryP95(thumbnailDuring?.targetCanvasNonBlankMs),

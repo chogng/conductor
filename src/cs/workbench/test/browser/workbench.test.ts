@@ -22,16 +22,9 @@ import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/tabl
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {
-  FileImportResult,
-  ImportedFileRecord,
-} from "src/cs/workbench/services/session/common/session";
+  PlotDisplayModel,
+} from "src/cs/workbench/services/plot/common/plot";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS } from "src/cs/workbench/services/origin/common/originPlotOptions";
-import type { PlotDisplayModel } from "src/cs/workbench/services/plot/common/plot";
-import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import {
-  commitRawFilesForTest,
-  commitTemplateOutputForTest,
-} from "src/cs/workbench/services/session/test/common/sessionTestRecords";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { createTemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -212,7 +205,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 });
 
 suite("workbench/browser/workbench initial panel view container", () => {
-  test("starts in table panel without reading Session state", () => {
+  test("starts in the table panel", () => {
     assert.equal(resolveInitialPanelViewContainerId(), TableViewContainerId);
   });
 });
@@ -263,7 +256,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
   test("prioritizes selected Explorer resource immediately for plot prefetch", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/B.csv");
     const prioritizedTemplateFileIds: string[] = [];
@@ -312,11 +304,9 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("prewarms visible chart plot display targets through Plot owner APIs", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const plotInspectorPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
-    commitChartFilesForTest(session, ["file-a", "file-b", "file-c"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       plotDisplayPrefetches,
@@ -343,13 +333,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("delegates visible chart prewarm without reading Session in bridge", () => {
-    const session = store.add(new SessionService());
-    let snapshotReads = 0;
-    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
-      snapshotReads += 1;
-      throw new Error("Visible chart prewarm should not read Session.");
-    };
+  test("delegates visible chart prewarm through resource identities", () => {
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{
       readonly fileIds: readonly string[];
@@ -366,7 +350,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       explorerService.setVisibleTargets([{ resource: URI.file("/data/A.csv") }], []);
 
-      assert.equal(snapshotReads, 0);
       assert.deepEqual(plotDisplayPrefetches, [
         { fileIds: [], priority: "visible", resource: "file:///data/A.csv", sheetId: null },
       ]);
@@ -376,7 +359,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("routes Explorer resource rows through resource-aware thumbnail prefetch inputs", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const prioritizedCalculationFileIds: string[] = [];
     const plotDisplayPrefetches: Array<{
@@ -385,12 +367,11 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       readonly resource?: string | null;
     }> = [];
     const thumbnailPrefetches: ThumbnailPrefetchForTest[] = [];
-    commitChartFilesForTest(session, ["file-a"]);
     explorerService.setViewLayout("thumbnail");
     const files = [{
       fileId: "file-a",
-      fileName: "Session.csv",
-      resource: URI.file("/data/Session.csv"),
+      fileName: "Legacy.csv",
+      resource: URI.file("/data/Legacy.csv"),
     }, {
       fileId: "uri-a",
       fileName: "Uri A.csv",
@@ -447,7 +428,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("reads performance trace resource chart targets from Explorer pane input without Session", () => {
+  test("reads performance trace resource chart targets from Explorer pane input", () => {
     const traceGlobal = globalThis as typeof globalThis & {
       __conductorTemplateApplyPerformanceTrace?: {
         targetApi?: {
@@ -474,12 +455,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     });
     delete traceGlobal.__conductorTemplateApplyPerformanceTrace;
 
-    const session = store.add(new SessionService());
-    let snapshotReads = 0;
-    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
-      snapshotReads += 1;
-      throw new Error("Trace resource target enumeration should not read Session.");
-    };
     const explorerService = store.add(new ExplorerService());
     const resourceSlice: ResourceSheetIdentity = {
       resource: URI.file("/data/UriA.csv"),
@@ -506,7 +481,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       const targets = getTemplateApplyPerformanceTraceTargetApiForTest()?.getChartTargets() ?? [];
 
-      assert.equal(snapshotReads, 0);
       assert.deepEqual(targets.map(target => ({
         chartState: target.chartState,
         fileId: target.fileId,
@@ -556,12 +530,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     });
     delete traceGlobal.__conductorTemplateApplyPerformanceTrace;
 
-    const session = store.add(new SessionService());
-    let snapshotReads = 0;
-    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
-      snapshotReads += 1;
-      throw new Error("Trace target enumeration should not read Session.");
-    };
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/FileA.csv");
     const files: ExplorerFileEntry[] = [{
@@ -585,7 +553,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       const targets = getTemplateApplyPerformanceTraceTargetApiForTest()?.getChartTargets() ?? [];
 
-      assert.equal(snapshotReads, 0);
       assert.deepEqual(targets.map(target => ({
         chartState: target.chartState,
         fileId: target.fileId,
@@ -608,7 +575,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("does not synthesize performance trace chart targets from Session", () => {
+  test("does not synthesize performance trace chart targets without Explorer resources", () => {
     const traceGlobal = globalThis as typeof globalThis & {
       __conductorTemplateApplyPerformanceTrace?: {
         targetApi?: {
@@ -630,12 +597,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     });
     delete traceGlobal.__conductorTemplateApplyPerformanceTrace;
 
-    const session = store.add(new SessionService());
-    let snapshotReads = 0;
-    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
-      snapshotReads += 1;
-      throw new Error("Trace target enumeration without pane input should not read Session.");
-    };
     const explorerService = store.add(new ExplorerService());
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -645,7 +606,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       const targets = getTemplateApplyPerformanceTraceTargetApiForTest()?.getChartTargets() ?? [];
 
-      assert.equal(snapshotReads, 0);
       assert.deepEqual(targets, []);
     } finally {
       bridge.dispose();
@@ -659,11 +619,9 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("does not prewarm inspector targets while inspector pane is hidden", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const plotInspectorPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
-    commitChartFilesForTest(session, ["file-a", "file-b"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       plotDisplayPrefetches,
@@ -690,10 +648,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("keeps inspector prewarm out of bridge chart selection sync", async () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotInspectorPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
-    commitChartFilesForTest(session, ["file-a", "file-b"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       plotInspectorPrefetches,
@@ -712,12 +668,10 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("does not startup prewarm chart-main from Session chart data", () => {
-    const session = store.add(new SessionService());
+  test("does not startup prewarm chart-main without Explorer resource rows", () => {
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const plotInspectorPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
-    commitChartFilesForTest(session, ["file-a"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       plotDisplayPrefetches,
@@ -737,11 +691,9 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("does not delegate active chart prewarm without Explorer resource rows", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const plotDisplayPrefetchSnapshotFields: boolean[] = [];
-    commitChartFilesForTest(session, ["file-a"]);
     explorerService.select(null);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -761,21 +713,10 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("defers startup secondary state without opening Session table sources", async () => {
-    const session = store.add(new SessionService());
+  test("defers startup secondary state without opening table sources", async () => {
     const explorerService = store.add(new ExplorerService());
     const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
     const tableSources: Array<TableSource | null> = [];
-    commitRawFilesForTest(session, [
-      {
-        columnCount: 2,
-        fileId: "file-a",
-        fileName: "A.csv",
-        rowCount: 2,
-        rows: [],
-        sourcePath: "/data/A.csv",
-      },
-    ]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
       explorerService,
@@ -802,7 +743,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("opens selected table sheet from explicit Explorer resource row", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const tableSources: Array<TableSource | null> = [];
     const resource = URI.file("/data/Workbook.xlsx");
@@ -840,8 +780,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("opens Explorer resource pane rows without Session reconciliation", () => {
-    const session = store.add(new SessionService());
+  test("opens Explorer resource pane rows directly", () => {
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/Local.csv");
     const tableSources: Array<TableSource | null> = [];
@@ -872,7 +811,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.equal(Object.prototype.hasOwnProperty.call(tableSources.at(-1) ?? {}, "fileId"), false);
       assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Local.csv");
       assert.equal(tableSources.at(-1)?.sheetId, undefined);
-      assert.deepEqual(session.getSnapshot().fileOrder, []);
       assert.equal(explorerService.selectedResource?.toString(), "file:///data/Local.csv");
       assert.equal(explorerService.getPaneInput()?.selectedResource?.toString(), "file:///data/Local.csv");
       assert.equal(explorerService.files.at(-1)?.resource?.toString(), "file:///data/Local.csv");
@@ -881,13 +819,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("syncs selected table resource pane rows without reading Session", () => {
-    const session = store.add(new SessionService());
-    let snapshotReads = 0;
-    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
-      snapshotReads += 1;
-      throw new Error("Table resource pane sync should not read Session.");
-    };
+  test("syncs selected table resource pane rows", () => {
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/Local.csv");
     const tableSources: Array<TableSource | null> = [];
@@ -914,7 +846,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync();
 
-      assert.equal(snapshotReads, 0);
       assert.equal(tableSources.at(-1)?.resource?.toString(), "file:///data/Local.csv");
       assert.equal(tableSources.at(-1)?.sheetId, undefined);
       assert.equal(explorerService.selectedResource?.toString(), "file:///data/Local.csv");
@@ -923,18 +854,9 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("opens Explorer resource pane rows regardless of Session raw table paths", () => {
-    const session = store.add(new SessionService());
+  test("opens Explorer resource pane rows by URI", () => {
     const explorerService = store.add(new ExplorerService());
     const tableSources: Array<TableSource | null> = [];
-    commitRawFilesForTest(session, [{
-      columnCount: 2,
-      fileId: "file-a",
-      fileName: "Session.csv",
-      rowCount: 2,
-      rows: [],
-      sourcePath: "/data/Session.csv",
-    }]);
     const resource = URI.file("/data/Uri.csv");
     const files = [{
       fileId: "file-a",
@@ -967,7 +889,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("keeps Explorer resource pane rows keyed by resource", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const tableSources: Array<TableSource | null> = [];
     const resource = URI.file("/data/Uri.csv");
@@ -1005,7 +926,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("keeps resource chart target separate from chart active file id", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/Transfer.csv");
     const resourceInput: ResourceSheetIdentity = {
@@ -1069,18 +989,9 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("uses Explorer resource row label for active chart file options", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/Uri.csv");
     const chartFileOptionInputs: Array<NonNullable<ChartViewInput["chartFileOptions"]>> = [];
-    commitRawFilesForTest(session, [{
-      columnCount: 2,
-      fileId: "file-a",
-      fileName: "Session.csv",
-      rowCount: 2,
-      rows: [],
-      sourcePath: "/data/Session.csv",
-    }]);
     const files = [{
       fileId: "file-a",
       fileName: "Uri.csv",
@@ -1113,29 +1024,11 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("does not use Session chart data for a selected resource row with the same file id", () => {
-    const session = store.add(new SessionService());
+  test("uses selected resource rows for chart data", () => {
     const explorerService = store.add(new ExplorerService());
     const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
     const prioritizedCalculationFileIds: string[] = [];
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
-    commitRawFilesForTest(session, [{
-      columnCount: 2,
-      fileId: "file-a",
-      fileName: "Session.csv",
-      rowCount: 2,
-      rows: [],
-    }]);
-    commitTemplateOutputForTest(session, {
-      fileId: "file-a",
-      fileName: "Session.csv",
-      series: [{
-        groupIndex: 0,
-        id: "series-a",
-        y: [1, 2],
-      }],
-      xGroups: [[0, 1]],
-    });
     const resource = URI.file("/data/Uri.csv");
     const files = [{
       fileId: "file-a",
@@ -1174,7 +1067,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("keeps deferred secondary sync on selected resource chart target", async () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/Deferred.csv");
     const resourceInput: ResourceSheetIdentity = {
@@ -1226,13 +1118,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("deferred selected resource chart sync does not read Session", async () => {
-    const session = store.add(new SessionService());
-    let snapshotReads = 0;
-    (session as unknown as { getSnapshot: () => never }).getSnapshot = () => {
-      snapshotReads += 1;
-      throw new Error("Deferred resource chart sync should not read Session.");
-    };
+  test("defers selected resource chart sync", async () => {
     const explorerService = store.add(new ExplorerService());
     const resource = URI.file("/data/Deferred.csv");
     const resourceInput: ResourceSheetIdentity = {
@@ -1269,12 +1155,10 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       bridge.sync({ deferSecondaryWork: true });
 
-      assert.equal(snapshotReads, 0);
       assert.deepEqual(chartViewInputs, []);
 
       await new Promise(resolve => globalThis.setTimeout(resolve, 0));
 
-      assert.equal(snapshotReads, 0);
       assert.deepEqual(chartViewInputs.at(-1), {
         activeFileId: "resource-file-a",
         activeResource: "file:///data/Deferred.csv",
@@ -1287,7 +1171,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("keeps resource recent chart targets across bridge sync pruning", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const resourceA = URI.file("/data/A.csv");
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
@@ -1406,10 +1289,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("delegates cached background chart plot display targets to PlotService", () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
-    commitChartFilesForTest(session, ["file-a", "file-b", "file-c"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       cachedPlotDisplayFileIds: ["file-a"],
       explorerService,
@@ -1448,7 +1329,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       canceledFrames.add(handle);
     }) as typeof cancelAnimationFrame;
 
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const chartActiveFileIds: (string | null)[] = [];
     const resourceA = URI.file("/data/A.csv");
@@ -1494,7 +1374,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 
   test("keeps selected chart target pending before chart data is ready", async () => {
-    const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
     const resourceA = URI.file("/data/A.csv");
@@ -1854,66 +1733,3 @@ const uniquePrefetches = (
   }
   return result;
 };
-
-const commitChartFilesForTest = (
-  session: SessionService,
-  fileIds: readonly string[],
-): void => {
-  commitRawFilesForTest(session, fileIds.map(fileId => ({
-    columnCount: 2,
-    fileId,
-    fileName: `${fileId}.csv`,
-    rowCount: 2,
-    rows: [],
-  })));
-  for (const fileId of fileIds) {
-    commitTemplateOutputForTest(session, {
-      fileId,
-      fileName: `${fileId}.csv`,
-      series: [{
-        groupIndex: 0,
-        id: `series-${fileId}`,
-        y: [1, 2],
-      }],
-      xGroups: [[0, 1]],
-    });
-  }
-};
-
-const createMultiRawTableImportResultForTest = (): FileImportResult => ({
-  createdAt: 1,
-  diagnostics: [],
-  files: [{
-    id: "file-a",
-    kind: "csv",
-    name: "Workbook.xlsx",
-    raw: {
-      fileId: "file-a",
-      fileName: "Workbook.xlsx",
-      filePath: "/data/Workbook.xlsx",
-      rawTableOrder: ["table-key-a", "table-key-b"],
-      rawTablesById: {
-        "table-key-a": createRawTableRecordForTest("file-a", "table-key-a"),
-        "table-key-b": createRawTableRecordForTest("file-a", "table-key-b"),
-      },
-    },
-  }],
-});
-
-const createRawTableRecordForTest = (
-  fileId: string,
-  rawTableId: string,
-): ImportedFileRecord["raw"]["rawTablesById"][string] => ({
-  columnCount: 2,
-  fileId,
-  maxCellLengths: [1, 1],
-  rawTableId,
-  rowCount: 1,
-  rows: {
-    kind: "inline",
-    values: [["x", "y"]],
-  },
-  source: {
-    kind: "csv",
-  },
-});

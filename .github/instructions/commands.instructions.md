@@ -74,8 +74,8 @@ button/menu/keybinding/context menu
   -> handler
   -> optional controller
   -> owner service method
-  -> session commit, service state update, or side effect
-  -> service/session event
+  -> service state update or side effect
+  -> service event
   -> view rerender
 ```
 
@@ -87,7 +87,7 @@ domain behavior must be a command or service API.
 | File | Responsibility | Must not do |
 | --- | --- | --- |
 | `platform/commands/common/commands.ts` | platform command service/registry | import workbench services/views |
-| `contrib/<feature>/browser/<feature>Commands.ts` | owned command ids/handlers; validate args and delegate | own state, mutate DOM, mutate Session |
+| `contrib/<feature>/browser/<feature>Commands.ts` | owned command ids/handlers; validate args and delegate | own state, mutate DOM, mutate another owner |
 | `contrib/<feature>/browser/<feature>Actions.ts` | `Action2` classes, their command ids, and runtime action helpers | duplicate business logic |
 | `contrib/<feature>/browser/<feature>.contribution.ts` | register commands/actions/menus/keybindings/views | become a service/controller |
 | `contrib/<feature>/browser/<feature>Controller.ts` | optional multi-step workflow coordinator | store canonical records |
@@ -124,8 +124,8 @@ curve.toggle();
 ```
 
 If a command palette invocation has no target, ask the owning service for its
-own current selection/focus/query. Do not ask a view for DOM state and do not
-store active command targets in Session.
+own current selection/focus/query. Do not ask a view for DOM state or store a
+duplicate active target outside its owner.
 
 ## Target Shape
 
@@ -183,8 +183,7 @@ service API.
 
 - Do not edit DOM directly from handlers.
 - Do not duplicate command logic in actions.
-- Do not mutate `SessionModel` from views/actions/handlers.
+- Do not mutate owner models from views/actions/handlers.
 - Do not register broad feature commands in `workbench.ts` unless truly global.
-- Do not make `SessionService` dispatch user workflows.
 - Do not make Chart own Plot commands.
 - Do not inline Explorer source preparation or table-open handoff in command handlers; delegate to Explorer source workflow.

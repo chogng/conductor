@@ -31,7 +31,7 @@ let exportTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>;
 suite("workbench/services/export/browser/exportService", () => {
 	exportTestStore = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("owns export option state outside session", () => {
+	test("owns export option state", () => {
 		const service = createExportService();
 		const states: ExportState[] = [];
 		const disposable = exportTestStore.add(service.onDidChangeExportState(state => {

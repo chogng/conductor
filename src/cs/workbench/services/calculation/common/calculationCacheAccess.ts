@@ -2,14 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-  canUseCachedBaseCurrent,
-  isCompatibleCalculationCachePayload,
-} from "./calculationCachePolicy.ts";
+import { canUseCachedBaseCurrent } from "./calculationCachePolicy.ts";
 
-// TODO(conductor-architecture): Migration bridge.
-// Prefer canonical calculationCache; keep analysisCache reads only for retired
-// payload compatibility until old session snapshots are removed.
 export type CachedCalculationSeriesResult = {
   baseCurrent?: unknown;
   gm?: unknown;
@@ -31,7 +25,6 @@ type SeriesLike = {
 };
 
 type FileLike = {
-  analysisCache?: unknown;
   calculationCache?: unknown;
 };
 
@@ -60,33 +53,6 @@ const getCanonicalCacheEntryValue = (
 const isCalculationCacheEntryLike = (entry: unknown): entry is CalculationCacheEntryLike =>
   isObjectRecord(entry);
 
-const getRetiredPayloadCalculationSeriesResult = (
-  file: FileLike | null | undefined,
-  seriesId: string,
-): CachedCalculationSeriesResult | null => {
-  const payload = isObjectRecord(file) ? file["analysisCache"] : undefined;
-  if (!isCompatibleCalculationCachePayload(payload) || !isObjectRecord(payload)) {
-    return null;
-  }
-
-  const resultBySeriesId = payload.series;
-  if (!isObjectRecord(resultBySeriesId)) {
-    return null;
-  }
-
-  const result = resultBySeriesId[seriesId];
-  if (!isObjectRecord(result)) {
-    return null;
-  }
-
-  return {
-    baseCurrent: result.baseCurrent,
-    gm: result.gm,
-    ss: result.ss,
-    ssFitAuto: result.ssFitAuto,
-  };
-};
-
 export const getCachedCalculationSeriesResult = (
   file: FileLike | null | undefined,
   series: SeriesLike | null | undefined,
@@ -102,16 +68,14 @@ export const getCachedCalculationSeriesResult = (
     ss: getCanonicalCacheEntryValue(file, "localSs", seriesId),
     ssFitAuto: getCanonicalCacheEntryValue(file, "ssFitAuto", seriesId),
   };
-  if (
+  return (
     cached.baseCurrent !== undefined ||
     cached.gm !== undefined ||
     cached.ss !== undefined ||
     cached.ssFitAuto !== undefined
-  ) {
-    return cached;
-  }
-
-  return getRetiredPayloadCalculationSeriesResult(file, seriesId);
+  )
+    ? cached
+    : null;
 };
 
 export const getCachedDerivativePoints = (

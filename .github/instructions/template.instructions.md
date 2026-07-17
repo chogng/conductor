@@ -37,7 +37,7 @@ selections, or raw-file view input.
 `ITemplateViewStateService` in Template contrib owns selected-template/form
 editor state for Template UI and related view projections. Slicing selections
 belong to `ISliceService`. Template UI does not own raw-file view input and
-does not read Session projections; it may read current table selection through
+does not read another domain's projections; it may read current table selection through
 `ITableService` only as explicit editor input.
 
 `IUserTemplateService` owns persisted user-template catalog records. Template
@@ -45,7 +45,7 @@ UI may adapt records into `TemplateEditorConfig` while editing, but must write
 native records back through `IUserTemplateService`.
 
 Old Template-owned apply controllers, planners, processing workers, and
-run/output Session commits have been removed. New execution behavior belongs in
+run/output compatibility-ledger commits have been removed. New execution behavior belongs in
 Slice; do not add primary planning, queue, worker, commit, or workflow-input
 responsibility under Template. Progress and readiness surfaces come from
 `ISliceService`.
@@ -165,7 +165,7 @@ import/export command
   badges driven by Review and Slice projections.
 - Full/incremental apply must not start while another extraction job is running or while the Files-owned source import task is active.
 - Resource cleanup belongs to `ISliceService` and URI/model resource owners; do not
-  reintroduce Session cleanup subscriptions under Template.
+  reintroduce cross-domain cleanup subscriptions under Template.
 
 ## Commands
 
@@ -191,9 +191,9 @@ Commands/controllers must not re-detect table structure.
   Slice path. Such inference belongs to structured content evidence production
   and Review-owned candidate helpers before Slice.
 - Do not split `Template` by review/slice/binding/apply consumers.
-- Do not store template form draft state in Session.
-- Do not let worker payload format leak into Session records.
-- Do not let TemplateView mutate Session directly.
+- Do not store template form draft state outside its view-state owner.
+- Do not let worker payload format leak into domain records.
+- Do not let TemplateView mutate domain services directly.
 - Do not route processing cleanup through Explorer submit events or Workbench-only callbacks.
 - Do not park Settings filename matching helpers or preview-only auto-segmentation
   probes under `services/template/common`.

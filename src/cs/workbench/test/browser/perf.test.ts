@@ -8,6 +8,7 @@ import {
   clearPerfEntries,
   getPerfEntries,
   startPerf,
+  summarizeProcessedFile,
 } from "src/cs/workbench/common/perf";
 
 suite("workbench/common/perf", () => {
@@ -31,6 +32,29 @@ suite("workbench/common/perf", () => {
     } finally {
       restore();
     }
+  });
+
+  test("summarizes only canonical calculation cache entries", () => {
+    const summary = summarizeProcessedFile({
+      analysisCache: {
+        series: {
+          "series-a": {
+            gm: [{ x: 1, y: 2 }],
+          },
+        },
+      },
+      calculationCache: {
+        entriesByKey: {
+          "gm:series-b": {
+            kind: "gm",
+            value: [{ x: 3, y: 4 }],
+          },
+        },
+      },
+    });
+
+    assert.equal(summary.calculationCacheGmPoints, 1);
+    assert.equal(summary.calculationCacheSeriesCount, 1);
   });
 });
 

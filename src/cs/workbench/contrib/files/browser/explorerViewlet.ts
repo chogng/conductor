@@ -150,7 +150,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     this.content.className = "files-pane-body";
 
     this.explorerHost = document.createElement("div");
-    this.explorerHost.className = "files-pane-session-host";
+    this.explorerHost.className = "files-pane-explorer-host";
 
     this.content.append(this.explorerHost);
     this.root.append(this.content);

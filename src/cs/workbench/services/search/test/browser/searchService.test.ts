@@ -18,7 +18,7 @@ import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/
 suite("workbench/services/search/test/browser/searchService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("owns search query state outside session", () => {
+	test("owns search query state", () => {
 		const service = store.add(createSearchServiceForTest());
 		const states: SearchState[] = [];
 		store.add(service.onDidChangeSearchState(state => {

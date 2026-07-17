@@ -4,8 +4,8 @@ applyTo: 'src/cs/workbench/services/thumbnail/**,src/cs/workbench/contrib/thumbn
 ---
 # Thumbnail
 
-Thumbnail renders compact previews from Plot models. It must not rebuild curve
-data from Session when Plot can provide a render model.
+Thumbnail renders compact previews from Plot models. It must not rebuild raw
+curve data when Plot can provide a render model.
 
 ## Ownership
 
@@ -36,7 +36,7 @@ Explorer/files owns every Explorer concern:
 - which files appear as thumbnail candidates;
 - shared file item commands/actions used by both tree and thumbnail layouts.
 
-Thumbnail does not own Explorer selection/layout, raw session curves,
+Thumbnail does not own Explorer selection/layout, raw calculation curves,
 table-model production, chart shell state, export payloads, file import, or
 Explorer file filtering.
 
@@ -46,7 +46,7 @@ Explorer file filtering.
 | --- | --- |
 | `src/cs/workbench/services/thumbnail/common/thumbnail.ts` | Thumbnail service contract and request/result types. |
 | `src/cs/workbench/services/thumbnail/browser/thumbnailService.ts` | Bitmap cache/rendering, preview cache, invalidation, request scheduling. |
-| `src/cs/workbench/services/thumbnail/browser/thumbnailBitmap.ts` | Convert `PlotRenderModel` into canvas/bitmap output. No Session reads. |
+| `src/cs/workbench/services/thumbnail/browser/thumbnailBitmap.ts` | Convert `PlotRenderModel` into canvas/bitmap output. No domain-service reads. |
 | `src/cs/workbench/contrib/thumbnail/common/thumbnail.ts` | Thumbnail action/command ids and `ThumbnailViewId`. |
 | `src/cs/workbench/contrib/thumbnail/browser/thumbnailView.ts` | Reusable thumbnail component. Receives file display metadata and plot render models. |
 | `src/cs/workbench/contrib/thumbnail/browser/thumbnailViewPane.ts` | Thumbnail sidebar surface class. Declares the thumbnail view id/title/layout while reusing the files-owned Explorer surface behavior. |
@@ -126,13 +126,13 @@ flowchart TD
 
 ## Rules
 
-- Thumbnail render code accepts `PlotRenderModel`, not imported table payloads or raw Session records.
-- Thumbnail view components may receive file id, file name, active state, and plot settings, but must not rebuild plot/session data.
+- Thumbnail render code accepts `PlotRenderModel`, not imported table payloads or raw calculation records.
+- Thumbnail view components may receive file id, file name, active state, and plot settings, but must not rebuild source or plot data.
 - Thumbnail cache keys must include file id, plot type, unit/scale settings, and relevant curve/model signatures.
 - Loading previews should render a nonblank thumbnail-owned placeholder unless an older plot model is available.
 - Hover previews may request eager draw so the first connected, sized canvas draws immediately.
 - Thumbnail grid items should use the stable draw strategy to avoid repaint churn in persistent layouts.
-- `fastReady` is a Plot-provided display-model cache source, not a Session-derived shortcut.
+- `fastReady` is a Plot-provided display-model cache source, not a legacy-ledger shortcut.
 - Treat `ready -> fastReady` for the same calculated-data signature as a cache-source upgrade.
 - Do not downgrade `fastReady`, `rawReady`, or `ready` to `loading` while replacement data with the same signature is pending.
 - Preview queues must consume `IPlotService.getCachedCalculatedData`; they must not call `getCalculatedData` inside the thumbnail frame budget.
@@ -181,7 +181,7 @@ needs structured diagnostics.
 ## Do Not
 
 - Do not duplicate plot domain/downsampling logic in thumbnail code.
-- Do not store thumbnail cache in Session.
+- Do not store thumbnail cache outside `IThumbnailService`.
 - Do not import ChartViewPane or ChartPanel to render thumbnails.
 - Do not create reusable thumbnail UI under `src/cs/workbench/contrib/files/browser/views/thumbnail`.
 - Do not use `explorerThumbnail...` names for files or exported UI symbols inside `contrib/thumbnail`.

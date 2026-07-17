@@ -18,7 +18,7 @@ import { drawThumbnailBitmap } from "src/cs/workbench/services/thumbnail/browser
 suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("owns thumbnail cache lifecycle outside session", () => {
+	test("owns thumbnail cache lifecycle", () => {
 		const service = store.add(new BrowserThumbnailService());
 
 		service.clear();
@@ -158,7 +158,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(state.kind === "fastReady" ? state.model.seriesList.length : 0, 1);
 	});
 
-	test("resource previews do not require Session file records", () => {
+	test("resource previews resolve directly from resource input", () => {
 		const resourceInput = {
 			resource: URI.file("/data/Uri.csv"),
 			sheetId: "sheet-a",

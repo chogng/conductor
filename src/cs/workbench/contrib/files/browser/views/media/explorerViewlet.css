@@ -7,7 +7,7 @@
 
 .files-pane-root,
 .files-pane-body,
-.files-pane-session-host {
+.files-pane-explorer-host {
   display: flex;
   min-height: 0px;
   height: 100%;

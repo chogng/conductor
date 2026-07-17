@@ -9,7 +9,7 @@
 
 这份文档记录 `conductor-rs` 当前负责的桌面数据平面，以及它和
 Electron / workbench TypeScript 的边界。Rust 负责重活，TypeScript
-仍负责产品状态、服务编排、Session commit 和 UI。
+仍负责产品状态、服务编排、owner-state commit 和 UI。
 
 ## 运行方式
 
@@ -45,10 +45,10 @@ workbench service / Explorer workflow
   -> conductor-rs --stdio-worker
   -> Electron main normalizes result
   -> service converts to domain records
-  -> Session / Explorer / Table / TableModel / Review / Slice consume normal state
+  -> Explorer / Table / TableModel / Review / Slice / Calculation consume owner state
 ```
 
-Rust CLI 不直接接触 Electron API、SessionModel、Explorer state、DOM、
+Rust CLI 不直接接触 Electron API、Explorer state、DOM、
 canvas、Origin COM 或用户通知。workbench 代码也不应依赖具体可执行文件名；
 只有 Electron main 的 resolver 知道 `conductor-rs` 的位置。
 
@@ -235,6 +235,6 @@ page 内按 seed 生成不同内容的 `File` 对象，再派发 drop event。de
 不优先下沉到 Rust 的工作：
 
 - UI 状态、DOM、canvas、命令注册、Explorer selection；
-- Session mutation；
+- owner-state mutation；
 - Origin COM 自动化；
 - 只影响交互编排、不处理大数据的逻辑。

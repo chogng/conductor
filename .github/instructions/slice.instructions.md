@@ -36,13 +36,13 @@ review template quality, or decide whether the system should apply a template.
 `SlicePlanner` owns deterministic plan creation from immutable inputs:
 `Template`, `resource`, optional `sheetId`, execution dimensions, content/source versions, and
 Template-provided measurement bindings. It must not read rows, start
-workers, or mutate Session.
+workers, or mutate another owner.
 
 `SliceExecutor` owns execution of a `SlicePlan` against supplied rows and
 returns resource-neutral execution records. `SliceService` wraps those records as
 `SliceResourceResult` values for resource/sheet requests. The executor must not call
-services or reread Session. Slice common/executor record types are owned by
-Slice; do not import Session model record types just to describe Slice outputs.
+services. Slice common/executor record types are owned by Slice; do not import
+another domain's record types just to describe Slice outputs.
 
 ## Core Files
 
@@ -100,8 +100,6 @@ Resource/sheet command/action/controller
   -> same planner/executor path
   -> Slice result state for resource/sheet identities
 
-Session migration-ledger raw-table command/action/controller
-  -> no Slice execution path; use resource/sheet command/action/controller
 ```
 
 Bulk command flow:
@@ -171,8 +169,7 @@ ReviewService ReviewSummary
   belongs to `SlicePlan.inputRanges`, then to resource/sheet
   `SliceResourceRun.inputRanges`. Plans must carry resource/sheet range provenance
   directly, not synthetic raw-table refs.
-- Resource/sheet slice results stay in Slice service resource/sheet state and must not
-  be bridged into Session.
+- Resource/sheet slice results stay in Slice service resource/sheet state.
 - Resource/sheet Slice queue entries must be dropped as stale if the URI content
   resource/sheet identity, `contentHash` / `sourceVersion`, `evidenceFingerprint`, optional
   `materializationVersion`, review signature, request signature, or
@@ -184,10 +181,10 @@ ReviewService ReviewSummary
 - If an implementation needs a string lookup value, keep it private and name it
   as an implementation detail such as `cacheKey` or `modelId`; do not name it
   `resourceKey` or expose it from `common/slice.ts`.
-- Contributions only subscribe and delegate. They do not plan, execute, read
-  rows, or commit Session.
-- Slice commands collect `{ resource, sheetId? }` identities from Explorer state, but must not read
-  rows, plan, execute, or commit Session.
+- Contributions only subscribe and delegate. They do not plan, execute, or read
+  rows.
+- Slice commands collect `{ resource, sheetId? }` identities from Explorer state,
+  but must not read rows, plan, or execute.
 
 ## Do Not
 
@@ -198,6 +195,6 @@ ReviewService ReviewSummary
   into Slice.
 - Do not inspect Review confidence, candidate margin, or diagnostics to decide
   automatic execution.
-- Do not store Slice queue/progress in Session.
-- Do not store resource/sheet slice results in Session as a compatibility bridge.
+- Do not store Slice queue/progress outside Slice.
+- Do not store resource/sheet Slice results in a compatibility ledger.
 - Do not call or reintroduce a Template-owned apply workflow from Slice.

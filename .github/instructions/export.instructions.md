@@ -18,7 +18,7 @@ Export builds export plans and payloads. It is not Chart and not Plot.
 It consumes Calculation resource results, Plot state, Settings export options,
 Parameters output when selected, and platform file/dialog services. It does not
 own chart rendering, plot domain calculation, table-model production, template
-execution, or canonical Session mutation.
+execution, or another domain's canonical state.
 
 ## Core Files
 
@@ -56,4 +56,4 @@ Export UI / command
 - Do not read `ChartViewPane` state to export data.
 - Do not recompute plot domains independently from Plot.
 - Do not mutate curves or metrics during export.
-- Do not put export option state in Session.
+- Do not put export option state outside `IExportService`.

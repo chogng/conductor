@@ -14,13 +14,13 @@ payloads, or caches output.
 | --- | --- | --- |
 | `Service` | injectable owner of domain/service state | depend on views or DOM |
 | `Controller` | transient user workflow coordination | own canonical records or replace service APIs |
-| `Model` | data shape or pure projection | call services or mutate Session |
-| `Store` | local service/view-service state with events | store Session-owned canonical records |
+| `Model` | data shape or pure projection | call services or mutate another owner |
+| `Store` | local service/view-service state with events | store another domain's canonical records |
 | `Registry` | id-to-handler/provider/descriptor map | orchestrate workflows |
 | `Provider` | external data/capability behind an interface | interpret measurement semantics |
 | `Reader` | reads from existing source | own import state |
 | `Adapter` | converts one representation to another | make hidden domain decisions |
-| `Planner` | creates execution/export/apply plan from immutable input | start workers or mutate Session |
+| `Planner` | creates execution/export/apply plan from immutable input | start workers or mutate owner state |
 | `Cache` | caches reproducible output | become source of truth |
 
 Use `Manager` only when none of these names is accurate.
@@ -59,7 +59,7 @@ Avoid:
 ```txt
 ExplorerManager -> ImportManager -> SelectionManager
 ChartManager -> PlotManager -> AxisManager
-SessionManager -> FileManager -> RecordManager
+DataManager -> FileManager -> RecordManager
 ```
 
 Prefer explicit ownership:
@@ -68,7 +68,7 @@ Prefer explicit ownership:
 ExplorerService owns ExplorerState.
 fileActions.ts / fileImportExport.ts coordinate add-data workflows.
 fileImportExport.ts prepares resource-backed Explorer source rows.
-SessionService commits canonical records.
+SliceService owns resource-scoped Slice records.
 PlotService owns plot state and render models.
 ChartService owns chart shell state only.
 ```

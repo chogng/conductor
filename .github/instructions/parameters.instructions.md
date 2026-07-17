@@ -19,7 +19,7 @@ It resolves the selected metric-bearing `CalculationResourceResult` using
 caller-provided resource identity and uses the Calculation input signature for
 duplicate suppression. It does
 not own metric algorithms unless explicitly split here later, raw parsing, plot
-rendering, chart shell, Session mutation, or table selection.
+rendering, chart shell, another owner's state, or table selection.
 
 ## Core Files
 
@@ -52,7 +52,7 @@ onDidChangeParametersViewState -> ParametersViewPane render
 
 ## Do Not
 
-- Do not store selected parameter row in Session.
+- Do not store selected parameter row outside `IParametersService`.
 - Do not compute plot domains here.
 - Do not use raw table rows directly unless a parameter algorithm explicitly goes through calculation ownership.
 - Do not have Workbench consume `onDidChangeParametersViewState` and call `updateViewState` in response.

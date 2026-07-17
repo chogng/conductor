@@ -5,7 +5,7 @@ applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/review/**,
 # Explorer Decorations
 
 Explorer decorations are Files Explorer presentation state. They are not canonical
-Session records and must not become converter, table-model, review, slice,
+domain records and must not become converter, table-model, review, slice,
 template, chart, or table decision inputs.
 
 Use "badge" only when describing the visual badge slot or user-facing badge
@@ -20,7 +20,7 @@ Pending Review decoration:
 - first-frame display and stable visual slot layout;
 - comes only from a pending Review summary for a resource-backed Explorer row;
 - must not infer semantic labels from file name, path, extension, sheet name, header rows, or source rows;
-- must not read files, write Session, alter converter output, select templates, or drive table/chart decisions.
+- must not read files, mutate domain records, alter converter output, select templates, or drive table/chart decisions.
 
 Confirmed decoration:
 

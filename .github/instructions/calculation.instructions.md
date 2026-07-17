@@ -5,7 +5,7 @@ applyTo: 'src/cs/workbench/services/calculation/**'
 # Calculation
 
 Calculation owns reusable analysis algorithms and resource-scoped calculated
-results. It is not Plot, Parameters, Chart, Table, or Session UI.
+results. It is not Plot, Parameters, Chart, or Table UI.
 
 ## Ownership
 
@@ -19,7 +19,7 @@ Calculation owns:
   hints, worker execution, stale-result checks, and resource result caching.
 
 Calculation does not own plot display state, chart panes, parameter panel UI,
-Session internals, table-model production, template extraction, raw parsing, or
+table-model production, template extraction, raw parsing, or
 table preview state.
 
 ## Core Files
@@ -67,19 +67,17 @@ SliceResourceResult for { resource, sheetId? }
 - Resource identity is `{ resource: URI, sheetId? }`; do not introduce a
   parallel calculation file-id identity.
 - Calculation record builders consume one resource-neutral
-  `CalculationRecordsInput`; do not recreate Session `FileRecord`,
-  `filesById` / `fileOrder`, or synthetic file-id batching for URI work.
+  `CalculationRecordsInput`; do not introduce a parallel file ledger or
+  synthetic file-id batching for URI work.
 - `CalculationResourceResult` owns `resource` / `sheetId` once at the result
   boundary. Nested series, curves, metrics, lineage, and curve refs must not
   repeat that identity as `fileId`.
 - Read base curves and source versions through `ISliceService.getResourceResult()`.
-- Keep calculated curves and metrics in `CalculationResourceResult`; do not
-  commit them into Session.
+- Keep calculated curves and metrics in `CalculationResourceResult`.
 - `calculationService.ts` owns lifecycle/queue glue; algorithm and record-building logic belongs in `common/*`.
 - Worker payloads include only base curves, matching series, axis projection,
   metric inputs when present, and request/input signatures.
-- Do not send raw table rows, table-model state, Session snapshots, or
-  `SessionModel` records to the worker.
+- Do not send raw table rows or table-model state to the worker.
 - Worker results must be checked against the current resource input signature
   and request id.
 - Resource work shares one calculation worker slot to bound CPU pressure.
@@ -91,7 +89,7 @@ SliceResourceResult for { resource, sheetId? }
 ## Do Not
 
 - Do not put DOM, services, or command registration in pure helpers.
-- Do not read or mutate Session to transport URI-backed calculation results.
+- Do not transport URI-backed calculation results through another global model.
 - Do not import plot rendering helpers or chart DOM.
 - Do not own parameter view state.
 - Do not let calculated output invalidate itself.

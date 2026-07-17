@@ -169,7 +169,7 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     assert.deepEqual(model.yDomain, [0, 1]);
   });
 
-  test("createCalculatedPlotsByKey stores each file and plot type in session-friendly keys", () => {
+  test("createCalculatedPlotsByKey stores each file and plot type in stable keys", () => {
     const byKey = createCalculatedPlotsByKey([
       createFile(),
       createFile({ fileId: "file-b" }),

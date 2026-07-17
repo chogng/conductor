@@ -92,7 +92,8 @@ user template picker / saved-selection compatibility picker
 - `UserTemplate.template` is a snapshot. Review must store the selected
   executable template snapshot in `ReviewDecision.ready.reviewedTemplate`.
 - Native UserTemplates are persisted by scope: `profile` as a UserDataProfile
-  resource and `workspace` in workspace storage. Do not store them in Session.
+  resource and `workspace` in workspace storage. Do not duplicate them in
+  another domain model.
 - Template UI library management reads and writes through
   `IUserTemplateService`. The form uses `TemplateEditorConfig` as an editor
   view model, but persistence must
@@ -118,7 +119,7 @@ user template picker / saved-selection compatibility picker
 ## Do Not
 
 - Do not call UserTemplate a Recipe or a Template sub-type.
-- Do not store UserTemplate catalog records in Session.
+- Do not store UserTemplate catalog records outside `IUserTemplateService`.
 - Do not let UserTemplate evaluate table model or choose candidates.
 - Do not let Slice enumerate or evaluate UserTemplate catalogs; Slice may only
   resolve an explicit selected template id through `IUserTemplateService`.

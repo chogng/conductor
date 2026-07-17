@@ -91,13 +91,6 @@ import {
 import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import {
-  ISessionService,
-  type ISessionService as ISessionServiceType,
-} from "src/cs/workbench/services/session/common/session";
-import type {
-  SessionChangeEvent,
-} from "src/cs/workbench/services/session/common/sessionEvents";
-import {
   ITemplateViewStateService,
   type ITemplateViewStateService as ITemplateViewStateServiceType,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
@@ -141,8 +134,7 @@ type WorkbenchAuxiliaryRefreshReason =
   | "plotState"
   | "plotDisplayModelCache"
   | "exportState"
-  | "templateState"
-  | `session:${string}`;
+  | "templateState";
 
 const WorkbenchLayoutViewContainerIds = [
   ExplorerViewContainerId,
@@ -204,7 +196,6 @@ export type WorkbenchOptions = {
   readonly exportService?: IExportService;
   readonly filesService?: IFileService;
   readonly pathService?: IPathService;
-  readonly sessionService?: ISessionServiceType;
   readonly storageService?: IStorageService;
   readonly layoutService?: IWorkbenchLayoutService;
   readonly menuService?: IMenuService;
@@ -245,7 +236,6 @@ type WorkbenchServices = {
   readonly notificationService: NotificationService;
   readonly parametersService: IParametersService;
   readonly plotService: IPlotService;
-  readonly sessionService: ISessionServiceType;
   readonly settingsService: ISettingsService;
   readonly sliceService: ISliceServiceType;
   readonly tableService: ITableService;
@@ -268,7 +258,6 @@ const hasExplicitWorkbenchServices = (options: WorkbenchOptions): boolean =>
     options.notificationService &&
     options.parametersService &&
     options.plotService &&
-    options.sessionService &&
     options.settingsService &&
     options.sliceService &&
     options.tableService &&
@@ -404,7 +393,6 @@ const resolveWorkbenchServices = (
     notificationService: requireWorkbenchService("INotificationService", options.notificationService),
     parametersService: requireWorkbenchService("IParametersService", options.parametersService),
     plotService: requireWorkbenchService("IPlotService", options.plotService),
-    sessionService: requireWorkbenchService("ISessionService", options.sessionService),
     settingsService: requireWorkbenchService("ISettingsService", options.settingsService),
     sliceService: requireWorkbenchService("ISliceService", options.sliceService),
     tableService: requireWorkbenchService("ITableService", options.tableService),
@@ -478,11 +466,6 @@ const createWorkbenchServicesFromAccessor = (
     options.plotService,
     () => accessor.get(IPlotService),
   ),
-  sessionService: resolveWorkbenchDependency(
-    "ISessionService",
-    options.sessionService,
-    () => accessor.get(ISessionService),
-  ),
   settingsService: resolveWorkbenchDependency(
     "ISettingsService",
     options.settingsService,
@@ -545,7 +528,6 @@ export class Workbench extends Layout {
   private languagePreference: LanguagePreference = getInitialLanguagePreference();
   private serviceStartupState: "pending" | "starting" | "started" | "failed" = "pending";
   private disposed = false;
-  private session!: ISessionServiceType;
   private commandService!: ICommandService;
   private contextKeyService!: IContextKeyService;
   private activePanelViewContainerContext: IContextKey<string> | null = null;
@@ -688,7 +670,6 @@ export class Workbench extends Layout {
         this.plotService = services.plotService;
         this.settingsService = services.settingsService;
         this.sliceService = services.sliceService;
-        this.session = services.sessionService;
         this.viewsService = services.viewsService;
         this.tableService = services.tableService;
         this.templateViewStateService = services.templateViewStateService;
@@ -797,11 +778,6 @@ export class Workbench extends Layout {
         }));
         this._register(this.layoutService.onDidChangeActiveAuxiliaryBarView(() => {
           this.refreshWorkbench("activeAuxiliaryBarView");
-        }));
-        this._register(this.session.onDidChangeSession(event => {
-          if (this.shouldRefreshAuxiliarySurfacesForSessionChange(event)) {
-            this.scheduleWorkbenchAuxiliarySurfacesRefresh(`session:${event.reason}`, true);
-          }
         }));
       });
 
@@ -974,31 +950,6 @@ export class Workbench extends Layout {
         return false;
       case "parameters":
       case "export":
-      default:
-        return true;
-    }
-  }
-
-  private shouldRefreshAuxiliarySurfacesForSessionChange(event: SessionChangeEvent): boolean {
-    const activeAuxiliaryView = this.getActiveAuxiliaryBarView(this.activePanelViewContainerId);
-    switch (activeAuxiliaryView) {
-      case "export":
-        return this.shouldRefreshExportSurfacesForSessionChange(event);
-      case "search":
-      case "template":
-      case "settings":
-        return false;
-      case "parameters":
-      default:
-        return true;
-    }
-  }
-
-  private shouldRefreshExportSurfacesForSessionChange(event: SessionChangeEvent): boolean {
-    switch (event.reason) {
-      case "metricsChanged":
-      case "metricInputsChanged":
-        return this.exportService.getState().selectedContentKeys.some(key => key !== "iv");
       default:
         return true;
     }

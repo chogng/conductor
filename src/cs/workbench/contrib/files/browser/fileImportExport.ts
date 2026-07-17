@@ -322,7 +322,7 @@ export const canImportFolderWithFileService = (
 
 // Explorer view-local source workflow helper. This is not a service boundary:
 // it collects dropped/folder sources, assigns table resources, and returns
-// Explorer rows to the Explorer ViewPane; session commit remains outside.
+// Explorer rows to the Explorer ViewPane; domain processing remains outside.
 export class FileSourceWorkflow implements IDisposable {
   private readonly folderWatcher: WorkspaceWatcher;
   private importRunId = 0;

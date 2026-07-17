@@ -61,7 +61,7 @@ suite("workbench/services/table/browser/tableService", () => {
   const createModel = (options: CreateTableViewModelWithScopeOptions) =>
     createTableViewModelInScope(store.add(new TableStateScope()), options);
 
-  test("opens table resource without a session record", async () => {
+  test("opens a table resource directly", async () => {
     const resource = URI.file("/workspace/data/transfer.csv");
     const { service } = createTableServiceFixture();
 

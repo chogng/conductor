@@ -42,7 +42,6 @@ import { OriginExportSettingsViewContainerId } from "src/cs/workbench/services/o
 import { ParametersViewContainerId } from "src/cs/workbench/services/parameters/common/parameters";
 import { SearchViewContainerId } from "src/cs/workbench/services/search/common/search";
 import type { ThumbnailPreviewChangeEvent } from "src/cs/workbench/services/thumbnail/common/thumbnail";
-import { createEmptySessionModel } from "src/cs/workbench/services/session/common/sessionModel";
 import type {
   IViewContainerNavigationState,
   IViewsService,
@@ -606,6 +605,7 @@ suite("workbench/browser/workbench layout integration", () => {
       },
       chartService: {
         onDidChangeChartState: Event.None,
+        onDidChangeChartViewInput: Event.None,
         updateViewInput: () => undefined,
       },
       explorerService: {
@@ -630,10 +630,6 @@ suite("workbench/browser/workbench layout integration", () => {
         prefetchCalculatedData: (fileIds: readonly string[], priority: string) => {
           plotPrefetches.push({ fileIds, priority });
         },
-      },
-      sessionService: {
-        getSnapshot: () => createEmptySessionModel(),
-        onDidChangeSession: Event.None,
       },
       settingsService: {
         getConductorSettings: () => null,
@@ -666,10 +662,10 @@ suite("workbench/browser/workbench layout integration", () => {
     }
   });
 
-  test("sync does not synthesize active chart data from Session", () => {
+  test("sync does not synthesize active chart data without Explorer resources", () => {
     const calculationPriorities: string[] = [];
     const plotPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
-    const plotDisplayPrefetches: Array<{ fileId?: string | null; plotType?: string; priority: string; sessionVersion?: number }> = [];
+    const plotDisplayPrefetches: Array<{ fileId?: string | null; plotType?: string; priority: string }> = [];
     const chartActiveFileIds: Array<string | null | undefined> = [];
     const bridge = new WorkbenchDomainBridge({
       calculationService: {
@@ -681,6 +677,7 @@ suite("workbench/browser/workbench layout integration", () => {
       },
       chartService: {
         onDidChangeChartState: Event.None,
+        onDidChangeChartViewInput: Event.None,
         updateViewInput: (input: { readonly activeFileId?: string | null }) => {
           chartActiveFileIds.push(input.activeFileId);
         },
@@ -712,22 +709,15 @@ suite("workbench/browser/workbench layout integration", () => {
           plotPrefetches.push({ fileIds, priority });
         },
         prefetchPlotDisplayModel: (
-          input: { readonly fileId?: string | null; readonly plotType?: string; readonly snapshot?: { readonly sessionVersion?: number } },
+          input: { readonly fileId?: string | null; readonly plotType?: string },
           priority: string,
         ) => {
           plotDisplayPrefetches.push({
             fileId: input.fileId,
             plotType: input.plotType,
             priority,
-            sessionVersion: input.snapshot?.sessionVersion,
           });
         },
-      },
-      sessionService: {
-        getSnapshot: () => {
-          throw new Error("Domain bridge must not read Session snapshot.");
-        },
-        onDidChangeSession: Event.None,
       },
       settingsService: {
         getConductorSettings: () => null,
@@ -773,10 +763,6 @@ const createWorkbenchOptions = ({
   readonly storage: TestStorageService;
   readonly viewsService: RecordingViewsService;
 }): WorkbenchOptions => {
-  const sessionService = {
-    getSnapshot: () => createEmptySessionModel(),
-    onDidChangeSession: Event.None,
-  } as unknown as WorkbenchService<"sessionService">;
   const notificationService = {
     get toasts() { return []; },
     onDidChangeToast: Event.None,
@@ -807,6 +793,7 @@ const createWorkbenchOptions = ({
     },
     chartService: {
       onDidChangeChartState: Event.None,
+      onDidChangeChartViewInput: Event.None,
       updateViewInput: () => undefined,
     } as unknown as WorkbenchService<"chartService">,
     commandService: {
@@ -869,7 +856,6 @@ const createWorkbenchOptions = ({
       onDidChangeCalculatedDataCache: Event.None,
       prefetchCalculatedData: () => undefined,
     } as unknown as WorkbenchService<"plotService">,
-    sessionService,
     settingsService: {
       onDidChangeConductorSettings: Event.None,
       onDidChangeNumericDisplayMode: Event.None,

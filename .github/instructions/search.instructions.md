@@ -15,13 +15,13 @@ cells/tables/groups/blocks/columns, and navigation target generation.
 It consumes URI-backed `DataResourceStructuredContentSnapshot` values for
 resource table/search results. Search also consumes optional Plot display models
 for currently plotted chart/inspector series and owner services for reveal
-requests. It does not inject Session for point lookup; Plot owns current
+requests. It does not inject a global data ledger for point lookup; Plot owns current
 snapshot resolution for plot display models.
-Workbench auxiliary refresh scheduling must not refresh Search from Session,
-Explorer, Chart, or Plot owner events; Search updates from explicit URI/search
-inputs and Plot/Chart owner events.
+Workbench auxiliary refresh scheduling must not refresh Search from Explorer,
+Chart, or Plot owner events; Search updates through its own explicit URI/search
+inputs and owner subscriptions.
 It does not own import, table-model production, template execution, plot
-calculation, or Session mutation.
+calculation, or another domain's state.
 
 ## Core Files
 
@@ -31,7 +31,7 @@ calculation, or Session mutation.
 | `browser/searchService.ts` | query/selection state owner, chart/plot subscriber, explicit URI structured-content search helpers. |
 | `browser/searchIndex.ts` | pure index builder from URI structured content. |
 | `contrib/search/browser/searchViewPane.ts` | view shell. |
-| `contrib/search/browser/searchView.ts` | DOM/UI renderer; no Session reads. |
+| `contrib/search/browser/searchView.ts` | DOM/UI renderer; no domain-service reads. |
 
 ## Flow
 
@@ -45,7 +45,7 @@ Chart state/input + optional cached PlotDisplayModel
 ```
 
 Search result navigation uses URI refs such as `ResourceTableRangeRef`, block
-id, group id, or resource id. It must not depend on global Session active state.
+id, group id, or resource id. It must not depend on global active-resource state.
 
 ## Chart Point Lookup
 
@@ -60,8 +60,7 @@ Panes:
 - `inspector`: point lookup table from the central inspector/detail chart display model.
 
 The view owns one X input and one interpolation select applied to both panes.
-Point lookup results are derived display data and must not be written to
-Session.
+Point lookup results are derived display data and remain Search-owned.
 
 Supported modes:
 
@@ -84,5 +83,5 @@ in search model code.
 
 - Do not re-detect block structure.
 - Do not update canonical records from results.
-- Do not store query state in Session.
-- Do not make SearchView read Session directly.
+- Do not store query state outside `ISearchService`.
+- Do not make SearchView read domain services directly.

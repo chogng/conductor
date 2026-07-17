@@ -21,13 +21,6 @@ export const targetPerfMilestoneDefs = [
       perfEntryIncludesFileId(entry, fileId),
   },
   {
-    key: "sessionTemplateCommitted",
-    match: (entry, fileId) =>
-      entry.stage === "sessionService.commitTemplateOutput" &&
-      entry.meta?.committed === true &&
-      perfEntryIncludesFileId(entry, fileId),
-  },
-  {
     key: "calculationPrioritized",
     match: (entry, fileId) =>
       entry.stage === "calculationService.prioritizeCalculationFiles" &&
@@ -43,13 +36,6 @@ export const targetPerfMilestoneDefs = [
     key: "calculationBuilt",
     match: (entry, fileId) =>
       entry.stage === "calculationContribution.buildRecords" &&
-      perfEntryIncludesFileId(entry, fileId),
-  },
-  {
-    key: "sessionCalculationCommitted",
-    match: (entry, fileId) =>
-      entry.stage === "sessionService.commitCalculatedRecordsBatch" &&
-      entry.meta?.committed === true &&
       perfEntryIncludesFileId(entry, fileId),
   },
   {

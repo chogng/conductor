@@ -62,7 +62,7 @@ Keep these mechanisms separate:
   to `{ resource, sheetId? }`, must not be accepted by resource identity call
   sites, and must state its deletion condition.
 - Views read state and translate user gestures into commands or service calls.
-- Command handlers validate arguments and delegate; they do not mutate DOM or `SessionModel`.
+- Command handlers validate arguments and delegate; they do not mutate DOM or owner internals.
 - Contributions register things; they are not business orchestrators.
 
 Use owner APIs like:
@@ -93,7 +93,7 @@ Subscriptions must be disposed through the owner lifecycle.
 
 | State kind | Owner | Examples |
 | --- | --- | --- |
-| Canonical model state | `ISessionService` ledger and domain commit APIs | imported table files, raw tables, table model, slice runs, curves, metrics |
+| Resource/domain model state | The producing service | structured table content, review decisions, Slice runs, Calculation curves and metrics |
 | URI-backed domain result | The producing service | Slice results, Calculation results, Review results |
 | Domain service state | The domain service | plot settings, chart view input, template catalog state, table source/selection snapshot |
 | View state | The view/widget/service that renders it | focus, local selection, template form draft, scroll, expansion, hover, layout mode |
@@ -131,9 +131,9 @@ workbench/contrib -> workbench/services -> platform -> base
 | Layer | Owns | Must not do |
 | --- | --- | --- |
 | `base` | utilities and UI primitives | import workbench services |
-| `platform` | process/platform services: commands, files, storage, context keys | know Conductor session/domain semantics |
+| `platform` | process/platform services: commands, files, storage, context keys | know Conductor domain semantics |
 | `workbench/services` | cross-feature domain services and canonical service APIs | import contrib views |
-| `workbench/contrib` | feature UI, commands, actions, view composition | own canonical session records unless it is the domain owner |
+| `workbench/contrib` | feature UI, commands, actions, view composition | own another domain's canonical records |
 | entry points | import/register implementations | contain business logic |
 
 Runtime folders:
@@ -155,7 +155,6 @@ Runtime folders:
 | `IExplorerService` | Files Explorer UI state: resources, selection, expansion, layout, context |
 | Explorer source helpers | source collection/import contracts for ordinary Explorer URI-backed imports |
 | `IDataResourceService` | URI-backed Conductor data-resource snapshots: structured content, semantic title matching, X/data-block/binding evidence, sheet sub-targets, source versions, and parser diagnostics for Review/Table/Search/Slice consumers |
-| `ISessionService` | migration-ledger imported data-file/raw-table records and legacy canonical analysis records |
 | `IUserDataProfileResourceService` | profile-scoped user-data resources such as UserTemplate payloads; it owns profile resource persistence and import/export aggregation boundaries, not individual domain semantics |
 | `IReviewService` | URI-grounded content-version review: builds `SegmentCandidate`/review candidates from DataResource binding evidence plus UserTemplate snapshots, evaluates candidates, selects `ReviewedTemplate` for table adapters, owns manual adjustment state and system-application recommendation |
 | `services/template` | canonical executable Template spec, editor adapters, and manual-template UI state; it does not own automatic DataResource/UserTemplate candidate derivation |
@@ -180,7 +179,6 @@ Action/menu/keybinding/local gesture
   -> ICommandService / CommandsRegistry handler
   -> optional feature controller
   -> owner service API
-  -> optional ISessionService commit
   -> owner events
   -> subscribers reread public state
 ```
@@ -226,9 +224,6 @@ Primary review/template flow:
 Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates source preparation; Explorer owns local visible rows and table-resource open handoff.
-- Session ledger: Session backs migration-ledger imported raw-table storage and
-  legacy canonical analysis records during migration. URI-backed Slice and
-  Calculation results stay in their owners.
 - Structured evidence / Review candidate building: DataResource produces
   resource/sheet content-version structured evidence, semantic-rules fingerprints,
   X ranges/groups, data blocks, dependent values, and binding candidates.
@@ -245,30 +240,23 @@ Specific flow owners:
 - Slice execution: Slice executes concrete reviewed/manual Template snapshots and owns resource/sheet base-curve results.
 - Calculation: Calculation derives and caches resource/sheet curves/metrics from Slice results.
 - Plot: Plot consumes Calculation resource results to produce render models.
-- Chart: Chart hosts plot UI; it does not interpret raw session facts.
+- Chart: Chart hosts plot UI; it does not interpret raw domain facts.
 - Thumbnail: Thumbnail consumes Plot render models; it does not derive curves.
 - Export: consumes Calculation/Plot/metric state through its own service.
 - Parameters: consumes Calculation resource results through its own service.
 - Search: consumes explicit URI structured-content snapshots plus Plot/Chart owner state.
 
-## Canonical Session
+## Resource-Owned State
 
-`SessionModel` is the migration ledger for remaining imported
-data-file/raw-table lifecycle and legacy canonical analysis facts. It does not
-store URI-backed Slice or Calculation results.
+Keep URI-backed inputs, domain results, and service-local lifecycle state in
+their producing owners:
 
-Keep out of Session:
-
-- URI/editor input models and format support-check results;
-- table selection, focus, scroll, width, row caches;
-- file preview rows, file watch/reload state, model caches, active resource/view
-  input, and other service-local lifecycle state;
-- chart zoom, popovers, pane visibility;
-- template draft/form UI state;
-- search query or selected result;
-- export dialog state;
-- thumbnail bitmap/preview caches;
-- worker refs, request ids, transient lifecycle state.
+- URI/editor input models and format support-check results stay in Table/TableFile;
+- structured content stays in DataResource;
+- review decisions stay in Review;
+- Slice and Calculation results stay in their producing services;
+- render, view-input, query, export, parameter, and thumbnail cache state stays
+  in the corresponding domain service or view owner.
 
 Follow the upstream file -> editor shape for open/preview flows:
 
@@ -278,8 +266,7 @@ URI/resource
   -> model owns URI, format, load state, preview rows, cache/reload/watch
 ```
 
-Those editor/input models and URI-backed Slice/Calculation results are not
-Session records.
+Do not add a parallel global ledger for these models or results.
 
 ## File Layout
 
@@ -308,6 +295,6 @@ Before approving a change, verify:
 2. Does user intent enter through a command/action/controller or owner API?
 3. Does only the owner mutate the state?
 4. Are events facts, with subscribers rereading public state?
-5. Do URI-backed domain results stay in their producing services, with Session limited to its migration-ledger contract?
+5. Do URI-backed domain results stay in their producing services?
 6. Does the dependency direction stay within the layer rules?
 7. Are subscriptions disposed?

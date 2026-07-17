@@ -190,8 +190,7 @@ UserTemplate snapshot, and SchemaProfile version still match. The cache is
 invalidated by content version changes, evidence fingerprint changes,
 DataResource semantic-rules/evidence fingerprint changes, UserTemplate changes,
 review policy changes, and optional materialization-version changes. Explorer
-must not fall back to Session raw-table records for URI-backed semantic
-decorations.
+must not fall back to legacy raw-table records for URI-backed semantic decorations.
 
 Missing or stale URI summaries are not refreshed by Explorer decoration reads.
 Explorer may receive a missing, stale, or active-pending summary and must keep

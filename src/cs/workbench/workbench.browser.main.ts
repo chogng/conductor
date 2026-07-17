@@ -36,7 +36,6 @@ import "src/cs/workbench/services/plot/browser/plot.contribution";
 import "src/cs/workbench/services/progress/browser/progressService";
 import "src/cs/workbench/services/settings/browser/settingsService";
 import "src/cs/workbench/services/search/browser/searchService";
-import "src/cs/workbench/services/session/browser/sessionService";
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileStoreService";
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileService";
 import "src/cs/workbench/services/slice/browser/sliceService";

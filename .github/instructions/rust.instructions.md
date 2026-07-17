@@ -15,12 +15,12 @@ Command / Action / View
   -> browser or electron-browser implementation
   -> desktop implementation may call conductor-rs through IPC/preload
   -> service validates and normalizes result
-  -> Session commit or service event
+  -> owner-state commit or service event
   -> views consume normal domain models
 ```
 
 TypeScript remains the control plane: commands, service contracts,
-orchestration, Session commits, stale-result checks, fallback policy, view
+orchestration, owner-state commits, stale-result checks, fallback policy, view
 state, DOM, and user-facing notifications.
 
 Rust may own heavy execution and runtime caches for table reads, table-model production, explicit slice/template
@@ -114,14 +114,14 @@ Rust JSON
   -> service validation
   -> domain record normalization
   -> stale-result check
-  -> Session commit or service event
+  -> owner-state commit or service event
 ```
 
 ## Payload Rules
 
 Every long-lived Rust request must include enough identity to reject stale
-results: request id, session version, file id, raw table id/version,
-table-model version, template config fingerprint, curve signature, or other
+results: request id, resource/sheet identity, source/content version,
+table-model version, template config fingerprint, curve signature, or another
 stage-specific signature.
 
 Before committing, check that the source still exists and versions/signatures
@@ -169,9 +169,9 @@ curves, TS export only when output size is safe for JS memory. Do not write one
 global fallback rule.
 
 Rust runtime state is cache-like and must be disposable/rebuildable. Invalidate
-or dispose it when files/raw tables/templates/curves/metrics/export artifacts
-are removed or replaced, when Session clears, or when workers exit/crash.
-TypeScript Session is the recovery source.
+or dispose it when source content, templates, curves, metrics, or export
+artifacts are removed or replaced, when owner state resets, or when workers
+exit/crash. TypeScript owner state is the recovery source.
 
 ## File-Level Comment
 
@@ -186,6 +186,6 @@ If a new `electron-browser` file uses Rust heavily, a short comment is enough:
 - Do not create `IRustService` as a general-purpose workbench service.
 - Do not expose Rust calls to views.
 - Do not create Rust-specific command ids or `WithRust` methods.
-- Do not let Rust mutate Session, Explorer, Table, Chart, or DOM state.
+- Do not let Rust mutate Explorer, Table, Chart, or DOM state directly.
 - Do not prefix canonical records with `Rust`.
 - Do not return large payloads when an artifact path, handle, descriptor, preview slice, or plot frame is enough.

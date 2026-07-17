@@ -21,7 +21,7 @@ view embedding in Chart.
 - commands that affect chart shell UI.
 
 It consumes `IPlotService` render/display models and plot state. It does not
-own raw session data extraction, domains/ticks/downsampling, unit conversion,
+own raw domain-data extraction, domains/ticks/downsampling, unit conversion,
 raw curves/metrics, or thumbnail bitmap generation.
 
 ## Core Files
@@ -32,7 +32,7 @@ raw curves/metrics, or thumbnail bitmap generation.
 | `services/chart/browser/chartService.ts` | chart shell state owner and view input publisher. |
 | `contrib/chart/browser/chart.contribution.ts` | chart command/view contribution registration. |
 | `contrib/chart/browser/chartViewPane.ts` | view pane shell; subscribes and rereads owner services. |
-| `contrib/chart/browser/chartPanel.ts` | chart panel composition from props; no Session reads. |
+| `contrib/chart/browser/chartPanel.ts` | chart panel composition from props; no domain-service reads. |
 | `contrib/chart/browser/chartActions.ts` | chart shell actions. |
 | `contrib/chart/browser/chartTitleEditService.ts` | command-to-view workflow bridge for axis-title edit focus. |
 | `contrib/chart/browser/chartFileSelect.ts` | file selector UI adapter. |
@@ -107,9 +107,9 @@ Do not pass Plot-owned behavior or Explorer selection callbacks through
 - Keep chart-mode content mounted across active file switches when structural state remains chart data with cached display model.
 - Rebuild only on structural mode changes: empty, processing, module-loading, or no cached display model.
 - `ChartViewInput.processingStatus` is only for no-chart-data loading/empty state.
-- Chart processing/loading status is a Chart view-input type, not a Session
-  contract. Do not import Session-owned record types into Chart service or
-  Chart UI files just to describe pending/processing display.
+- Chart processing/loading status is a Chart view-input type. Do not import
+  another domain's record types into Chart service or Chart UI files just to
+  describe pending/processing display.
 - When file selector is hidden and active chart has data, `chartFileOptions` should contain only the active option needed by the view.
 - `onDidChangeChartViewInput` announces snapshot changes; panes must reread `IChartService.getViewInput()`.
 
@@ -118,7 +118,7 @@ Do not pass Plot-owned behavior or Explorer selection callbacks through
 Explorer chart-file selection flows through Explorer -> WorkbenchDomainBridge ->
 Chart input without forcing a full workbench shell refresh.
 
-Session, Plot, Template, Settings, and Export changes should not trigger full
+Plot, Template, Settings, and Export changes should not trigger full
 shell refreshes just to update Chart-adjacent auxiliary views. Use scoped
 auxiliary-surface refreshes when possible; keep layout/navigation and active
 auxiliary-view changes on the full shell path.
@@ -128,8 +128,8 @@ rendering, but must not become a callback bag or Plot model data path.
 
 ## Do Not
 
-- Do not read `SessionSnapshot.curvesByKey` from `ChartService`.
+- Do not read raw curves or metrics from `ChartService`.
 - Do not compute plot domains in chart files.
 - Do not let Thumbnail import chart internals to draw mini-plots.
-- Do not store chart shell UI state in Session.
+- Do not store chart shell UI state in another domain service.
 - Do not publish `onDidRequest*` events from `IChartService`; use explicit workflow services for view-local focus/edit commands.

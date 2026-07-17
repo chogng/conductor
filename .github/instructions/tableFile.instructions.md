@@ -7,9 +7,9 @@ applyTo: 'src/cs/workbench/services/tableFile/**'
 `services/tableFile` follows upstream `workbench/services/textfile` naming for
 file-backed table lifecycles. The target architecture is URI-backed:
 `TableFileEditorModel` owns the file working-copy lifecycle around a
-URI-backed `ITableModel`. Migration-ledger data-file/raw-table imports are
-Explorer-local file-to-table rows plus URI-backed table opens, and no longer
-have a tableFile bridge service or Session commit step.
+URI-backed `ITableModel`. Data-file imports are Explorer-local file-to-table
+rows plus URI-backed table opens; there is no tableFile bridge or parallel
+import-ledger commit step.
 
 ```txt
 URI/resource open
@@ -57,23 +57,6 @@ lifecycle. It may provide a native `.xls` reader for binary BIFF/OLE workbooks
 that returns normalized sheet rows. It must not route CSV, TSV, or XLSX through
 the native reader.
 
-Session owns only the remaining migration ledger for domains that still
-explicitly write canonical records:
-
-- imported data-file and raw-table lifecycle commits;
-- `fileId`, `rawTableId`, and `sourceRawTableVersion` identity surface;
-- rename/remove/clear operations for imported files;
-- Session change events for subscribers.
-
-This remaining raw-table import ledger does not own:
-
-- URI-backed preview projections, file working-copy reload/watch state, or model caches;
-- Explorer tree, selection, expansion, drag/drop UI, or Files source-import workflow state;
-- Table preview selection, row cache, reveal/highlight, or column widths;
-- table-model detection, Review candidate derivation, Review decisions, or Slice
-  execution;
-- plot/chart/search/export/parameter view state.
-
 `services/tableFile/common/encoding.ts` is a helper for table read mode and byte
 conversion after the table format has already been identified. It must not
 become the owner for supported extensions or parser dispatch. CSV/TSV/XLS/XLSX
@@ -84,20 +67,15 @@ not revive desktop IPC payloads such as JSON-serialized Node `Buffer` objects;
 base IPC byte marshalling and `IFileService` own returning a real `Uint8Array`
 before tableFile reads it.
 
-## Migration Boundary
+## Import Boundary
 
-Explicit Explorer import flows stay out of Session after source preparation:
-they update Explorer-local rows and open URI-backed table resources. New table
+Explicit Explorer import flows update Explorer-local rows and open URI-backed
+table resources. Table
 open, model projection, cache, reload, save, and source-version work should use
-`TableFileEditorModel` / `ITableModel` through `ITableModelService`, not expand
-Session-backed raw-table ownership.
+`TableFileEditorModel` / `ITableModel` through `ITableModelService`.
 
-Do not route table URI open/model projection lifecycle through Session.
-That lifecycle follows the upstream file -> editor shape and stays service-local
-unless a user explicitly invokes a migration-ledger raw-table path.
-
-Explorer/files code must not call `ISessionService.commitFileImport(...)` for
-ordinary file-to-table imports.
+The table URI open/model projection lifecycle follows the upstream file ->
+editor shape and stays service-local.
 
 ## Core Files
 
@@ -116,9 +94,7 @@ ordinary file-to-table imports.
 
 - Explicit import APIs act on pure values; records do not gain behavior methods.
 - TableFile events are facts. Subscribers reread the resolved `ITableModel`
-  snapshot after `onDidChangeModel`; explicit import subscribers still reread
-  `ISessionService.getSnapshot()` after relevant `onDidChangeSession` events.
+  snapshot after `onDidChangeModel`.
 - Keep TableFile services independent of views, commands, and Table widget
   state.
-- TableFile services do not derive review candidates or commit derived Session
-  records.
+- TableFile services do not derive review candidates.

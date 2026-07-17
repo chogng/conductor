@@ -25,7 +25,7 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		storageService = createStorageService(),
 	): ChartService => store.add(new ChartService(storageService));
 
-	test("owns chart shell state outside session", () => {
+	test("owns chart shell state", () => {
 		const service = createService();
 		const states: ChartState[] = [];
 		store.add(service.onDidChangeChartState(state => {

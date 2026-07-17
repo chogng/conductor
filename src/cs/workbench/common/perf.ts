@@ -268,38 +268,6 @@ const summarizeCanonicalCalculationCache = (
   });
 };
 
-const summarizeRetiredCalculationCachePayload = (
-  payload: unknown,
-): PerfMeta | null => {
-  if (!isObjectRecord(payload) || !isObjectRecord(payload.series)) {
-    return null;
-  }
-
-  const rawSeries = payload.series;
-  let gmPoints = 0;
-  let seriesCount = 0;
-  let ssFitAutoCount = 0;
-  let ssPoints = 0;
-  let baseCurrentCount = 0;
-
-  for (const result of Object.values(rawSeries)) {
-    if (!isObjectRecord(result)) continue;
-    seriesCount += 1;
-    gmPoints += countArrayLength(result.gm);
-    ssPoints += countArrayLength(result.ss);
-    if (result.ssFitAuto) ssFitAutoCount += 1;
-    if (result.baseCurrent) baseCurrentCount += 1;
-  }
-
-  return createCalculationCacheSummary({
-    baseCurrentCount,
-    gmPoints,
-    seriesCount,
-    ssFitAutoCount,
-    ssPoints,
-  });
-};
-
 const summarizeCalculationCache = (file: unknown): PerfMeta => {
   if (!isObjectRecord(file)) {
     return createEmptyCalculationCacheSummary();
@@ -312,8 +280,7 @@ const summarizeCalculationCache = (file: unknown): PerfMeta => {
     }
   }
 
-  return summarizeRetiredCalculationCachePayload(file["analysisCache"]) ??
-    createEmptyCalculationCacheSummary();
+  return createEmptyCalculationCacheSummary();
 };
 
 export const summarizeProcessedFile = (file: unknown): PerfMeta => {
