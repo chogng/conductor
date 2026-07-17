@@ -10,10 +10,21 @@ import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
+  INotificationService,
+  NoOpNotification,
+  type NotificationMessage,
+} from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  IReviewService,
+  type ReviewReevaluationResult,
+} from "src/cs/workbench/services/review/common/review";
+import {
   ADD_FOLDER_COMMAND_ID,
   CLOSE_FILE_ITEM_COMMAND_ID,
   CLOSE_FOLDER_COMMAND_ID,
   DELETE_FILE_ITEM_COMMAND_ID,
+  REEVALUATE_ALL_FILE_REVIEWS_COMMAND_ID,
+  REEVALUATE_FILE_REVIEW_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/browser/fileActions";
@@ -23,6 +34,8 @@ import {
   closeFileItemHandler,
   closeFolderHandler,
   deleteFileItemHandler,
+  reevaluateAllFileReviewsHandler,
+  reevaluateFileReviewHandler,
   renameFileItemHandler,
   setFileTemplateHandler,
 } from "../../browser/fileCommands.ts";
@@ -218,8 +231,76 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     assert.ok(CommandsRegistry.getCommand(CLOSE_FOLDER_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(CLOSE_FILE_ITEM_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(DELETE_FILE_ITEM_COMMAND_ID));
+    assert.ok(CommandsRegistry.getCommand(REEVALUATE_ALL_FILE_REVIEWS_COMMAND_ID));
+    assert.ok(CommandsRegistry.getCommand(REEVALUATE_FILE_REVIEW_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(SET_FILE_TEMPLATE_COMMAND_ID));
+  });
+
+  test("reevaluates one exact Explorer row and all unique rows with bounded concurrency", async () => {
+    const files = Array.from({ length: 12 }, (_, index) => ({
+      fileId: `file-${index}`,
+      fileName: `file-${index}.csv`,
+      resource: URI.file(`/workspace/file-${index}.csv`),
+      ...(index === 0 ? { sheetId: "table-a" } : {}),
+    }));
+    files.push({
+      ...files[0],
+      fileId: "file-0-duplicate",
+    });
+    const explorerService = createExplorerServiceStub({
+      files,
+      onSelect: () => undefined,
+      onSetEditable: () => undefined,
+    });
+    const reevaluatedTargets: string[] = [];
+    let activeCount = 0;
+    let maximumActiveCount = 0;
+    const reviewService = {
+      _serviceBrand: undefined,
+      reevaluate: async (
+        target: Parameters<IReviewService["reevaluate"]>[0],
+      ): Promise<ReviewReevaluationResult> => {
+        reevaluatedTargets.push(`${target.resource.toString()}#${target.sheetId ?? ""}`);
+        activeCount += 1;
+        maximumActiveCount = Math.max(maximumActiveCount, activeCount);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        activeCount -= 1;
+        return {
+          persistence: "stored",
+          summary: {
+            resource: target.resource,
+            ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+            state: "missing",
+            findingCodes: [],
+          },
+        };
+      },
+    } as unknown as IReviewService;
+    const notifications: Array<NotificationMessage | NotificationMessage[]> = [];
+    const accessor = createAccessor([
+      [IExplorerService, explorerService],
+      [INotificationService, createNotificationServiceStub(notifications)],
+      [IReviewService, reviewService],
+    ]);
+
+    await reevaluateFileReviewHandler(accessor, {
+      resource: files[0].resource,
+      sheetId: "table-a",
+    });
+    reevaluatedTargets.length = 0;
+    maximumActiveCount = 0;
+    await reevaluateAllFileReviewsHandler(accessor);
+
+    assert.deepStrictEqual({
+      maximumActiveCount,
+      targetCount: reevaluatedTargets.length,
+      uniqueTargetCount: new Set(reevaluatedTargets).size,
+    }, {
+      maximumActiveCount: 8,
+      targetCount: 12,
+      uniqueTargetCount: 12,
+    });
   });
 });
 
@@ -280,6 +361,34 @@ function createExplorerViewStub(methods: Partial<ExplorerViewPane>): ExplorerVie
     deleteFile: () => Promise.resolve(),
     ...methods,
   } as unknown as ExplorerViewPane;
+}
+
+function createNotificationServiceStub(
+  notifications: Array<NotificationMessage | NotificationMessage[]>,
+): INotificationService {
+  const service: Partial<INotificationService> = {
+    _serviceBrand: undefined,
+    error: message => {
+      notifications.push(message);
+    },
+    info: message => {
+      notifications.push(message);
+    },
+    notify: notification => {
+      notifications.push(notification.message);
+      return new NoOpNotification();
+    },
+    status: message => {
+      notifications.push(message);
+      return {
+        close: () => undefined,
+      };
+    },
+    warn: message => {
+      notifications.push(message);
+    },
+  };
+  return service as INotificationService;
 }
 
 const flushPromises = async (): Promise<void> => {

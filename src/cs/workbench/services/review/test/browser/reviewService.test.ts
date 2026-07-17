@@ -177,6 +177,78 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(changedDataResourceService.resolveStructuredContentCalls, 1);
 	});
 
+	test("forces cached Review reevaluation and waits for persistence", async () => {
+		const resource = URI.file("/workspace/Transfer.csv");
+		const dataResourceService = store.add(new CountingDataResourceService(
+			createDataResourceServiceForTest(resource),
+		));
+		const storageService = store.add(new TestStorageService());
+		const service = createReviewServiceForTest(
+			createUserTemplateServiceForTest(),
+			dataResourceService,
+			undefined,
+			storageService,
+			createWorkspaceContextServiceStub(resource),
+			createReviewFileServiceStub(100, 2048),
+		);
+
+		await service.resolveReviewSummary({ resource });
+		await flushReviewPersistence(service);
+		const result = await service.reevaluate({ resource });
+
+		assert.deepStrictEqual({
+			persistedKeys: storageService.keys(StorageScope.WORKSPACE)
+				.filter(key => key.startsWith("review.result.v1:")),
+			persistence: result?.persistence,
+			resolveStructuredContentCalls: dataResourceService.resolveStructuredContentCalls,
+			state: result?.summary.state,
+		}, {
+			persistedKeys: ["review.result.v1:Transfer.csv:"],
+			persistence: "stored",
+			resolveStructuredContentCalls: 2,
+			state: "ready",
+		});
+	});
+
+	test("clears a persisted Review result when forced reevaluation has no result", async () => {
+		const resource = URI.file("/workspace/Transfer.csv");
+		const target = { resource, sheetId: "table-a" };
+		const dataResourceService = store.add(new ControlledDataResourceService());
+		const storageService = store.add(new TestStorageService());
+		const service = createReviewServiceForTest(
+			createUserTemplateServiceForTest(),
+			dataResourceService,
+			undefined,
+			storageService,
+			createWorkspaceContextServiceStub(resource),
+			createReviewFileServiceStub(100, 2048),
+		);
+		const readyReference = store.add(
+			await createDataResourceServiceForTest(resource).resolveStructuredEvidence(target),
+		);
+		const initialReview = service.resolveReviewSummary(target);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
+		dataResourceService.resolveNext(readyReference.object);
+		await initialReview;
+		await flushReviewPersistence(service);
+
+		const reevaluation = service.reevaluate(target);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 2);
+		dataResourceService.resolveNext({ kind: "missingContent" });
+		const result = await reevaluation;
+
+		assert.deepStrictEqual({
+			persistedKeys: storageService.keys(StorageScope.WORKSPACE)
+				.filter(key => key.startsWith("review.result.v1:")),
+			persistence: result?.persistence,
+			state: result?.summary.state,
+		}, {
+			persistedKeys: [],
+			persistence: "cleared",
+			state: "invalid",
+		});
+	});
+
 	test("derives DataResource review candidates into a system-recommended review decision", () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 

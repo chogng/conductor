@@ -2,8 +2,12 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
+import { Action } from "src/cs/base/common/actions";
+import { getErrorMessage } from "src/cs/base/common/errors";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
+import { localize } from "src/cs/nls";
+import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
 import {
   IExplorerService,
   ExplorerViewId,
@@ -18,6 +22,17 @@ import {
   type ExplorerFileEntry,
   type ExplorerResourceIdentity,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
+import {
+  INotificationService,
+  Severity,
+} from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  IReviewService,
+  type ReviewReevaluationResult,
+} from "src/cs/workbench/services/review/common/review";
+
+const ReviewReevaluationConcurrency = 8;
+const ReviewReevaluationNotificationId = "files.reviewReevaluation";
 
 export const addFolderHandler: ICommandHandler = accessor => {
   withExplorerView(accessor, explorerView => explorerView.openFolderImport());
@@ -68,6 +83,53 @@ export const renameFileItemHandler: ICommandHandler<[unknown]> = (
   });
 };
 
+export const reevaluateFileReviewHandler: ICommandHandler<[unknown], Promise<void>> = async (
+  accessor,
+  target,
+) => {
+  const resourceIdentity = resolveCommandExplorerResourceIdentity(accessor, target);
+  if (!resourceIdentity) {
+    return;
+  }
+
+  const notificationService = accessor.get(INotificationService);
+  const status = notificationService.status(localize(
+    "files.reviewReevaluation.single.progress",
+    "Reevaluating Review...",
+  ));
+  try {
+    const result = await accessor.get(IReviewService).reevaluate(resourceIdentity);
+    notifySingleReviewReevaluationResult(notificationService, result);
+  } catch (error) {
+    notificationService.error(localize(
+      "files.reviewReevaluation.single.failed",
+      "Failed to reevaluate Review: {message}",
+      { message: getErrorMessage(error) },
+    ));
+  } finally {
+    status.close();
+  }
+};
+
+export const reevaluateAllFileReviewsHandler: ICommandHandler<[], Promise<void>> = async accessor => {
+  const explorerService = accessor.get(IExplorerService);
+  const notificationService = accessor.get(INotificationService);
+  const targets = getUniqueExplorerReviewTargets(explorerService.files);
+  if (!targets.length) {
+    notificationService.info(localize(
+      "files.reviewReevaluation.all.empty",
+      "No file reviews are available to reevaluate.",
+    ));
+    return;
+  }
+
+  await reevaluateExplorerReviews({
+    notificationService,
+    reviewService: accessor.get(IReviewService),
+    targets,
+  });
+};
+
 export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   accessor,
   target,
@@ -80,6 +142,157 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
 
   const sliceService = accessor.get(ISliceService);
   sliceService.setTemplateSelection(resourceIdentity.resource, resourceIdentity.sheetId ?? null, selection);
+};
+
+const notifySingleReviewReevaluationResult = (
+  notificationService: Pick<INotificationService, "info" | "warn">,
+  result: ReviewReevaluationResult | null,
+): void => {
+  if (!result) {
+    notificationService.warn(localize(
+      "files.reviewReevaluation.single.superseded",
+      "Review reevaluation did not complete because the resource changed.",
+    ));
+    return;
+  }
+  if (result.persistence === "stored") {
+    notificationService.info(localize(
+      "files.reviewReevaluation.single.stored",
+      "Review was reevaluated and saved.",
+    ));
+    return;
+  }
+  if (result.persistence === "cleared") {
+    notificationService.info(localize(
+      "files.reviewReevaluation.single.cleared",
+      "Review was reevaluated and the previous saved result was cleared.",
+    ));
+    return;
+  }
+
+  notificationService.warn(localize(
+    "files.reviewReevaluation.single.unavailable",
+    "Review was reevaluated, but the result could not be saved to workspace storage.",
+  ));
+};
+
+const reevaluateExplorerReviews = async ({
+  notificationService,
+  reviewService,
+  targets,
+}: {
+  readonly notificationService: INotificationService;
+  readonly reviewService: IReviewService;
+  readonly targets: readonly ExplorerResourceIdentity[];
+}): Promise<void> => {
+  const disposables = new DisposableStore();
+  let cancelled = false;
+  let completedWork = 0;
+  let reevaluatedCount = 0;
+  let unavailablePersistenceCount = 0;
+  let failedCount = 0;
+  const cancelAction = disposables.add(new Action(
+    "files.reviewReevaluation.cancel",
+    localize("files.reviewReevaluation.cancel", "Cancel"),
+    "",
+    true,
+    () => {
+      cancelled = true;
+    },
+  ));
+  const progressNotification = notificationService.notify({
+    id: ReviewReevaluationNotificationId,
+    severity: Severity.Info,
+    sticky: true,
+    message: createReviewReevaluationProgressMessage(completedWork, targets.length),
+    actions: {
+      primary: [cancelAction],
+    },
+  });
+
+  let nextTargetIndex = 0;
+  const runWorker = async (): Promise<void> => {
+    while (!cancelled) {
+      const targetIndex = nextTargetIndex;
+      nextTargetIndex += 1;
+      const target = targets[targetIndex];
+      if (!target) {
+        return;
+      }
+
+      try {
+        const result = await reviewService.reevaluate(target);
+        if (!result) {
+          failedCount += 1;
+        } else {
+          reevaluatedCount += 1;
+          if (result.persistence === "unavailable") {
+            unavailablePersistenceCount += 1;
+          }
+        }
+      } catch (error) {
+        failedCount += 1;
+        console.warn("Failed to reevaluate Review.", error);
+      } finally {
+        completedWork += 1;
+        progressNotification.updateMessage(
+          createReviewReevaluationProgressMessage(completedWork, targets.length),
+        );
+      }
+    }
+  };
+
+  try {
+    const workerCount = Math.min(ReviewReevaluationConcurrency, targets.length);
+    await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  } finally {
+    progressNotification.close();
+    disposables.dispose();
+  }
+
+  const cancelledCount = Math.max(0, targets.length - completedWork);
+  if (!failedCount && !unavailablePersistenceCount && !cancelledCount) {
+    notificationService.info(localize(
+      "files.reviewReevaluation.all.complete",
+      "Reevaluated and updated persisted Review state for {count} file(s).",
+      { count: reevaluatedCount },
+    ));
+    return;
+  }
+
+  notificationService.warn(localize(
+    "files.reviewReevaluation.all.completedWithIssues",
+    "Review reevaluation finished: {completed} completed, {unsaved} not saved, {failed} failed, {cancelled} cancelled.",
+    {
+      cancelled: cancelledCount,
+      completed: reevaluatedCount,
+      failed: failedCount,
+      unsaved: unavailablePersistenceCount,
+    },
+  ));
+};
+
+const createReviewReevaluationProgressMessage = (
+  completed: number,
+  total: number,
+): string => localize(
+  "files.reviewReevaluation.all.progress",
+  "Reevaluating file reviews: {completed} of {total}",
+  { completed, total },
+);
+
+const getUniqueExplorerReviewTargets = (
+  files: readonly ExplorerFileEntry[],
+): ExplorerResourceIdentity[] => {
+  const targetsByKey = new Map<string, ExplorerResourceIdentity>();
+  for (const file of files) {
+    const target = getExplorerFileResourceIdentity(file);
+    const key = getExplorerResourceIdentityKey(target);
+    if (target && key && !targetsByKey.has(key)) {
+      targetsByKey.set(key, target);
+    }
+  }
+  return [...targetsByKey.values()];
 };
 
 const normalizeCommandString = (value: unknown): string | null => {

@@ -24,6 +24,8 @@ import {
 import {
   CLOSE_FILE_ITEM_COMMAND_ID,
   DELETE_FILE_ITEM_COMMAND_ID,
+  REEVALUATE_ALL_FILE_REVIEWS_COMMAND_ID,
+  REEVALUATE_FILE_REVIEW_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/browser/fileActions";
@@ -372,7 +374,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     }
   });
 
-  test("orders file context actions into reveal, template, and edit groups", () => {
+  test("orders file context actions into reveal, review, template, and edit groups", () => {
     const revealRegistration = CommandsRegistry.registerCommand(REVEAL_IN_OS_COMMAND_ID, () => undefined);
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
@@ -401,6 +403,9 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         actions.map(action => action.id),
         [
           REVEAL_IN_OS_COMMAND_ID,
+          Separator.ID,
+          REEVALUATE_FILE_REVIEW_COMMAND_ID,
+          REEVALUATE_ALL_FILE_REVIEWS_COMMAND_ID,
           Separator.ID,
           SET_FILE_TEMPLATE_COMMAND_ID,
           Separator.ID,

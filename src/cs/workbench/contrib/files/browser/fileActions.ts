@@ -10,6 +10,8 @@ import {
   closeFileItemHandler,
   closeFolderHandler,
   deleteFileItemHandler,
+  reevaluateAllFileReviewsHandler,
+  reevaluateFileReviewHandler,
   renameFileItemHandler,
   setFileTemplateHandler,
 } from "src/cs/workbench/contrib/files/browser/fileCommands";
@@ -18,6 +20,8 @@ export const ADD_FOLDER_COMMAND_ID = "files.addFolder";
 export const CLOSE_FOLDER_COMMAND_ID = "files.closeFolder";
 export const CLOSE_FILE_ITEM_COMMAND_ID = "files.item.close";
 export const DELETE_FILE_ITEM_COMMAND_ID = "files.item.delete";
+export const REEVALUATE_ALL_FILE_REVIEWS_COMMAND_ID = "files.review.reevaluateAll";
+export const REEVALUATE_FILE_REVIEW_COMMAND_ID = "files.review.reevaluate";
 export const RENAME_FILE_ITEM_COMMAND_ID = "files.item.rename";
 export const SET_FILE_TEMPLATE_COMMAND_ID = "files.item.setTemplate";
 
@@ -98,6 +102,44 @@ export class RenameFileItemAction extends Action2 {
 
   public run(accessor: ServicesAccessor, target: unknown): void {
     renameFileItemHandler(accessor, target);
+  }
+}
+
+export class ReevaluateFileReviewAction extends Action2 {
+  public constructor() {
+    super({
+      id: REEVALUATE_FILE_REVIEW_COMMAND_ID,
+      title: localize("files.reviewReevaluation.single", "Reevaluate"),
+      metadata: {
+        description: localize(
+          "files.reviewReevaluation.single.description",
+          "Reevaluate and persist Review for an imported file.",
+        ),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor, target: unknown): Promise<void> {
+    return reevaluateFileReviewHandler(accessor, target);
+  }
+}
+
+export class ReevaluateAllFileReviewsAction extends Action2 {
+  public constructor() {
+    super({
+      id: REEVALUATE_ALL_FILE_REVIEWS_COMMAND_ID,
+      title: localize("files.reviewReevaluation.all", "Reevaluate All Files"),
+      metadata: {
+        description: localize(
+          "files.reviewReevaluation.all.description",
+          "Reevaluate and persist Review for all imported files.",
+        ),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor): Promise<void> {
+    return reevaluateAllFileReviewsHandler(accessor);
   }
 }
 

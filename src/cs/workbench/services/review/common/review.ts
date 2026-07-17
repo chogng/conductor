@@ -84,6 +84,11 @@ export type ReviewEvidenceSignatureInput = ReviewEvidence;
 
 export type ReviewChangeEvent = readonly ReviewSummaryTarget[];
 
+export type ReviewReevaluationResult = {
+  readonly persistence: "stored" | "cleared" | "unavailable";
+  readonly summary: ReviewSummary;
+};
+
 export interface IReviewService {
   readonly _serviceBrand: undefined;
 
@@ -92,6 +97,7 @@ export interface IReviewService {
   getLatestReviewSummary(target: ReviewSummaryTarget): ReviewSummary;
   getLatestResourceReviewExecution(target: ReviewSummaryTarget): ResourceReviewExecution | null;
   confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null>;
+  reevaluate(target: ReviewSummaryTarget): Promise<ReviewReevaluationResult | null>;
   resolveReviewSummary(target: ReviewSummaryTarget): Promise<ReviewSummary | null>;
   reviewResourceForExecution(target: ReviewSummaryTarget): Promise<ResourceReviewExecution | null>;
   reviewResourceManualTemplate(input: ResourceManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;

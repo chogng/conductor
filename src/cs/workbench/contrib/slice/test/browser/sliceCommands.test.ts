@@ -530,6 +530,15 @@ const createReviewServiceForTest = (
 	}),
 	onDidChangeReview: Event.None as Event<ReviewChangeEvent>,
 	confirmReviewedTemplate: async () => null,
+	reevaluate: async target => ({
+		persistence: "unavailable",
+		summary: {
+			resource: target.resource,
+			...(target.sheetId ? { sheetId: target.sheetId } : {}),
+			state: "missing",
+			findingCodes: [],
+		},
+	}),
 	resolveReviewSummary: async target => ({
 		resource: target.resource,
 		...(target.sheetId ? { sheetId: target.sheetId } : {}),

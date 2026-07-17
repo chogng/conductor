@@ -300,6 +300,18 @@ const createReviewServiceForTest = (
   getLatestResourceReviewExecution: () => null,
   onDidChangeReview,
 	confirmReviewedTemplate: async () => null,
+	reevaluate: async target => ({
+		persistence: "unavailable",
+		summary: {
+			resource: target.resource,
+			...(target.sheetId ? { sheetId: target.sheetId } : {}),
+			state: "ready",
+			confidence: 0.95,
+			findingCodes: [],
+			reviewedType: "transfer",
+			reviewedSemanticLabel: "transfer",
+		},
+	}),
 	resolveReviewSummary: async target => ({
 		resource: target.resource,
 		...(target.sheetId ? { sheetId: target.sheetId } : {}),

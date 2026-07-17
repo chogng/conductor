@@ -43,6 +43,8 @@ import {
 import {
   CLOSE_FILE_ITEM_COMMAND_ID,
   DELETE_FILE_ITEM_COMMAND_ID,
+  REEVALUATE_ALL_FILE_REVIEWS_COMMAND_ID,
+  REEVALUATE_FILE_REVIEW_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/browser/fileActions";
@@ -1296,6 +1298,28 @@ export class ExplorerViewer implements IDisposable {
         target,
       }),
     ];
+    const reviewActions: IAction[] = [
+      createMenuAction({
+        id: REEVALUATE_FILE_REVIEW_COMMAND_ID,
+        label: localize("files.reviewReevaluation.single", "Reevaluate"),
+        enabled: Boolean(target),
+        run: () => {
+          void this.props.commandService.executeCommand(
+            REEVALUATE_FILE_REVIEW_COMMAND_ID,
+            target,
+          );
+        },
+      }),
+      createMenuAction({
+        id: REEVALUATE_ALL_FILE_REVIEWS_COMMAND_ID,
+        label: localize("files.reviewReevaluation.all", "Reevaluate All Files"),
+        run: () => {
+          void this.props.commandService.executeCommand(
+            REEVALUATE_ALL_FILE_REVIEWS_COMMAND_ID,
+          );
+        },
+      }),
+    ];
     const editActions: IAction[] = [
       createMenuAction({
         id: RENAME_FILE_ITEM_COMMAND_ID,
@@ -1321,7 +1345,7 @@ export class ExplorerViewer implements IDisposable {
       }),
     ];
 
-    return Separator.join(revealActions, templateActions, editActions);
+    return Separator.join(revealActions, reviewActions, templateActions, editActions);
   }
 
   private canRevealFileInOS(file: ExplorerFileEntry): boolean {
