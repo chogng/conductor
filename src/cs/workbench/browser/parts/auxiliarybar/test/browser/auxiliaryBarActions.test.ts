@@ -4,20 +4,23 @@
 
 import assert from "assert";
 
-import { Event } from "src/cs/base/common/event";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import type { ICommandEvent, ICommandService } from "src/cs/platform/commands/common/commands";
-import { ContextKeyService } from "src/cs/platform/contextkey/browser/contextKeyService";
-import { MenuService } from "src/cs/platform/actions/common/menuService";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import {
   AuxiliaryBarPart,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+import { ParametersViewContainerId } from "src/cs/workbench/services/parameters/common/parameters";
+import { SearchViewContainerId } from "src/cs/workbench/services/search/common/search";
 import {
-  registerParametersCommands,
-  SHOW_PARAMETERS_COMMAND_ID,
-} from "src/cs/workbench/contrib/parameters/browser/parametersCommands";
+  type ViewContainer,
+  ViewContainerLocation,
+} from "src/cs/workbench/common/views";
+import type {
+  IViewContainerNavigationState,
+  IViewsService,
+} from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 await import("src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions");
@@ -34,77 +37,125 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
     globalThis.document = originalDocument;
   });
 
-  test("parameters action uses the parameters command id", () => {
+  test("creates ordered switch actions from active auxiliary view containers", async () => {
     const disposables = store.add(new DisposableStore());
-    disposables.add(registerParametersCommands());
     const auxiliaryBarPart = disposables.add(new AuxiliaryBarPart());
-    const contextKeyService = disposables.add(new ContextKeyService());
-    const menuService = disposables.add(new MenuService(createCommandService()));
-    contextKeyService.setContext("activeAuxiliaryBarView", "parameters");
-    contextKeyService.setContext("activePanelViewContainer", ChartViewContainerId);
+    const openCalls: string[] = [];
+    const viewsService = createViewsService({
+      activeContainerId: ParametersViewContainerId,
+      activeContainerIds: [SearchViewContainerId, ParametersViewContainerId],
+      containers: [
+        createViewContainer(ParametersViewContainerId, "Parameters", LxIcon.parameters, 20),
+        createViewContainer(SearchViewContainerId, "Search", LxIcon.search, 0),
+      ],
+      openCalls,
+    });
 
     const actions = auxiliaryBarPart.updateState({
-      activeView: "parameters",
-      contextKeyService,
-      menuService,
       templateMode: "management",
       visible: true,
       activePanelViewContainerId: ChartViewContainerId,
+      viewsService,
     }).actions;
 
-    assert.ok(actions.some(action =>
-      action.id === SHOW_PARAMETERS_COMMAND_ID && action.checked === true
-    ));
+    assert.deepEqual(actions.map(action => ({
+      checked: action.checked,
+      id: action.id,
+    })), [
+      { checked: false, id: SearchViewContainerId },
+      { checked: true, id: ParametersViewContainerId },
+    ]);
+
+    await actions[0]?.run();
+    assert.deepEqual(openCalls, [SearchViewContainerId]);
   });
 
-  test("filters view switch actions by active panel view container context", () => {
+  test("filters inactive auxiliary view containers", () => {
     const disposables = store.add(new DisposableStore());
-    disposables.add(registerParametersCommands());
     const auxiliaryBarPart = disposables.add(new AuxiliaryBarPart());
-    const contextKeyService = disposables.add(new ContextKeyService());
-    const menuService = disposables.add(new MenuService(createCommandService()));
-    contextKeyService.setContext("activePanelViewContainer", TableViewContainerId);
+    const viewsService = createViewsService({
+      activeContainerId: null,
+      activeContainerIds: [],
+      containers: [
+        createViewContainer(ParametersViewContainerId, "Parameters", LxIcon.parameters, 20),
+      ],
+    });
 
     const actions = auxiliaryBarPart.updateState({
-      activeView: "parameters",
-      contextKeyService,
-      menuService,
       templateMode: "management",
       visible: true,
       activePanelViewContainerId: ChartViewContainerId,
+      viewsService,
     }).actions;
 
-    assert.ok(!actions.some(action => action.id === SHOW_PARAMETERS_COMMAND_ID));
     assert.deepEqual(actions.map(action => action.id), []);
   });
 
   test("omits title actions when table auxiliary bar has no view switch actions", () => {
     const disposables = store.add(new DisposableStore());
-    disposables.add(registerParametersCommands());
     const auxiliaryBarPart = disposables.add(new AuxiliaryBarPart());
-    const contextKeyService = disposables.add(new ContextKeyService());
-    const menuService = disposables.add(new MenuService(createCommandService()));
-    contextKeyService.setContext("activePanelViewContainer", TableViewContainerId);
+    const viewsService = createViewsService({
+      activeContainerId: "workbench.viewContainer.template",
+      activeContainerIds: ["workbench.viewContainer.template"],
+      containers: [
+        createViewContainer("workbench.viewContainer.template", "Template"),
+      ],
+    });
 
     const actions = auxiliaryBarPart.updateState({
-      activeView: "template",
-      contextKeyService,
-      menuService,
       templateMode: "management",
       visible: true,
       activePanelViewContainerId: TableViewContainerId,
+      viewsService,
     }).actions;
 
     assert.deepEqual(actions.map(action => action.id), []);
   });
 });
 
-function createCommandService(): ICommandService {
+function createViewContainer(
+  id: string,
+  title: string,
+  icon?: LxIcon,
+  order?: number,
+): ViewContainer {
   return {
-    _serviceBrand: undefined,
-    onDidExecuteCommand: Event.None as Event<ICommandEvent>,
-    onWillExecuteCommand: Event.None as Event<ICommandEvent>,
-    executeCommand: async <R = unknown>(): Promise<R | undefined> => undefined,
+    id,
+    title,
+    icon,
+    order,
+  } as ViewContainer;
+}
+
+function createViewsService({
+  activeContainerId,
+  activeContainerIds,
+  containers,
+  openCalls = [],
+}: {
+  readonly activeContainerId: string | null;
+  readonly activeContainerIds: readonly string[];
+  readonly containers: readonly ViewContainer[];
+  readonly openCalls?: string[];
+}): Pick<
+  IViewsService,
+  "getViewContainerNavigationState" | "getViewContainers" | "isViewContainerActive" | "openViewContainer"
+> {
+  const activeIds = new Set(activeContainerIds);
+  return {
+    getViewContainerNavigationState: location => ({
+      activeViewContainerId: activeContainerId,
+      historyIndex: activeContainerId ? 0 : -1,
+      historyLength: activeContainerId ? 1 : 0,
+      location,
+    } satisfies IViewContainerNavigationState),
+    getViewContainers: location =>
+      location === ViewContainerLocation.AuxiliaryBar ? containers : [],
+    isViewContainerActive: id => activeIds.has(id),
+    openViewContainer: async id => {
+      openCalls.push(id);
+      return null;
+    },
   };
 }
 

@@ -33,6 +33,8 @@ export interface IViewsService {
   readonly onDidChangeFocusedView: Event<void>;
 
   getViewContainerNavigationState(location: ViewContainerLocation): IViewContainerNavigationState;
+  getViewContainers(location: ViewContainerLocation): readonly ViewContainer[];
+  getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | null;
   isViewContainerVisible(id: string): boolean;
   isViewContainerActive(id: string): boolean;
   openViewContainer(id: string, focus?: boolean): Promise<ViewContainer | null>;

@@ -113,6 +113,15 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     return this.createViewContainerNavigationState(location);
   }
 
+  public getViewContainers(location: ViewContainerLocation): readonly ViewContainer[] {
+    return this.viewDescriptorService.getViewContainersByLocation(location);
+  }
+
+  public getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | null {
+    return this.viewDescriptorService.getDefaultViewContainers(location)
+      .find(viewContainer => this.isViewContainerActive(viewContainer.id)) ?? null;
+  }
+
   public isViewContainerVisible(id: string): boolean {
     const viewContainer = this.viewDescriptorService.getViewContainerById(id);
     const location = viewContainer ? this.viewDescriptorService.getViewContainerLocation(viewContainer) : null;
@@ -122,6 +131,13 @@ export class ViewsService extends Disposable implements IViewsServiceType {
   public isViewContainerActive(id: string): boolean {
     const viewContainer = this.viewDescriptorService.getViewContainerById(id);
     if (!viewContainer) {
+      return false;
+    }
+
+    if (
+      viewContainer.parentViewContainerId &&
+      !this.isViewContainerVisible(viewContainer.parentViewContainerId)
+    ) {
       return false;
     }
 
@@ -179,11 +195,25 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     id: string,
     updatePartVisibility: boolean,
     navigationUpdate: ViewContainerNavigationUpdate,
+    activateParent = true,
   ): ViewContainer | null {
     const viewContainer = this.viewDescriptorService.getViewContainerById(id);
     const location = viewContainer ? this.viewDescriptorService.getViewContainerLocation(viewContainer) : null;
     if (!viewContainer || location === null) {
       return null;
+    }
+
+    if (
+      activateParent &&
+      viewContainer.parentViewContainerId &&
+      viewContainer.parentViewContainerId !== id
+    ) {
+      this.openViewContainerInternal(
+        viewContainer.parentViewContainerId,
+        true,
+        "record",
+        false,
+      );
     }
 
     const previousNavigationState = this.createViewContainerNavigationState(location);
@@ -608,11 +638,13 @@ export class ViewsService extends Disposable implements IViewsServiceType {
 
   private getLastOrDefaultViewContainerId(location: ViewContainerLocation): string | null {
     const lastActiveId = this.lastActiveViewContainers.get(location);
-    if (lastActiveId && this.viewDescriptorService.getViewContainerById(lastActiveId)) {
+    if (lastActiveId && this.isViewContainerActive(lastActiveId)) {
       return lastActiveId;
     }
 
-    return this.viewDescriptorService.getDefaultViewContainer(location)?.id ?? null;
+    return this.getDefaultViewContainer(location)?.id ??
+      this.getViewContainers(location).find(viewContainer => this.isViewContainerActive(viewContainer.id))?.id ??
+      null;
   }
 
   private updatePartVisibility(location: ViewContainerLocation, visible: boolean): void {

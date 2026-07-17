@@ -28,7 +28,7 @@ rendering, chart shell, another owner's state, or table selection.
 | `common/parameters.ts` | service contract and view ids. |
 | `common/parameterModel.ts` | pure display model types/builders. |
 | `browser/parametersService.ts` | state owner and duplicate publish suppression. |
-| `contrib/parameters/browser/parametersCommands.ts` | show/reveal/input commands and their menu contributions. |
+| `contrib/parameters/browser/parametersCommands.ts` | show/reveal/input commands. |
 | `contrib/parameters/browser/parametersViewPane.ts` | view shell; forwards edits/selection. |
 | `contrib/parameters/browser/parametersModel.ts` | transitional model; target owner is service model files. |
 

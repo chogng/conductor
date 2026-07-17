@@ -3,10 +3,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
-import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import {
@@ -14,10 +14,6 @@ import {
   WorkbenchPhase,
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
-import {
-  ActiveAuxiliaryBarViewContext,
-  ActivePanelViewContainerContext,
-} from "src/cs/workbench/common/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -38,6 +34,9 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 const parametersContainer = viewContainersRegistry.registerViewContainer({
   id: ParametersViewContainerId,
   title: localize("chart.views.parameters", "Parameters"),
+  icon: LxIcon.parameters,
+  order: 20,
+  parentViewContainerId: ChartViewContainerId,
   ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
     actionViewItemProvider: createAuxiliaryBarActionViewItem,
     className: "workbench-part-view-pane-container",
@@ -45,7 +44,7 @@ const parametersContainer = viewContainersRegistry.registerViewContainer({
     renderHeader: true,
     title: localize("chart.views.parameters", "Parameters"),
   }]),
-}, ViewContainerLocation.AuxiliaryBar, { isDefault: true, doNotRegisterOpenCommand: true });
+}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
 
 export class ParametersContribution extends Disposable implements IWorkbenchContribution {
   public constructor() {
@@ -69,10 +68,6 @@ function registerParametersView(): void {
     name: localize("chart.views.parameters", "Parameters"),
     ctorDescriptor: new SyncDescriptor(ParametersViewPane),
     order: 20,
-    when: ContextKeyExpr.and(
-      ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
-      ActiveAuxiliaryBarViewContext.isEqualTo("parameters"),
-    ),
   }], parametersContainer);
 }
 

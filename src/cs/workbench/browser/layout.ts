@@ -293,19 +293,6 @@ export class Layout extends Disposable {
     return this.auxiliaryBarPart.updateState(input);
   }
 
-  protected getActiveAuxiliaryBarView(
-    panelContainerId: string,
-  ): ReturnType<AuxiliaryBarPart["getActiveView"]> {
-    return this.auxiliaryBarPart.getActiveView(panelContainerId);
-  }
-
-  protected getActiveAuxiliaryBarContainerIdForPanel(
-    panelContainerId: string,
-    activeView: string,
-  ): string | null {
-    return this.auxiliaryBarPart.getActiveContainerIdForPanel(panelContainerId, activeView);
-  }
-
   private renderWorkbenchMain(): void {
     const state = this.state.layoutState;
     const workbenchPane = state.panes.workbench;

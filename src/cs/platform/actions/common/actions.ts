@@ -52,7 +52,6 @@ export class MenuId {
   private static readonly instances = new Map<string, MenuId>();
 
   public static readonly CommandPalette = new MenuId("CommandPalette");
-  public static readonly AuxiliaryBarTitle = new MenuId("AuxiliaryBarTitle");
 
   public static for(identifier: string): MenuId {
     return MenuId.instances.get(identifier) ?? new MenuId(identifier);

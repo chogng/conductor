@@ -3,25 +3,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import {
-  Action2,
-  MenuId,
-  MenuRegistry,
-  registerAction2,
-} from "src/cs/platform/actions/common/actions";
+import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
-  ActiveAuxiliaryBarViewContext,
-  ActivePanelViewContainerContext,
-} from "src/cs/workbench/common/contextkeys";
-import {
+  ExportViewContainerId,
   IExportService,
 } from "src/cs/workbench/services/export/common/export";
-import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
-import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 
 export const EXPORT_ORIGIN_ZIP_COMMAND_ID = "workbench.action.exportOriginZip";
 export const OPEN_IN_ORIGIN_COMMAND_ID = "workbench.action.openInOrigin";
@@ -44,19 +33,8 @@ export const registerExportCommands = (): IDisposable => {
 		}
 
 		public run(accessor: ServicesAccessor): void {
-			showChartAuxiliaryView(accessor, "export");
+			void accessor.get(IViewsService).openViewContainer(ExportViewContainerId);
 		}
-	}));
-	disposables.add(MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
-		command: {
-			id: SHOW_EXPORT_COMMAND_ID,
-			title: localize("chart.views.export", "Export"),
-			icon: LxIcon.origin,
-			toggled: ActiveAuxiliaryBarViewContext.isEqualTo("export"),
-		},
-		group: "navigation",
-		order: 10,
-		when: ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
 	}));
 
 	disposables.add(registerAction2(class OpenInOriginAction extends Action2 {
@@ -96,15 +74,4 @@ export const registerExportCommands = (): IDisposable => {
 	}));
 
 	return disposables;
-};
-
-const showChartAuxiliaryView = (
-	accessor: ServicesAccessor,
-	view: string,
-): void => {
-	const layoutService = accessor.get(IWorkbenchLayoutService);
-	void accessor.get(IViewsService).openViewContainer(
-		ChartViewContainerId,
-	);
-	layoutService.selectAuxiliaryBarView(view);
 };

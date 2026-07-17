@@ -147,15 +147,15 @@ suite("workbench/services/views/common/viewContainerModel", () => {
         id: "workbench.searchOrExport",
         name: "Search or Export",
         when: ContextKeyExpr.or(
-          ContextKeyExpr.equals("activeAuxiliaryBarView", "search"),
-          ContextKeyExpr.equals("activeAuxiliaryBarView", "export"),
+          ContextKeyExpr.equals("activeTestView", "primary"),
+          ContextKeyExpr.equals("activeTestView", "secondary"),
         ),
       },
     }]);
 
     assert.deepStrictEqual(model.activeViewDescriptors.map(view => view.id), []);
 
-    contextKeyService.setContext("activeAuxiliaryBarView", "export");
+    contextKeyService.setContext("activeTestView", "secondary");
 
     assert.deepStrictEqual(model.activeViewDescriptors.map(view => view.id), ["workbench.searchOrExport"]);
     assert.deepStrictEqual(model.visibleViewDescriptors.map(view => view.id), ["workbench.searchOrExport"]);

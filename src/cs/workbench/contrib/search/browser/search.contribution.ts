@@ -3,8 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
@@ -14,10 +14,6 @@ import {
   WorkbenchPhase,
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
-import {
-  ActiveAuxiliaryBarViewContext,
-  ActivePanelViewContainerContext,
-} from "src/cs/workbench/common/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -38,6 +34,9 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 const searchContainer = viewContainersRegistry.registerViewContainer({
   id: SearchViewContainerId,
   title: localize("chart.views.search", "Search"),
+  icon: LxIcon.search,
+  order: 0,
+  parentViewContainerId: ChartViewContainerId,
   ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
     actionViewItemProvider: createAuxiliaryBarActionViewItem,
     className: "workbench-part-view-pane-container",
@@ -45,7 +44,7 @@ const searchContainer = viewContainersRegistry.registerViewContainer({
     renderHeader: true,
     title: localize("chart.views.search", "Search"),
   }]),
-}, ViewContainerLocation.AuxiliaryBar, { isDefault: true, doNotRegisterOpenCommand: true });
+}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
 
 export class SearchContribution extends Disposable implements IWorkbenchContribution {
   public constructor() {
@@ -69,10 +68,6 @@ function registerSearchView(): void {
     name: localize("chart.views.search", "Search"),
     ctorDescriptor: new SyncDescriptor(SearchViewPane),
     order: 5,
-    when: ContextKeyExpr.and(
-      ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
-      ActiveAuxiliaryBarViewContext.isEqualTo("search"),
-    ),
   }], searchContainer);
 }
 

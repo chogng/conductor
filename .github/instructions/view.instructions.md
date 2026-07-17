@@ -41,6 +41,13 @@ visibility/focus/container mapping. `ViewPaneContainer` manages pane collection
 and shared container UI. `ViewPane` owns one shell. Concrete panes own feature
 UI and subscriptions.
 
+Auxiliary Bar view switching is descriptor-driven. Feature contributions put
+their title, icon, order, parent panel container, and default status on the
+Auxiliary Bar `ViewContainer`; `IViewsService` activates the parent before the
+Auxiliary Bar container, and the shared Auxiliary Bar renders the registered
+containers. Do not create a parallel menu or string union to enumerate
+Auxiliary Bar view containers.
+
 ## API Rules
 
 Use `ViewsService` / `IViewsService` for runtime orchestration:

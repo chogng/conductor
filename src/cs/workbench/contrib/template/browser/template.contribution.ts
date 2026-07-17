@@ -19,6 +19,7 @@ import {
   TemplateViewId,
 } from "src/cs/workbench/contrib/template/common/template";
 import { TemplateViewPane } from "src/cs/workbench/contrib/template/browser/templateViewlet";
+import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 
 registerTemplateCommands();
 
@@ -27,6 +28,7 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 const container = viewContainersRegistry.registerViewContainer({
   id: TemplateViewContainerId,
   title: localize("template.management.title", "Template Management"),
+  parentViewContainerId: TableViewContainerId,
   ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
     actionViewItemProvider: createAuxiliaryBarActionViewItem,
     className: "workbench-part-view-pane-container",

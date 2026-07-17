@@ -1,6 +1,7 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable, toDisposable } from "src/cs/base/common/lifecycle";
 import type { IAction } from "src/cs/base/common/actions";
+import type { LxIcon } from "src/cs/base/common/lxicon";
 import type { URI } from "src/cs/base/common/uri";
 import type { ContextKeyExpression } from "src/cs/platform/contextkey/common/contextkey";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
@@ -48,8 +49,9 @@ export type OpenCommandActionDescriptor = {
 export interface IViewContainerDescriptor {
   readonly id: string;
   readonly title: string;
-  readonly icon?: URI | string;
+  readonly icon?: URI | string | LxIcon;
   readonly order?: number;
+  readonly parentViewContainerId?: string;
   readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
   readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
   readonly storageId?: string;
@@ -448,7 +450,7 @@ export interface IView extends IDisposable {
 export interface IViewContainerModel {
   readonly viewContainer: ViewContainer;
   readonly title: string;
-  readonly icon: URI | string | undefined;
+  readonly icon: URI | string | LxIcon | undefined;
   readonly keybindingId: string | undefined;
   readonly onDidChangeContainerInfo: Event<{
     readonly title?: boolean;
@@ -545,7 +547,7 @@ export interface IViewDescriptorService {
   getViewContainerModel(container: ViewContainer): IViewContainerModel;
   getViewContainerById(id: string): ViewContainer | null;
   getViewContainersByLocation(location: ViewContainerLocation): readonly ViewContainer[];
-  getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
+  getDefaultViewContainers(location: ViewContainerLocation): readonly ViewContainer[];
   moveViewsToContainer(
     views: readonly IViewDescriptor[],
     viewContainer: ViewContainer,

@@ -3,10 +3,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
-import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import {
@@ -14,10 +14,6 @@ import {
   WorkbenchPhase,
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
-import {
-  ActiveAuxiliaryBarViewContext,
-  ActivePanelViewContainerContext,
-} from "src/cs/workbench/common/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -38,6 +34,9 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 const exportContainer = viewContainersRegistry.registerViewContainer({
   id: ExportViewContainerId,
   title: localize("chart.views.export", "Export"),
+  icon: LxIcon.origin,
+  order: 10,
+  parentViewContainerId: ChartViewContainerId,
   ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
     actionViewItemProvider: createAuxiliaryBarActionViewItem,
     className: "workbench-part-view-pane-container",
@@ -69,10 +68,6 @@ function registerExportView(): void {
     name: localize("chart.views.export", "Export"),
     ctorDescriptor: new SyncDescriptor(ExportViewPane),
     order: 10,
-    when: ContextKeyExpr.and(
-      ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
-      ActiveAuxiliaryBarViewContext.isEqualTo("export"),
-    ),
   }], exportContainer);
 }
 

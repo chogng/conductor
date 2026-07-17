@@ -8,20 +8,13 @@ import type { IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/a
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import {
-  cleanGroupedActions,
-  MenuId,
-  type IMenuService,
-} from "src/cs/platform/actions/common/actions";
-import type { IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
 import type { TemplateMode } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
-import { TemplateViewContainerId } from "src/cs/workbench/contrib/template/common/template";
-import { ExportViewContainerId } from "src/cs/workbench/services/export/common/export";
-import { OriginExportSettingsViewContainerId } from "src/cs/workbench/services/origin/common/origin";
-import { ParametersViewContainerId } from "src/cs/workbench/services/parameters/common/parameters";
-import { SearchViewContainerId } from "src/cs/workbench/services/search/common/search";
-import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+import {
+  type ViewContainer,
+  ViewContainerLocation,
+} from "src/cs/workbench/common/views";
+import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
   StorageScope,
   StorageTarget,
@@ -37,45 +30,9 @@ export const AUXILIARY_BAR_DEFAULT_WIDTH_PX = 280;
 export const AUXILIARY_BAR_MIN_WIDTH_PX = 170;
 export const AUXILIARY_BAR_MAX_WIDTH_PX = Number.POSITIVE_INFINITY;
 
-export type AuxiliaryBarView = "template" | "search" | "export" | "parameters" | "settings";
-
-type AuxiliaryBarViewDescriptor = {
-  readonly containerId: string;
-  readonly id: AuxiliaryBarView;
-  readonly panelViewContainerId: string;
-};
-
 type AuxiliaryBarViewSwitchAction = IAction & {
   readonly icon: LxIcon;
 };
-
-const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
-  {
-    containerId: TemplateViewContainerId,
-    id: "template",
-    panelViewContainerId: TableViewContainerId,
-  },
-  {
-    containerId: SearchViewContainerId,
-    id: "search",
-    panelViewContainerId: ChartViewContainerId,
-  },
-  {
-    containerId: ExportViewContainerId,
-    id: "export",
-    panelViewContainerId: ChartViewContainerId,
-  },
-  {
-    containerId: ParametersViewContainerId,
-    id: "parameters",
-    panelViewContainerId: ChartViewContainerId,
-  },
-  {
-    containerId: OriginExportSettingsViewContainerId,
-    id: "settings",
-    panelViewContainerId: ChartViewContainerId,
-  },
-];
 
 export const createAuxiliaryBarPart = (): HTMLDivElement => {
   const element = document.createElement("div");
@@ -116,11 +73,12 @@ type AuxiliaryBarState = {
 
 type AuxiliaryBarInput = {
   readonly activePanelViewContainerId: string;
-  readonly activeView: string;
-  readonly contextKeyService: IContextKeyService;
-  readonly menuService: IMenuService;
   readonly templateMode: TemplateMode;
   readonly visible: boolean;
+  readonly viewsService: Pick<
+    IViewsService,
+    "getViewContainerNavigationState" | "getViewContainers" | "isViewContainerActive" | "openViewContainer"
+  >;
 };
 
 export class AuxiliaryBarLayout {
@@ -165,7 +123,6 @@ const createAuxiliaryBarSplitPane = (
 });
 
 export class AuxiliaryBarPart extends Disposable {
-  private activeView: AuxiliaryBarView = "template";
   private readonly layout: AuxiliaryBarLayout;
 
   public readonly paneId = AuxiliaryBarPaneId;
@@ -213,32 +170,11 @@ export class AuxiliaryBarPart extends Disposable {
     return createAuxiliaryBarSplitPane(this.width, visible);
   }
 
-  public getActiveView(activePanelViewContainerId: string): AuxiliaryBarView | null {
-    return this.resolveActiveView(activePanelViewContainerId);
-  }
-
-  public getActiveContainerIdForPanel(
-    activePanelViewContainerId: string,
-    requestedView: string,
-  ): string | null {
-    if (isAuxiliaryBarView(requestedView)) {
-      this.setActiveView(requestedView, activePanelViewContainerId);
-    }
-
-    const activeView = this.resolveActiveView(activePanelViewContainerId);
-    return AuxiliaryBarViews.find(view => view.id === activeView)?.containerId ?? null;
-  }
-
   public updateState(input: AuxiliaryBarInput): AuxiliaryBarState {
-    if (isAuxiliaryBarView(input.activeView)) {
-      this.setActiveView(input.activeView, input.activePanelViewContainerId);
-    }
-    const activeView = this.resolveActiveView(input.activePanelViewContainerId);
     return {
-      actions: input.visible && activeView
+      actions: input.visible
         ? createAuxiliaryBarActions({
-            contextKeyService: input.contextKeyService,
-            menuService: input.menuService,
+            viewsService: input.viewsService,
           })
         : [],
       title: input.visible
@@ -252,47 +188,7 @@ export class AuxiliaryBarPart extends Disposable {
     input.container.setActions(input.actions);
   }
 
-  private resolveActiveView(activePanelViewContainerId: string): AuxiliaryBarView | null {
-    const activeView = resolveAuxiliaryBarView(this.activeView, activePanelViewContainerId);
-    if (activeView) {
-      this.activeView = activeView;
-    }
-    return activeView;
-  }
-
-  private setActiveView(view: AuxiliaryBarView, activePanelViewContainerId: string): boolean {
-    const nextView = resolveAuxiliaryBarView(view, activePanelViewContainerId);
-    if (!nextView) {
-      return false;
-    }
-    if (this.activeView === nextView) {
-      return false;
-    }
-    this.activeView = nextView;
-    return true;
-  }
-
 }
-
-const isAuxiliaryBarView = (view: string): view is AuxiliaryBarView =>
-  AuxiliaryBarViews.some(candidate => candidate.id === view);
-
-const getAuxiliaryBarViews = (
-  activePanelViewContainerId: string,
-): readonly AuxiliaryBarViewDescriptor[] =>
-  AuxiliaryBarViews.filter((view) => view.panelViewContainerId === activePanelViewContainerId);
-
-const getDefaultAuxiliaryBarView = (
-  activePanelViewContainerId: string,
-): AuxiliaryBarView | null => {
-  if (activePanelViewContainerId === ChartViewContainerId) {
-    return "export";
-  }
-  if (activePanelViewContainerId === TableViewContainerId) {
-    return "template";
-  }
-  return null;
-};
 
 const getAuxiliaryBarTitleForPanelViewContainer = (
   activePanelViewContainerId: string,
@@ -307,42 +203,45 @@ const getAuxiliaryBarTitleForPanelViewContainer = (
     : localize("template.management.title", "Template Management");
 };
 
-const resolveAuxiliaryBarView = (
-  view: AuxiliaryBarView,
-  activePanelViewContainerId: string,
-): AuxiliaryBarView | null =>
-  getAuxiliaryBarViews(activePanelViewContainerId).some((candidate) => candidate.id === view)
-    ? view
-    : getDefaultAuxiliaryBarView(activePanelViewContainerId);
-
 const createAuxiliaryBarActions = ({
-  contextKeyService,
-  menuService,
+  viewsService,
 }: {
-  readonly contextKeyService: IContextKeyService;
-  readonly menuService: IMenuService;
+  readonly viewsService: Pick<
+    IViewsService,
+    "getViewContainerNavigationState" | "getViewContainers" | "isViewContainerActive" | "openViewContainer"
+  >;
 }): IAction[] => {
-  return cleanGroupedActions(
-    menuService.getMenuActions(MenuId.AuxiliaryBarTitle, contextKeyService),
-  ).flatMap((menuAction): IAction[] => {
-    if (menuAction.icon) {
-      const action = toAction({
-        id: menuAction.id,
-        label: menuAction.label,
-        tooltip: menuAction.tooltip || menuAction.label,
-        class: AuxiliaryBarViewSwitchActionClass,
-        enabled: menuAction.enabled,
-        checked: menuAction.checked,
-        icon: menuAction.icon,
-        run: (...args) => menuAction.run(...args),
-      });
+  const activeContainerId = viewsService.getViewContainerNavigationState(
+    ViewContainerLocation.AuxiliaryBar,
+  ).activeViewContainerId;
+  return [...viewsService.getViewContainers(ViewContainerLocation.AuxiliaryBar)]
+    .filter(viewContainer => viewsService.isViewContainerActive(viewContainer.id))
+    .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
+    .flatMap((viewContainer): IAction[] => {
+      if (isLxIcon(viewContainer.icon)) {
+        const action = toAction({
+          id: viewContainer.id,
+          label: viewContainer.title,
+          tooltip: viewContainer.title,
+          class: AuxiliaryBarViewSwitchActionClass,
+          enabled: true,
+          checked: activeContainerId === viewContainer.id,
+          icon: viewContainer.icon,
+          run: () => viewsService.openViewContainer(viewContainer.id),
+        });
 
-      return [{ ...action, icon: menuAction.icon } satisfies AuxiliaryBarViewSwitchAction];
-    }
+        return [{ ...action, icon: viewContainer.icon } satisfies AuxiliaryBarViewSwitchAction];
+      }
 
-    return [];
-  });
+      return [];
+    });
 };
+
+const isLxIcon = (icon: ViewContainer["icon"]): icon is LxIcon =>
+  typeof icon === "object" &&
+  icon !== null &&
+  "id" in icon &&
+  typeof icon.id === "string";
 
 const isAuxiliaryBarViewSwitchAction = (
   action: IAction,

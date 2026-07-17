@@ -311,8 +311,10 @@ class TestViewDescriptorService implements IViewDescriptorService {
       .map(entry => entry.container);
   }
 
-  public getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
-    return this.entries.find(entry => entry.location === location)?.container;
+  public getDefaultViewContainers(location: ViewContainerLocation): readonly ViewContainer[] {
+    return this.entries
+      .filter(entry => entry.location === location)
+      .map(entry => entry.container);
   }
 
   public moveViewsToContainer(
@@ -454,14 +456,25 @@ suite("workbench/services/views/browser/ViewsService", () => {
   });
 
   test("closeViewContainer hides the active auxiliary bar part", async () => {
+    const parentViewDescriptor: IViewDescriptor = {
+      ctorDescriptor: new SyncDescriptor(TestView),
+      id: "test.parent.view",
+      name: "Parent",
+    };
     const viewDescriptor: IViewDescriptor = {
       ctorDescriptor: new SyncDescriptor(TestView),
       id: "test.auxiliary.view",
       name: "Test",
     };
+    const parentContainer: ViewContainer = {
+      ctorDescriptor: new SyncDescriptor(TestViewPaneContainer),
+      id: "test.parent.container",
+      title: "Parent",
+    };
     const container: ViewContainer = {
       ctorDescriptor: new SyncDescriptor(TestViewPaneContainer),
       id: "test.auxiliary.container",
+      parentViewContainerId: parentContainer.id,
       title: "Test",
     };
     const storageService = store.add(new TestStorageService());
@@ -469,11 +482,15 @@ suite("workbench/services/views/browser/ViewsService", () => {
     const layoutService = store.add(new BrowserWorkbenchLayoutService(storageService));
     const services = new ServiceCollection();
     const instantiationService = store.add(new InstantiationService(services));
-    const descriptorService = new TestViewDescriptorService(
+    const descriptorService = new TestViewDescriptorService([{
+      container: parentContainer,
+      location: ViewContainerLocation.Panel,
+      viewDescriptor: parentViewDescriptor,
+    }, {
       container,
+      location: ViewContainerLocation.AuxiliaryBar,
       viewDescriptor,
-      ViewContainerLocation.AuxiliaryBar,
-    );
+    }]);
 
     services.set(IStorageService, storageService);
     services.set(IContextKeyService, contextKeyService);
@@ -488,8 +505,14 @@ suite("workbench/services/views/browser/ViewsService", () => {
       layoutService,
     ));
 
+    assert.equal(viewsService.isViewContainerActive(container.id), false);
     await viewsService.openViewContainer(container.id);
 
+    assert.equal(viewsService.isViewContainerActive(container.id), true);
+    assert.equal(
+      viewsService.getViewContainerNavigationState(ViewContainerLocation.Panel).activeViewContainerId,
+      parentContainer.id,
+    );
     assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), true);
     assert.equal(viewsService.isViewContainerVisible(container.id), true);
 

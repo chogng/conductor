@@ -3,22 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import {
-	Action2,
-	MenuId,
-	MenuRegistry,
-	registerAction2,
-} from "src/cs/platform/actions/common/actions";
+import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import {
-	ActiveAuxiliaryBarViewContext,
-	ActivePanelViewContainerContext,
-} from "src/cs/workbench/common/contextkeys";
-import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
-import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+import { SearchViewContainerId } from "src/cs/workbench/services/search/common/search";
 
 export const SHOW_SEARCH_COMMAND_ID = "workbench.action.showSearch";
 
@@ -39,31 +28,9 @@ export const registerSearchCommands = (): IDisposable => {
 		}
 
 		public run(accessor: ServicesAccessor): void {
-			showChartAuxiliaryView(accessor, "search");
+			void accessor.get(IViewsService).openViewContainer(SearchViewContainerId);
 		}
-	}));
-	disposables.add(MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
-		command: {
-			id: SHOW_SEARCH_COMMAND_ID,
-			title: localize("chart.views.search", "Search"),
-			icon: LxIcon.search,
-			toggled: ActiveAuxiliaryBarViewContext.isEqualTo("search"),
-		},
-		group: "navigation",
-		order: 0,
-		when: ActivePanelViewContainerContext.isEqualTo(ChartViewContainerId),
 	}));
 
 	return disposables;
-};
-
-const showChartAuxiliaryView = (
-	accessor: ServicesAccessor,
-	view: string,
-): void => {
-	const layoutService = accessor.get(IWorkbenchLayoutService);
-	void accessor.get(IViewsService).openViewContainer(
-		ChartViewContainerId,
-	);
-	layoutService.selectAuxiliaryBarView(view);
 };

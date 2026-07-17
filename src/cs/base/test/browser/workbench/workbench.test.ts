@@ -4,11 +4,9 @@ import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import type { IAction } from "src/cs/base/common/actions";
-import type {
-  IMenuService,
-} from "src/cs/platform/actions/common/actions";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { ContextKeyService } from "src/cs/platform/contextkey/browser/contextKeyService";
+import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import {
@@ -163,6 +161,7 @@ class RecordingViewsService implements IViewsService {
   private readonly visibleContainers = new Set<string>();
   private readonly elements = new Map<string, HTMLElement>();
   private readonly containers = new Map<string, TestViewPaneContainer>();
+  private readonly viewContainers = new Map<string, ViewContainer>();
   private readonly activeContainerByLocation = new Map<ViewContainerLocation, string>();
   private readonly navigationByLocation = new Map<ViewContainerLocation, {
     readonly history: readonly string[];
@@ -177,6 +176,11 @@ class RecordingViewsService implements IViewsService {
       container.element.dataset.containerId = id;
       this.elements.set(id, container.element);
       this.containers.set(id, container);
+      this.viewContainers.set(id, {
+        id,
+        title: id,
+        ctorDescriptor: new SyncDescriptor(TestViewPaneContainer),
+      });
     }
   }
 
@@ -191,7 +195,15 @@ class RecordingViewsService implements IViewsService {
   }
 
   public isViewContainerActive(id: string): boolean {
-    return this.isViewContainerVisible(id);
+    const location = this.getViewContainerLocation(id);
+    if (location !== ViewContainerLocation.AuxiliaryBar) {
+      return location !== null;
+    }
+
+    const activePanelId = this.activeContainerByLocation.get(ViewContainerLocation.Panel);
+    return id === TemplateViewContainerId
+      ? activePanelId === TableViewContainerId
+      : activePanelId === ChartViewContainerId;
   }
 
   public openViewContainer(id: string): Promise<ViewContainer | null> {
@@ -227,6 +239,23 @@ class RecordingViewsService implements IViewsService {
       historyLength: navigation?.history.length ?? 0,
       location,
     };
+  }
+
+  public getViewContainers(location: ViewContainerLocation): readonly ViewContainer[] {
+    return WorkbenchTestViewContainerIds
+      .filter(id => this.getViewContainerLocation(id) === location)
+      .map(id => this.viewContainers.get(id)!);
+  }
+
+  public getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | null {
+    const id = location === ViewContainerLocation.Sidebar
+      ? ExplorerViewContainerId
+      : location === ViewContainerLocation.Panel
+        ? TableViewContainerId
+        : this.activeContainerByLocation.get(ViewContainerLocation.Panel) === ChartViewContainerId
+          ? ExportViewContainerId
+          : TemplateViewContainerId;
+    return this.viewContainers.get(id) ?? null;
   }
 
   public navigateViewContainerBack(location: ViewContainerLocation): ViewContainer | null {
@@ -773,16 +802,6 @@ const createWorkbenchOptions = ({
     getState: () => ({}),
     onDidChangeState: () => () => undefined,
   };
-  const menuService: IMenuService = {
-    _serviceBrand: undefined,
-    createMenu: () => {
-      throw new Error("Test menu service does not create menus.");
-    },
-    getMenuActions: () => [],
-    getMenuContexts: () => new Set(),
-    resetHiddenStates: () => undefined,
-  };
-
   return {
     calculationService: {
       _serviceBrand: undefined,
@@ -835,7 +854,6 @@ const createWorkbenchOptions = ({
     } as unknown as WorkbenchService<"exportService">,
     filesService: {} as WorkbenchService<"filesService">,
     layoutService,
-    menuService,
     notificationService,
     onDidRenderInitialWorkbench,
     parametersService: {

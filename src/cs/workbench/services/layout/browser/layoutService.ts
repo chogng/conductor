@@ -50,12 +50,8 @@ export interface IPartVisibilityChangeEvent {
 export interface IWorkbenchLayoutService extends ILayoutServiceType {
   readonly _serviceBrand: undefined;
 
-  readonly onDidChangeActiveAuxiliaryBarView: EventType<string>;
   readonly onDidChangePartVisibility: EventType<IPartVisibilityChangeEvent>;
 
-  readonly activeAuxiliaryBarView: string;
-
-  selectAuxiliaryBarView(view: string): void;
   layout(): void;
   isVisible(part: Parts): boolean;
   resetLayoutState(): void;
@@ -77,8 +73,6 @@ export class BrowserWorkbenchLayoutService
     this._register(new Emitter<IDimension>());
   private readonly onDidChangePartVisibilityEmitter =
     this._register(new Emitter<IPartVisibilityChangeEvent>());
-  private readonly onDidChangeActiveAuxiliaryBarViewEmitter =
-    this._register(new Emitter<string>());
   private readonly visibleParts = new Set<Parts>([
     Parts.TITLEBAR_PART,
     Parts.SIDEBAR_PART,
@@ -87,7 +81,6 @@ export class BrowserWorkbenchLayoutService
     Parts.AUXILIARYBAR_PART,
   ]);
   private dimension: IDimension = Dimension.None;
-  private auxiliaryBarView = "";
 
   constructor(
     @IStorageService private readonly storageService: IStorageServiceType,
@@ -104,8 +97,6 @@ export class BrowserWorkbenchLayoutService
   public readonly onDidChangeActiveContainer: ILayoutServiceType["onDidChangeActiveContainer"] =
     Event.None as ILayoutServiceType["onDidChangeActiveContainer"];
   public readonly onDidChangePartVisibility = this.onDidChangePartVisibilityEmitter.event;
-  public readonly onDidChangeActiveAuxiliaryBarView =
-    this.onDidChangeActiveAuxiliaryBarViewEmitter.event;
 
   public get mainContainer(): HTMLElement {
     return this.resolveMainContainer();
@@ -113,10 +104,6 @@ export class BrowserWorkbenchLayoutService
 
   public get activeContainer(): HTMLElement {
     return this.mainContainer;
-  }
-
-  public get activeAuxiliaryBarView(): string {
-    return this.auxiliaryBarView;
   }
 
   public get containers(): Iterable<HTMLElement> {
@@ -149,15 +136,6 @@ export class BrowserWorkbenchLayoutService
 
   public focus(): void {
     this.activeContainer.focus();
-  }
-
-  public selectAuxiliaryBarView(view: string): void {
-    if (this.auxiliaryBarView === view) {
-      return;
-    }
-
-    this.auxiliaryBarView = view;
-    this.onDidChangeActiveAuxiliaryBarViewEmitter.fire(view);
   }
 
   public layout(): void {
@@ -216,7 +194,6 @@ export class BrowserWorkbenchLayoutService
         visible: true,
       });
     }
-    this.selectAuxiliaryBarView("");
   }
 
   private restorePartVisibility(): void {

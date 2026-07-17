@@ -126,8 +126,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
     return this.viewContainersRegistry.getViewContainers(location);
   }
 
-  public getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
-    return this.viewContainersRegistry.getDefaultViewContainers(location)[0];
+  public getDefaultViewContainers(location: ViewContainerLocation): readonly ViewContainer[] {
+    return this.viewContainersRegistry.getDefaultViewContainers(location);
   }
 
   public moveViewsToContainer(
