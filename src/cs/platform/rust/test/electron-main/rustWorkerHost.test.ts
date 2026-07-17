@@ -107,6 +107,32 @@ suite("platform/rust/electron-main/rustWorkerHost", () => {
 		host.stop();
 	});
 
+	test("ignores a replaced worker exit after the next command starts", async () => {
+		const processes: TestRustWorkerProcess[] = [];
+		const host = new RustWorkerHost({
+			isWindows: false,
+			processingPoolSize: 1,
+			resolveExecutablePath: () => "test-conductor-rs",
+			spawnProcessingWorker: () => {
+				const process = new TestRustWorkerProcess(processes.length !== 0);
+				processes.push(process);
+				return process as unknown as ChildProcessWithoutNullStreams;
+			},
+		});
+		const first = host.startProcessingCommand("first");
+		const firstRejected = assert.rejects(first.promise, error => isCancellationError(error));
+		const second = host.startProcessingCommand("second");
+
+		first.cancel();
+		await firstRejected;
+		await waitFor(() => processes.length === 2 && processes[1]?.commands.length === 1);
+
+		processes[0]?.exit();
+		processes[1]?.respond(0, { value: 2 });
+		assert.deepEqual(await second.promise, { value: 2 });
+		host.stop();
+	});
+
 	test("cancels a queued command without stopping the active worker", async () => {
 		const processes: TestRustWorkerProcess[] = [];
 		const host = new RustWorkerHost({
@@ -158,13 +184,23 @@ class TestRustWorkerProcess extends EventEmitter {
 		},
 	};
 
+	public constructor(private readonly exitOnKill = true) {
+		super();
+	}
+
 	public kill(): boolean {
 		if (this.killed) {
 			return false;
 		}
 		this.killed = true;
-		this.emit("exit", null, "SIGTERM");
+		if (this.exitOnKill) {
+			this.exit();
+		}
 		return true;
+	}
+
+	public exit(): void {
+		this.emit("exit", null, "SIGTERM");
 	}
 
 	public respond(index: number, result: unknown): void {

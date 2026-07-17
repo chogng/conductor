@@ -341,6 +341,7 @@ export class RustWorkerHost implements IRustWorkerHost {
 
     child.stdout?.setEncoding("utf8");
     child.stdout?.on("data", (chunk) => {
+      if (slot.child !== child) return;
       slot.stdoutBuffer += String(chunk ?? "");
       while (true) {
         const newlineIndex = slot.stdoutBuffer.indexOf("\n");
@@ -353,18 +354,21 @@ export class RustWorkerHost implements IRustWorkerHost {
 
     child.stderr?.setEncoding("utf8");
     child.stderr?.on("data", (chunk) => {
+      if (slot.child !== child) return;
       const text = String(chunk ?? "").trim();
       if (text) console.warn(`[rust:${slot.name}]`, text);
     });
 
     child.on("error", (error) => {
-      if (slot.child === child) slot.child = null;
+      if (slot.child !== child) return;
+      slot.child = null;
       this.rejectProcessingSlotPending(slot, error);
       this.dispatchProcessingQueue();
     });
 
     child.on("exit", (code, signal) => {
-      if (slot.child === child) slot.child = null;
+      if (slot.child !== child) return;
+      slot.child = null;
       this.rejectProcessingSlotPending(
         slot,
         new Error(
