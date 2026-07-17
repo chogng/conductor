@@ -28,7 +28,7 @@ import {
 	SELECT_ALL_TABLE_COLUMNS_COMMAND_ID,
 	ZOOM_IN_TABLE_COMMAND_ID,
 	ZOOM_OUT_TABLE_COMMAND_ID,
-} from "src/cs/workbench/contrib/table/common/table";
+} from "src/cs/workbench/contrib/table/browser/tableCommands";
 import {
 	ITableService,
 	type TableSelection,

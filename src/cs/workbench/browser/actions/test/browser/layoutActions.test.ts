@@ -3,13 +3,11 @@ import assert from "assert";
 import {
   createWorkbenchLayoutAuxiliaryBarToggleButton,
   createWorkbenchLayoutSidebarToggleButton,
+  TOGGLE_AUXILIARY_BAR_COMMAND_ID,
+  TOGGLE_SIDEBAR_COMMAND_ID,
   WORKBENCH_LAYOUT_AUXILIARY_BAR_TOGGLE_BUTTON_ID,
   WORKBENCH_LAYOUT_SIDEBAR_TOGGLE_BUTTON_ID,
 } from "src/cs/workbench/browser/actions/layoutActions";
-import {
-  TOGGLE_AUXILIARY_BAR_COMMAND_ID,
-  TOGGLE_SIDEBAR_COMMAND_ID,
-} from "src/cs/workbench/browser/actions/layoutCommands";
 
 suite("workbench/browser/actions/layoutActions", () => {
   test("creates sidebar toggle button from layout command state", () => {

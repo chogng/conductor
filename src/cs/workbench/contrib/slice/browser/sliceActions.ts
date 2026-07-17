@@ -8,10 +8,9 @@ import type { ServicesAccessor } from "src/cs/platform/instantiation/common/inst
 import {
 	runSliceWithTemplateHandler,
 } from "src/cs/workbench/contrib/slice/browser/sliceCommands";
-import {
-	RUN_SLICE_WITH_TEMPLATE_COMMAND_ID,
-	RUN_SLICE_WITH_TEMPLATE_INCREMENTAL_COMMAND_ID,
-} from "src/cs/workbench/contrib/slice/common/slice";
+
+export const RUN_SLICE_WITH_TEMPLATE_COMMAND_ID = "slice.runWithTemplate";
+export const RUN_SLICE_WITH_TEMPLATE_INCREMENTAL_COMMAND_ID = "slice.runWithTemplateIncremental";
 
 export class RunSliceWithTemplateAction extends Action2 {
 	public constructor() {

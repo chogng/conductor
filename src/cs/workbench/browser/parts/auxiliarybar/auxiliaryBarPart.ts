@@ -16,22 +16,14 @@ import {
 import type { IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
 import type { TemplateMode } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import { TemplateViewContainerId } from "src/cs/workbench/contrib/template/common/template";
-import {
-  ExportViewContainerId,
-  SHOW_EXPORT_COMMAND_ID,
-} from "src/cs/workbench/services/export/common/export";
-import {
-  OriginExportSettingsViewContainerId,
-  SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID,
-} from "src/cs/workbench/services/origin/common/origin";
-import {
-  ParametersViewContainerId,
-  SHOW_PARAMETERS_COMMAND_ID,
-} from "src/cs/workbench/services/parameters/common/parameters";
-import {
-  SearchViewContainerId,
-  SHOW_SEARCH_COMMAND_ID,
-} from "src/cs/workbench/services/search/common/search";
+import { SHOW_EXPORT_COMMAND_ID } from "src/cs/workbench/contrib/export/browser/exportCommands";
+import { SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID } from "src/cs/workbench/contrib/origin/browser/originCommands";
+import { SHOW_PARAMETERS_COMMAND_ID } from "src/cs/workbench/contrib/parameters/browser/parametersCommands";
+import { SHOW_SEARCH_COMMAND_ID } from "src/cs/workbench/contrib/search/browser/searchCommands";
+import { ExportViewContainerId } from "src/cs/workbench/services/export/common/export";
+import { OriginExportSettingsViewContainerId } from "src/cs/workbench/services/origin/common/origin";
+import { ParametersViewContainerId } from "src/cs/workbench/services/parameters/common/parameters";
+import { SearchViewContainerId } from "src/cs/workbench/services/search/common/search";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import {

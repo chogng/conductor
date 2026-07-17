@@ -14,8 +14,6 @@ export const ParametersContributionId = "workbench.contrib.parameters";
 export const ParametersViewContainerId = "workbench.viewContainer.parameters";
 export const ParametersViewId = "workbench.parameters";
 
-export const SHOW_PARAMETERS_COMMAND_ID = "workbench.action.showParameters";
-
 export type ParametersViewStateInput = {
   readonly fileId?: string | null;
   readonly resource?: URI | null;

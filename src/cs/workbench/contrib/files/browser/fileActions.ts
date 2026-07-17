@@ -6,14 +6,6 @@ import { localize } from "src/cs/nls";
 import { Action2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
-  ADD_FOLDER_COMMAND_ID,
-  CLOSE_FILE_ITEM_COMMAND_ID,
-  CLOSE_FOLDER_COMMAND_ID,
-  DELETE_FILE_ITEM_COMMAND_ID,
-  RENAME_FILE_ITEM_COMMAND_ID,
-  SET_FILE_TEMPLATE_COMMAND_ID,
-} from "src/cs/workbench/contrib/files/common/fileCommands";
-import {
   addFolderHandler,
   closeFileItemHandler,
   closeFolderHandler,
@@ -21,6 +13,13 @@ import {
   renameFileItemHandler,
   setFileTemplateHandler,
 } from "src/cs/workbench/contrib/files/browser/fileCommands";
+
+export const ADD_FOLDER_COMMAND_ID = "files.addFolder";
+export const CLOSE_FOLDER_COMMAND_ID = "files.closeFolder";
+export const CLOSE_FILE_ITEM_COMMAND_ID = "files.item.close";
+export const DELETE_FILE_ITEM_COMMAND_ID = "files.item.delete";
+export const RENAME_FILE_ITEM_COMMAND_ID = "files.item.rename";
+export const SET_FILE_TEMPLATE_COMMAND_ID = "files.item.setTemplate";
 
 export class AddFolderAction extends Action2 {
   public constructor() {

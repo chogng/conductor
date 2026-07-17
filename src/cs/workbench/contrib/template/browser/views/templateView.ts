@@ -32,7 +32,7 @@ import {
   EXPORT_TEMPLATE_COMMAND_ID,
   IMPORT_TEMPLATE_COMMAND_ID,
   SELECT_TEMPLATE_COMMAND_ID,
-} from "src/cs/workbench/contrib/template/common/template";
+} from "src/cs/workbench/contrib/template/browser/templateCommands";
 import type {
   TemplateEditorRecord,
 } from "src/cs/workbench/services/template/common/template";

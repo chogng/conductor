@@ -12,8 +12,8 @@ import { localize } from "src/cs/nls";
 import {
   RUN_SLICE_WITH_TEMPLATE_COMMAND_ID,
   RUN_SLICE_WITH_TEMPLATE_INCREMENTAL_COMMAND_ID,
-} from "src/cs/workbench/contrib/slice/common/slice";
-import { SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID } from "src/cs/workbench/contrib/template/common/template";
+} from "src/cs/workbench/contrib/slice/browser/sliceActions";
+import { SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID } from "src/cs/workbench/contrib/template/browser/templateCommands";
 
 export type TemplateManagementViewOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;

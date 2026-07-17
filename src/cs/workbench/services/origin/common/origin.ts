@@ -10,8 +10,6 @@ export const OriginContributionId = "workbench.contrib.origin";
 export const OriginExportSettingsViewContainerId = "workbench.viewContainer.originSettings";
 export const OriginExportSettingsViewId = "workbench.origin.exportSettings";
 
-export const SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID = "workbench.action.showOriginSettings";
-
 export type OriginHealthResult = {
   logPath?: string;
   originExePath?: string;

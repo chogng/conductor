@@ -51,23 +51,23 @@ import {
   toSemanticTermKey,
 } from "src/cs/workbench/services/dataResource/common/semanticRules";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
-import { SET_LANGUAGE_COMMAND_ID } from "src/cs/workbench/browser/actions/workbenchCommands";
-import {
-  NAVIGATE_BACK_COMMAND_ID,
-  RESET_LAYOUT_STATE_COMMAND_ID,
-} from "src/cs/workbench/browser/actions/layoutCommands";
+import { NAVIGATE_BACK_COMMAND_ID } from "src/cs/workbench/browser/actions/layoutActions";
+import { RESET_LAYOUT_STATE_COMMAND_ID } from "src/cs/workbench/browser/actions/layoutCommands";
+import { SET_LANGUAGE_COMMAND_ID } from "src/cs/workbench/contrib/localization/common/localizationsActions";
 import {
   CHECK_FOR_UPDATES_COMMAND_ID,
   SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID,
-} from "src/cs/workbench/contrib/update/common/update";
+} from "src/cs/workbench/contrib/update/browser/update";
 import {
   DEFAULT_WORKBENCH_BACKGROUND_COLOR,
   normalizeWorkbenchAppearance,
+} from "src/cs/workbench/services/themes/common/themeService";
+import {
   RESET_WORKBENCH_BACKGROUND_COMMAND_ID,
   SET_THEME_COMMAND_ID,
   SET_TRANSPARENT_CHROME_COMMAND_ID,
   SET_WORKBENCH_BACKGROUND_COMMAND_ID,
-} from "src/cs/workbench/services/themes/common/themeService";
+} from "src/cs/workbench/contrib/themes/browser/themesCommands";
 import {
   Severity,
   type INotificationService,

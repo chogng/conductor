@@ -4,14 +4,6 @@ import { Categories } from "src/cs/platform/action/common/actionCommonCategories
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
-  NAVIGATE_BACK_COMMAND_ID,
-  NAVIGATE_FORWARD_COMMAND_ID,
-  SHOW_CHART_COMMAND_ID,
-  SHOW_TABLE_COMMAND_ID,
-  TOGGLE_AUXILIARY_BAR_COMMAND_ID,
-  TOGGLE_SIDEBAR_COMMAND_ID,
-} from "src/cs/workbench/browser/actions/layoutCommands";
-import {
   AuxiliaryBarVisibleContext,
   SideBarVisibleContext,
 } from "src/cs/workbench/common/contextkeys";
@@ -23,6 +15,13 @@ import {
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
+
+export const NAVIGATE_BACK_COMMAND_ID = "workbench.action.navigateBack";
+export const NAVIGATE_FORWARD_COMMAND_ID = "workbench.action.navigateForward";
+export const SHOW_TABLE_COMMAND_ID = "workbench.action.showTable";
+export const SHOW_CHART_COMMAND_ID = "workbench.action.showChart";
+export const TOGGLE_SIDEBAR_COMMAND_ID = "workbench.action.toggleSidebar";
+export const TOGGLE_AUXILIARY_BAR_COMMAND_ID = "workbench.action.toggleAuxiliaryBar";
 
 export const WORKBENCH_LAYOUT_SIDEBAR_TOGGLE_BUTTON_ID =
   "workbench-titlebar-sidebar-toggle-button";

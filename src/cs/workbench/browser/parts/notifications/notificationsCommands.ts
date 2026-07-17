@@ -1,14 +1,13 @@
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { CommandsRegistry, type ICommandService } from "src/cs/platform/commands/common/commands";
-import {
-  FOCUS_FIRST_NOTIFICATION_TOAST_COMMAND_ID,
-  FOCUS_LAST_NOTIFICATION_TOAST_COMMAND_ID,
-  FOCUS_NEXT_NOTIFICATION_TOAST_COMMAND_ID,
-  FOCUS_NOTIFICATION_TOAST_COMMAND_ID,
-  FOCUS_PREVIOUS_NOTIFICATION_TOAST_COMMAND_ID,
-  HIDE_NOTIFICATION_TOAST_COMMAND_ID,
-} from "src/cs/workbench/common/notifications";
+
+const HIDE_NOTIFICATION_TOAST_COMMAND_ID = "notifications.hideToasts";
+const FOCUS_NOTIFICATION_TOAST_COMMAND_ID = "notifications.focusToasts";
+const FOCUS_NEXT_NOTIFICATION_TOAST_COMMAND_ID = "notifications.focusNextToast";
+const FOCUS_PREVIOUS_NOTIFICATION_TOAST_COMMAND_ID = "notifications.focusPreviousToast";
+const FOCUS_FIRST_NOTIFICATION_TOAST_COMMAND_ID = "notifications.focusFirstToast";
+const FOCUS_LAST_NOTIFICATION_TOAST_COMMAND_ID = "notifications.focusLastToast";
 
 export interface INotificationsToastController {
   readonly isFocused: boolean;

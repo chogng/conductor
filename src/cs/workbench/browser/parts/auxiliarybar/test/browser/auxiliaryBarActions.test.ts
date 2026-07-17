@@ -14,7 +14,7 @@ import {
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
-import { SHOW_PARAMETERS_COMMAND_ID } from "src/cs/workbench/services/parameters/common/parameters";
+import { SHOW_PARAMETERS_COMMAND_ID } from "src/cs/workbench/contrib/parameters/browser/parametersCommands";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 await import("src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions");

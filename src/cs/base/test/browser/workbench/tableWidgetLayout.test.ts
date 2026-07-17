@@ -29,7 +29,7 @@ import {
   DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
   INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
   RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
-} from "src/cs/workbench/contrib/table/common/table";
+} from "src/cs/workbench/contrib/table/browser/tableCommands";
 import {
   getCanAdjustColumnScale,
   getTableColumnHeaderSelection,

@@ -13,8 +13,6 @@ export const SearchContributionId = "workbench.contrib.search";
 export const SearchViewContainerId = "workbench.viewContainer.search";
 export const SearchViewId = "workbench.search";
 
-export const SHOW_SEARCH_COMMAND_ID = "workbench.action.showSearch";
-
 export type SearchScope =
 	| "all"
 	| "table"

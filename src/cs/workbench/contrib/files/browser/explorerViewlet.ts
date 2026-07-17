@@ -33,7 +33,7 @@ import type { FilesViewLayout } from "src/cs/workbench/contrib/files/common/file
 import {
   ADD_FOLDER_COMMAND_ID,
   CLOSE_FOLDER_COMMAND_ID,
-} from "src/cs/workbench/contrib/files/common/fileCommands";
+} from "src/cs/workbench/contrib/files/browser/fileActions";
 import {
   ExplorerViewId,
   IExplorerService,
@@ -51,7 +51,7 @@ import {
   type ExplorerFileEntry,
   type ExplorerResourceIdentity,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
-import { TOGGLE_THUMBNAIL_VIEW_COMMAND_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
+import { TOGGLE_THUMBNAIL_VIEW_COMMAND_ID } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailActions";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import {
   IThumbnailPreviewService,

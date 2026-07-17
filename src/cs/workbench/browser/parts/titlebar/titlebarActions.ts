@@ -5,10 +5,10 @@ import {
   NAVIGATE_FORWARD_COMMAND_ID,
   SHOW_CHART_COMMAND_ID,
   SHOW_TABLE_COMMAND_ID,
-} from "src/cs/workbench/browser/actions/layoutCommands";
-import { QUICK_OPEN_COMMAND_ID } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
-import { SHOW_SETTINGS_COMMAND_ID } from "src/cs/workbench/contrib/settings/browser/settingsActions";
+} from "src/cs/workbench/browser/actions/layoutActions";
+import { QUICK_OPEN_COMMAND_ID } from "src/cs/workbench/contrib/quickaccess/browser/quickAccess.contribution";
 import { SettingsViewContainerId } from "src/cs/workbench/contrib/settings/common/settings";
+import { SHOW_SETTINGS_COMMAND_ID } from "src/cs/workbench/contrib/settings/browser/settingsActions";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 

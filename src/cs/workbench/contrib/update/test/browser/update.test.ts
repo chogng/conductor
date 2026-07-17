@@ -29,22 +29,20 @@ import {
   type IUpdateService as IUpdateServiceType,
 } from "src/cs/platform/update/common/update";
 import {
-  appendUpdateMenuItems,
-  registerDeveloperUpdateCommand,
-  registerUpdateCommands,
-} from "src/cs/workbench/contrib/update/browser/update";
-import {
   APPLY_UPDATE_COMMAND_ID,
+  appendUpdateMenuItems,
   CHECK_FOR_UPDATES_COMMAND_ID,
   DOWNLOAD_UPDATE_COMMAND_ID,
   GET_UPDATE_STATE_COMMAND_ID,
   INSTALL_UPDATE_COMMAND_ID,
+  registerDeveloperUpdateCommand,
+  registerUpdateCommands,
   RESTART_TO_UPDATE_COMMAND_ID,
   SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID,
   UPDATE_CHECKING_COMMAND_ID,
   UPDATE_DOWNLOADING_COMMAND_ID,
   UPDATE_INSTALLING_COMMAND_ID,
-} from "src/cs/workbench/contrib/update/common/update";
+} from "src/cs/workbench/contrib/update/browser/update";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 
 suite("workbench/contrib/update/test/browser/update", () => {

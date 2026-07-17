@@ -2,12 +2,13 @@ import { localize } from "src/cs/nls";
 import { Categories } from "src/cs/platform/action/common/actionCommonCategories";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { CLOSE_SIDEBAR_COMMAND_ID } from "src/cs/workbench/browser/actions/layoutCommands";
 import { SideBarVisibleContext } from "src/cs/workbench/common/contextkeys";
 import {
   IWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
+
+const CLOSE_SIDEBAR_COMMAND_ID = "workbench.action.closeSidebar";
 
 registerAction2(class extends Action2 {
   public constructor() {

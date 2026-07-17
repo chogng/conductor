@@ -20,7 +20,7 @@ import {
   UPDATE_CHECKING_COMMAND_ID,
   UPDATE_DOWNLOADING_COMMAND_ID,
   UPDATE_INSTALLING_COMMAND_ID,
-} from "src/cs/workbench/contrib/update/common/update";
+} from "src/cs/workbench/contrib/update/browser/update";
 import type {
   ITitleService,
   WorkbenchTitlebarState,

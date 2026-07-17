@@ -16,7 +16,7 @@ import {
   DELETE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
-} from "src/cs/workbench/contrib/files/common/fileCommands";
+} from "src/cs/workbench/contrib/files/browser/fileActions";
 import "../../browser/fileActions.contribution.ts";
 import {
   addFolderHandler,

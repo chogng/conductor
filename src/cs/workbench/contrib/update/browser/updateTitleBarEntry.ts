@@ -13,11 +13,11 @@ import {
   CHECK_FOR_UPDATES_COMMAND_ID,
   DOWNLOAD_UPDATE_COMMAND_ID,
   INSTALL_UPDATE_COMMAND_ID,
-  isDesktopUpdateReadyToInstall,
   UPDATE_CHECKING_COMMAND_ID,
   UPDATE_DOWNLOADING_COMMAND_ID,
   UPDATE_INSTALLING_COMMAND_ID,
-} from "src/cs/workbench/contrib/update/common/update";
+} from "src/cs/workbench/contrib/update/browser/update";
+import { isDesktopUpdateReadyToInstall } from "src/cs/workbench/contrib/update/common/update";
 import { getUpdateTooltipText } from "src/cs/workbench/contrib/update/browser/updateTooltip";
 import {
   ITitleService,

@@ -11,12 +11,14 @@ import {
 } from "src/cs/platform/actions/common/actions";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
-import { registerExportCommands } from "src/cs/workbench/contrib/export/browser/exportCommands";
 import {
 	EXPORT_ORIGIN_ZIP_COMMAND_ID,
-	IExportService,
 	OPEN_IN_ORIGIN_COMMAND_ID,
+	registerExportCommands,
 	SHOW_EXPORT_COMMAND_ID,
+} from "src/cs/workbench/contrib/export/browser/exportCommands";
+import {
+	IExportService,
 } from "src/cs/workbench/services/export/common/export";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";

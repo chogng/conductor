@@ -22,16 +22,14 @@ import {
   FilesQuickAccessProvider,
 } from "src/cs/workbench/contrib/quickaccess/browser/quickAccessProviders";
 import {
-  QUICK_OPEN_COMMAND_ID,
-  SHOW_COMMANDS_COMMAND_ID,
-} from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
-import {
   registerWorkbenchContribution2,
   WorkbenchPhase,
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
 
 export const QuickAccessContributionId = "workbench.contrib.quickAccess";
+export const QUICK_OPEN_COMMAND_ID = "workbench.action.quickOpen";
+export const SHOW_COMMANDS_COMMAND_ID = "workbench.action.showCommands";
 
 registerAction2(class QuickOpenAction extends Action2 {
   public constructor() {

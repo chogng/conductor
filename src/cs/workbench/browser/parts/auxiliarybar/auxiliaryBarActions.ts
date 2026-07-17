@@ -8,7 +8,6 @@ import {
   registerAction2,
 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { CLOSE_AUXILIARY_BAR_COMMAND_ID } from "src/cs/workbench/browser/actions/layoutCommands";
 import {
   ActivePanelViewContainerContext,
   AuxiliaryBarVisibleContext,
@@ -17,11 +16,13 @@ import {
   IWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
-import { SHOW_EXPORT_COMMAND_ID } from "src/cs/workbench/services/export/common/export";
-import { SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID } from "src/cs/workbench/services/origin/common/origin";
-import { SHOW_PARAMETERS_COMMAND_ID } from "src/cs/workbench/services/parameters/common/parameters";
-import { SHOW_SEARCH_COMMAND_ID } from "src/cs/workbench/services/search/common/search";
+import { SHOW_EXPORT_COMMAND_ID } from "src/cs/workbench/contrib/export/browser/exportCommands";
+import { SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID } from "src/cs/workbench/contrib/origin/browser/originCommands";
+import { SHOW_PARAMETERS_COMMAND_ID } from "src/cs/workbench/contrib/parameters/browser/parametersCommands";
+import { SHOW_SEARCH_COMMAND_ID } from "src/cs/workbench/contrib/search/browser/searchCommands";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+
+const CLOSE_AUXILIARY_BAR_COMMAND_ID = "workbench.action.closeAuxiliaryBar";
 
 type AuxiliaryBarTitleMenuItem = {
   readonly commandId: string;

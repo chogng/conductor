@@ -3,7 +3,7 @@ import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import { INativeHostService } from "src/cs/platform/native/common/native";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { REVEAL_IN_OS_COMMAND_ID } from "src/cs/workbench/contrib/files/common/fileCommands";
+import { REVEAL_IN_OS_COMMAND_ID } from "src/cs/workbench/contrib/files/common/files";
 import { revealResourcesInOS, resolveRevealResources } from "src/cs/workbench/contrib/files/electron-browser/fileCommands";
 
 export const REVEAL_IN_OS_LABEL = isWindows

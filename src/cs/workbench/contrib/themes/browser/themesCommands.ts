@@ -15,15 +15,16 @@ import {
 import {
 	DEFAULT_WORKBENCH_BACKGROUND_COLOR,
 	normalizeWorkbenchBackgroundColor,
-	RESET_WORKBENCH_BACKGROUND_COMMAND_ID,
-	SET_DARK_THEME_COMMAND_ID,
-	SET_LIGHT_THEME_COMMAND_ID,
-	SET_SYSTEM_THEME_COMMAND_ID,
-	SET_THEME_COMMAND_ID,
-	SET_TRANSPARENT_CHROME_COMMAND_ID,
-	SET_WORKBENCH_BACKGROUND_COMMAND_ID,
-	TOGGLE_TRANSPARENT_CHROME_COMMAND_ID,
 } from "src/cs/workbench/services/themes/common/themeService";
+
+export const RESET_WORKBENCH_BACKGROUND_COMMAND_ID = "workbench.action.resetWorkbenchBackground";
+export const SET_DARK_THEME_COMMAND_ID = "workbench.action.setDarkTheme";
+export const SET_LIGHT_THEME_COMMAND_ID = "workbench.action.setLightTheme";
+export const SET_SYSTEM_THEME_COMMAND_ID = "workbench.action.setSystemTheme";
+export const SET_THEME_COMMAND_ID = "workbench.action.setTheme";
+export const SET_TRANSPARENT_CHROME_COMMAND_ID = "workbench.action.setTransparentChrome";
+export const SET_WORKBENCH_BACKGROUND_COMMAND_ID = "workbench.action.setWorkbenchBackground";
+export const TOGGLE_TRANSPARENT_CHROME_COMMAND_ID = "workbench.action.toggleTransparentChrome";
 
 export const registerThemesCommands = (): IDisposable => {
 	const disposables = new DisposableStore();

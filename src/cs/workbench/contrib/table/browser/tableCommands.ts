@@ -6,18 +6,6 @@ import {
   ITableService,
   resolveTableColumnDisplayScaleTarget,
 } from "src/cs/workbench/services/table/common/table";
-import {
-  CLEAR_TABLE_SELECTION_COMMAND_ID,
-  COPY_TABLE_SELECTION_COMMAND_ID,
-  DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
-  INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
-  RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
-  RESET_TABLE_ZOOM_COMMAND_ID,
-  SELECT_ALL_TABLE_COLUMNS_COMMAND_ID,
-  ZOOM_IN_TABLE_COMMAND_ID,
-  ZOOM_OUT_TABLE_COMMAND_ID,
-  type TableCommandId as TableCommandIdValue,
-} from "src/cs/workbench/contrib/table/common/table";
 import { localize } from "src/cs/nls";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
@@ -25,6 +13,27 @@ import {
   Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import { ITableWidgetService } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
+
+export const CLEAR_TABLE_SELECTION_COMMAND_ID = "workbench.table.clearSelection";
+export const COPY_TABLE_SELECTION_COMMAND_ID = "workbench.table.copySelection";
+export const DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID = "workbench.table.decreaseColumnDisplayScale";
+export const INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID = "workbench.table.increaseColumnDisplayScale";
+export const RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID = "workbench.table.resetColumnDisplayScale";
+export const RESET_TABLE_ZOOM_COMMAND_ID = "workbench.table.resetZoom";
+export const SELECT_ALL_TABLE_COLUMNS_COMMAND_ID = "workbench.table.selectAllColumns";
+export const ZOOM_IN_TABLE_COMMAND_ID = "workbench.table.zoomIn";
+export const ZOOM_OUT_TABLE_COMMAND_ID = "workbench.table.zoomOut";
+
+type TableCommandIdValue =
+  | typeof CLEAR_TABLE_SELECTION_COMMAND_ID
+  | typeof COPY_TABLE_SELECTION_COMMAND_ID
+  | typeof DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID
+  | typeof INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID
+  | typeof RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID
+  | typeof RESET_TABLE_ZOOM_COMMAND_ID
+  | typeof SELECT_ALL_TABLE_COLUMNS_COMMAND_ID
+  | typeof ZOOM_IN_TABLE_COMMAND_ID
+  | typeof ZOOM_OUT_TABLE_COMMAND_ID;
 
 export type TableCommandRegistration = {
   readonly id: TableCommandIdValue;

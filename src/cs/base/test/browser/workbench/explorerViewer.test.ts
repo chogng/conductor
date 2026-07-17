@@ -25,9 +25,9 @@ import {
   CLOSE_FILE_ITEM_COMMAND_ID,
   DELETE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
-  REVEAL_IN_OS_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
-} from "src/cs/workbench/contrib/files/common/fileCommands";
+} from "src/cs/workbench/contrib/files/browser/fileActions";
+import { REVEAL_IN_OS_COMMAND_ID } from "src/cs/workbench/contrib/files/common/files";
 import type {
   IThumbnailService,
   ThumbnailPreviewChangeEvent,

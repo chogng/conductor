@@ -32,10 +32,10 @@ import { ITableWidgetService } from "src/cs/workbench/contrib/table/browser/tabl
 import {
   COPY_TABLE_SELECTION_COMMAND_ID,
   RESET_TABLE_ZOOM_COMMAND_ID,
-  TableViewId,
   ZOOM_IN_TABLE_COMMAND_ID,
   ZOOM_OUT_TABLE_COMMAND_ID,
-} from "src/cs/workbench/contrib/table/common/table";
+} from "src/cs/workbench/contrib/table/browser/tableCommands";
+import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import type { ITableSize } from "src/cs/base/browser/ui/table/table";
 import {
   type TableWidgetColumnHeaderSelection,

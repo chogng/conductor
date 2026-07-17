@@ -32,11 +32,6 @@ import {
   type IWatchOptions,
 } from "src/cs/platform/files/common/files";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
-import { registerTemplateCommands } from "src/cs/workbench/contrib/template/browser/templateCommands";
-import {
-  ITemplateViewStateService,
-  TemplateViewStateService,
-} from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import {
   APPLY_TEMPLATE_COMMAND_ID,
   APPLY_TEMPLATE_INCREMENTAL_COMMAND_ID,
@@ -45,9 +40,14 @@ import {
   EDIT_TEMPLATE_COMMAND_ID,
   EXPORT_TEMPLATE_COMMAND_ID,
   IMPORT_TEMPLATE_COMMAND_ID,
+  registerTemplateCommands,
   SELECT_TEMPLATE_COMMAND_ID,
   SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID,
-} from "src/cs/workbench/contrib/template/common/template";
+} from "src/cs/workbench/contrib/template/browser/templateCommands";
+import {
+  ITemplateViewStateService,
+  TemplateViewStateService,
+} from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
   INotificationService,

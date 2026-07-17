@@ -3,13 +3,6 @@ import type { IStatusMessageOptions } from "src/cs/platform/notification/common/
 
 export const DEFAULT_NOTIFICATION_TOAST_ID = "workbench.notificationToast";
 
-export const HIDE_NOTIFICATION_TOAST_COMMAND_ID = "notifications.hideToasts";
-export const FOCUS_NOTIFICATION_TOAST_COMMAND_ID = "notifications.focusToasts";
-export const FOCUS_NEXT_NOTIFICATION_TOAST_COMMAND_ID = "notifications.focusNextToast";
-export const FOCUS_PREVIOUS_NOTIFICATION_TOAST_COMMAND_ID = "notifications.focusPreviousToast";
-export const FOCUS_FIRST_NOTIFICATION_TOAST_COMMAND_ID = "notifications.focusFirstToast";
-export const FOCUS_LAST_NOTIFICATION_TOAST_COMMAND_ID = "notifications.focusLastToast";
-
 export type NotificationToastType = "success" | "error" | "warning" | "info";
 export type NotificationToastPosition = "absolute" | "fixed";
 

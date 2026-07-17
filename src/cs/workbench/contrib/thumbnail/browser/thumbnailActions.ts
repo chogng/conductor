@@ -6,7 +6,8 @@ import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { toggleThumbnailViewHandler } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailCommands";
-import { TOGGLE_THUMBNAIL_VIEW_COMMAND_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
+
+export const TOGGLE_THUMBNAIL_VIEW_COMMAND_ID = "files.toggleThumbnailView";
 
 function registerThumbnailActions(): void {
   registerAction2(class ToggleThumbnailViewAction extends Action2 {

@@ -6,10 +6,11 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { SHOW_SEARCH_COMMAND_ID } from "src/cs/workbench/services/search/common/search";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
+
+export const SHOW_SEARCH_COMMAND_ID = "workbench.action.showSearch";
 
 export const registerSearchCommands = (): IDisposable => {
 	const disposables = new DisposableStore();

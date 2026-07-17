@@ -6,8 +6,9 @@ import { localize } from "src/cs/nls";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { isLanguagePreference } from "src/cs/base/common/platform";
-import { SET_LANGUAGE_COMMAND_ID } from "src/cs/workbench/browser/actions/workbenchCommands";
 import { ILocaleService } from "src/cs/workbench/services/localization/common/locale";
+
+export const SET_LANGUAGE_COMMAND_ID = "workbench.action.setLanguage";
 
 export const registerLocalizationCommands = (): IDisposable =>
 	CommandsRegistry.registerCommand({

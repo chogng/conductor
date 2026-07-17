@@ -11,14 +11,8 @@ import {
 } from "src/cs/platform/actions/common/actions";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
-import { registerThemesCommands } from "src/cs/workbench/contrib/themes/browser/themesCommands";
 import {
-	ISettingsService,
-	type ConductorSettings,
-	type ISettingsService as ISettingsServiceType,
-} from "src/cs/workbench/services/settings/common/settings";
-import {
-	DEFAULT_WORKBENCH_BACKGROUND_COLOR,
+	registerThemesCommands,
 	RESET_WORKBENCH_BACKGROUND_COMMAND_ID,
 	SET_DARK_THEME_COMMAND_ID,
 	SET_LIGHT_THEME_COMMAND_ID,
@@ -27,6 +21,14 @@ import {
 	SET_TRANSPARENT_CHROME_COMMAND_ID,
 	SET_WORKBENCH_BACKGROUND_COMMAND_ID,
 	TOGGLE_TRANSPARENT_CHROME_COMMAND_ID,
+} from "src/cs/workbench/contrib/themes/browser/themesCommands";
+import {
+	ISettingsService,
+	type ConductorSettings,
+	type ISettingsService as ISettingsServiceType,
+} from "src/cs/workbench/services/settings/common/settings";
+import {
+	DEFAULT_WORKBENCH_BACKGROUND_COLOR,
 } from "src/cs/workbench/services/themes/common/themeService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 

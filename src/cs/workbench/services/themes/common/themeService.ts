@@ -8,15 +8,6 @@ import type { ThemeMode } from "src/cs/workbench/common/theme";
 
 export const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
 
-export const RESET_WORKBENCH_BACKGROUND_COMMAND_ID = "workbench.action.resetWorkbenchBackground";
-export const SET_DARK_THEME_COMMAND_ID = "workbench.action.setDarkTheme";
-export const SET_LIGHT_THEME_COMMAND_ID = "workbench.action.setLightTheme";
-export const SET_SYSTEM_THEME_COMMAND_ID = "workbench.action.setSystemTheme";
-export const SET_THEME_COMMAND_ID = "workbench.action.setTheme";
-export const SET_TRANSPARENT_CHROME_COMMAND_ID = "workbench.action.setTransparentChrome";
-export const SET_WORKBENCH_BACKGROUND_COMMAND_ID = "workbench.action.setWorkbenchBackground";
-export const TOGGLE_TRANSPARENT_CHROME_COMMAND_ID = "workbench.action.toggleTransparentChrome";
-
 export type WorkbenchAppearance = {
 	readonly backgroundColor: string;
 	readonly transparentChrome: boolean;

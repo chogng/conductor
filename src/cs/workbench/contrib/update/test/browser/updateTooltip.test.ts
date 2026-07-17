@@ -23,7 +23,7 @@ import {
   CHECK_FOR_UPDATES_COMMAND_ID,
   DOWNLOAD_UPDATE_COMMAND_ID,
   INSTALL_UPDATE_COMMAND_ID,
-} from "src/cs/workbench/contrib/update/common/update";
+} from "src/cs/workbench/contrib/update/browser/update";
 
 suite("workbench/contrib/update/test/browser/updateTooltip", () => {
   ensureNoDisposablesAreLeakedInTestSuite();

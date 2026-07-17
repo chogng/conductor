@@ -32,12 +32,17 @@ workbench mode switching.
 `Action2` registers a command with the same id. Do not also call
 `CommandsRegistry.registerCommand(...)` with that id.
 
-Because an `Action2` id is also a command id, place and reuse that id at the
-operation owner boundary. A button, titlebar entry, menu item, or another view
-must not import a feature's action implementation just to get the id. If the
-operation is owned by workbench navigation, put the id with workbench layout
-commands; if it is owned by a feature/domain, put the id with that feature's
-command contract and let the `Action2` use it.
+Because an `Action2` id is also a command id, declare it in the file that owns
+the `Action2` or `CommandsRegistry` registration. Export it only when another
+file needs to dispatch the command, contribute UI for it, or assert its
+registration. Do not create a `common/*Commands.ts` indirection merely to make
+the registration owner import its own id.
+
+Use an existing constants/command-contract file when the id is genuinely
+shared across runtime layers or already belongs to a coherent feature command
+set. Consumers may import the exported id from its registration owner when that
+module is safe to load; avoid imports that exist only for accidental
+registration side effects.
 
 Export each reusable command id as its own named constant:
 
@@ -77,8 +82,8 @@ domain behavior must be a command or service API.
 | File | Responsibility | Must not do |
 | --- | --- | --- |
 | `platform/commands/common/commands.ts` | platform command service/registry | import workbench services/views |
-| `contrib/<feature>/browser/<feature>Commands.ts` | command ids/handlers; validate args and delegate | own state, mutate DOM, mutate Session |
-| `contrib/<feature>/browser/<feature>Actions.ts` | `Action2` classes and runtime action helpers | duplicate business logic |
+| `contrib/<feature>/browser/<feature>Commands.ts` | owned command ids/handlers; validate args and delegate | own state, mutate DOM, mutate Session |
+| `contrib/<feature>/browser/<feature>Actions.ts` | `Action2` classes, their command ids, and runtime action helpers | duplicate business logic |
 | `contrib/<feature>/browser/<feature>.contribution.ts` | register commands/actions/menus/keybindings/views | become a service/controller |
 | `contrib/<feature>/browser/<feature>Controller.ts` | optional multi-step workflow coordinator | store canonical records |
 | `services/<domain>/common/<domain>.ts` | service contract and target/input types | register UI commands |

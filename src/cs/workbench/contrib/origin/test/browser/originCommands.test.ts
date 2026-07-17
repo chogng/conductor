@@ -11,9 +11,11 @@ import {
 } from "src/cs/platform/actions/common/actions";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
-import { registerOriginCommands } from "src/cs/workbench/contrib/origin/browser/originCommands";
+import {
+	registerOriginCommands,
+	SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID,
+} from "src/cs/workbench/contrib/origin/browser/originCommands";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
-import { SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID } from "src/cs/workbench/services/origin/common/origin";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";

@@ -20,7 +20,7 @@ import {
   CHECK_FOR_UPDATES_COMMAND_ID,
   DOWNLOAD_UPDATE_COMMAND_ID,
   INSTALL_UPDATE_COMMAND_ID,
-} from "src/cs/workbench/contrib/update/common/update";
+} from "src/cs/workbench/contrib/update/browser/update";
 
 import "src/cs/workbench/contrib/update/browser/media/updateTooltip.css";
 

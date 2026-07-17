@@ -16,20 +16,21 @@ import { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { IUpdateService } from "src/cs/platform/update/common/update";
 import {
-  APPLY_UPDATE_COMMAND_ID,
-  CHECK_FOR_UPDATES_COMMAND_ID,
   CONTEXT_UPDATE_STATE,
-  DOWNLOAD_UPDATE_COMMAND_ID,
-  GET_UPDATE_STATE_COMMAND_ID,
-  INSTALL_UPDATE_COMMAND_ID,
-  RESTART_TO_UPDATE_COMMAND_ID,
-  SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID,
-  UPDATE_CHECKING_COMMAND_ID,
-  UPDATE_DOWNLOADING_COMMAND_ID,
-  UPDATE_INSTALLING_COMMAND_ID,
 } from "src/cs/workbench/contrib/update/common/update";
 import type { ReleaseNotesEditor } from "src/cs/workbench/contrib/update/browser/releaseNotesEditor";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
+
+export const APPLY_UPDATE_COMMAND_ID = "_update.applyupdate";
+export const CHECK_FOR_UPDATES_COMMAND_ID = "update.check";
+export const UPDATE_CHECKING_COMMAND_ID = "update.checking";
+export const DOWNLOAD_UPDATE_COMMAND_ID = "update.downloadNow";
+export const UPDATE_DOWNLOADING_COMMAND_ID = "update.downloading";
+export const INSTALL_UPDATE_COMMAND_ID = "update.install";
+export const RESTART_TO_UPDATE_COMMAND_ID = "update.restart";
+export const SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID = "update.showCurrentReleaseNotes";
+export const GET_UPDATE_STATE_COMMAND_ID = "_update.state";
+export const UPDATE_INSTALLING_COMMAND_ID = "update.updating";
 
 type UpdateReleaseNotesEditor = Pick<ReleaseNotesEditor, "show">;
 

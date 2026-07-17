@@ -1,9 +1,1 @@
-export const NAVIGATE_BACK_COMMAND_ID = "workbench.action.navigateBack";
-export const NAVIGATE_FORWARD_COMMAND_ID = "workbench.action.navigateForward";
 export const RESET_LAYOUT_STATE_COMMAND_ID = "workbench.action.resetLayoutState";
-export const SHOW_TABLE_COMMAND_ID = "workbench.action.showTable";
-export const SHOW_CHART_COMMAND_ID = "workbench.action.showChart";
-export const TOGGLE_SIDEBAR_COMMAND_ID = "workbench.action.toggleSidebar";
-export const TOGGLE_AUXILIARY_BAR_COMMAND_ID = "workbench.action.toggleAuxiliaryBar";
-export const CLOSE_SIDEBAR_COMMAND_ID = "workbench.action.closeSidebar";
-export const CLOSE_AUXILIARY_BAR_COMMAND_ID = "workbench.action.closeAuxiliaryBar";

@@ -20,17 +20,6 @@ import {
 import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/slice/common/templateSelection";
-import {
-  APPLY_TEMPLATE_COMMAND_ID,
-  APPLY_TEMPLATE_INCREMENTAL_COMMAND_ID,
-  CREATE_TEMPLATE_COMMAND_ID,
-  DELETE_TEMPLATE_COMMAND_ID,
-  EDIT_TEMPLATE_COMMAND_ID,
-  EXPORT_TEMPLATE_COMMAND_ID,
-  IMPORT_TEMPLATE_COMMAND_ID,
-  SELECT_TEMPLATE_COMMAND_ID,
-  SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID,
-} from "src/cs/workbench/contrib/template/common/template";
 import type { TemplateEditorRecord } from "src/cs/workbench/services/template/common/template";
 import {
   IUserTemplateImportExportService,
@@ -46,6 +35,16 @@ import {
   ITemplateViewStateService,
   type ITemplateViewStateService as ITemplateViewStateServiceType,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
+
+export const SELECT_TEMPLATE_COMMAND_ID = "template.selectTemplate";
+export const CREATE_TEMPLATE_COMMAND_ID = "template.createTemplate";
+export const DELETE_TEMPLATE_COMMAND_ID = "template.deleteTemplate";
+export const IMPORT_TEMPLATE_COMMAND_ID = "template.importTemplate";
+export const EDIT_TEMPLATE_COMMAND_ID = "template.editTemplate";
+export const EXPORT_TEMPLATE_COMMAND_ID = "template.exportTemplate";
+export const APPLY_TEMPLATE_COMMAND_ID = "template.applyTemplate";
+export const APPLY_TEMPLATE_INCREMENTAL_COMMAND_ID = "template.applyTemplateIncremental";
+export const SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID = "template.setStopOnError";
 
 export function registerTemplateCommands(): IDisposable {
   const disposables = new DisposableStore();

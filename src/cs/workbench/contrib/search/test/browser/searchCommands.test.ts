@@ -11,9 +11,11 @@ import {
 } from "src/cs/platform/actions/common/actions";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
-import { registerSearchCommands } from "src/cs/workbench/contrib/search/browser/searchCommands";
+import {
+	registerSearchCommands,
+	SHOW_SEARCH_COMMAND_ID,
+} from "src/cs/workbench/contrib/search/browser/searchCommands";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
-import { SHOW_SEARCH_COMMAND_ID } from "src/cs/workbench/services/search/common/search";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
