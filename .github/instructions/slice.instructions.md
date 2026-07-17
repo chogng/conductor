@@ -74,7 +74,7 @@ Explorer `{ resource, sheetId? }` identity + ReviewDecision.ready / manual revie
   -> SliceService wraps execution records as SliceResourceResult
   -> SliceService retains resource/sheet state and result
   -> PlotService creates calculated data for the Slice result
-  -> WorkbenchDomainBridge projects chart/explorer state
+  -> Chart and Explorer feature contributions reread owner state
 ```
 
 Manual selection flow:
@@ -148,7 +148,7 @@ Explorer chart state:
 
 ```txt
 SliceService resource/sheet state/results
-  -> WorkbenchDomainBridge / ExplorerPaneInput
+  -> ExplorerViewPane rereads ISliceService
   -> chartState + chartMessage
 
 ReviewService ReviewSummary

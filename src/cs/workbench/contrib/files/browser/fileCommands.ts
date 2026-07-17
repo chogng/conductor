@@ -371,14 +371,13 @@ const resolveCommandExplorerResourceIdentity = (
   }
 
   const explorerService = accessor.get(IExplorerService);
-  const paneInput = explorerService.getPaneInput();
-  if (!paneInput) {
+  if (!explorerService.selectedResource) {
     return null;
   }
 
   const file = findExplorerFileEntryByResource(explorerService.files, {
-    resource: paneInput.selectedResource,
-    sheetId: paneInput.selectedSheetId ?? null,
+    resource: explorerService.selectedResource,
+    sheetId: explorerService.selectedSheetId,
   });
   return getExplorerFileResourceIdentity(file);
 };

@@ -32,11 +32,10 @@ export type ThumbnailPreviewResource = {
 	readonly sheetId?: string | null;
 };
 
-export type ThumbnailPreviewTarget = string | ThumbnailPreviewResource;
+export type ThumbnailPreviewTarget = ThumbnailPreviewResource;
 
 export type ThumbnailPreviewChangeEvent = {
-	readonly fileId?: string | null;
-	readonly resource?: URI | null;
+	readonly resource: URI;
 	readonly sheetId?: string | null;
 };
 

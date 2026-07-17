@@ -12,6 +12,7 @@ import {
 	resolveExplorerImportOpenEntry,
 	shouldSelectExplorerImportTableTarget,
 } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
+import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 
 suite("workbench/contrib/files/browser/explorerViewlet", () => {
 	test("resolves source replacement removals without treating fileId as source identity", () => {
@@ -125,12 +126,6 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 				selectedResource: null,
 				selectedSheetId: null,
 			},
-			input: {
-				mode: "table",
-				selectedResource: null,
-				selectedSheetId: null,
-				selectionKind: "table",
-			},
 			reviewService: {
 				resolveReviewSummary: (target: { readonly resource: URI; readonly sheetId?: string | null }) => {
 					reviewTargets.push(target);
@@ -195,11 +190,10 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
 				viewLayout: "thumbnail",
 			},
 			surfaceViewLayout: "thumbnail",
-			input: {
-				mode: "chart",
-				selectedResource: null,
-				selectedSheetId: null,
-				selectionKind: "chart",
+			viewsService: {
+				getViewContainerNavigationState: () => ({
+					activeViewContainerId: ChartViewContainerId,
+				}),
 			},
 			sliceService: {
 				getResourceResult: (resource: URI) => resource.toString() === readyResource.toString()

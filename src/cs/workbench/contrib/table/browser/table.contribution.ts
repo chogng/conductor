@@ -27,6 +27,7 @@ import {
 } from "src/cs/workbench/contrib/table/common/table";
 import TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
 import { registerTableActions } from "src/cs/workbench/contrib/table/browser/tableActions";
+import "src/cs/workbench/contrib/table/browser/tableExplorerSelection";
 import "src/cs/workbench/contrib/table/browser/tableReviewDecorationsProvider";
 import "src/cs/workbench/contrib/table/browser/tableTemplateDecorationsProvider";
 

@@ -180,6 +180,23 @@ export const getExplorerResourceIdentityKey = (
 	return `resource:${resourceIdentity}\u001f${normalizeExplorerItemKey(target?.sheetId) ?? ""}`;
 };
 
+export const findExplorerFileEntryByResource = (
+	files: readonly ExplorerFileEntry[],
+	resourceIdentity:
+		| { readonly resource?: URI | null; readonly sheetId?: string | null }
+		| null
+		| undefined,
+): ExplorerFileEntry | null => {
+	const resourceKey = getExplorerResourceIdentityKey(resourceIdentity);
+	if (!resourceKey) {
+		return null;
+	}
+
+	return files.find(file =>
+		getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file)) === resourceKey,
+	) ?? null;
+};
+
 export const buildExplorerTree = <TEntry extends ExplorerFileEntry>(
 	entries: readonly TEntry[],
 	options: ExplorerTreeOptions = {},

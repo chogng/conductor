@@ -212,14 +212,16 @@ Explorer drop/dialog/clipboard/folder
   -> resource-backed ExplorerFileEntry rows
   -> ExplorerViewPane commits rows through IExplorerService file-model APIs
   -> ExplorerViewPane ensures IReviewService.resolveReviewSummary({ resource, sheetId? }) runs for resolved resource/sheet rows, even when no Explorer row is added
-  -> ITableService.open({ resource })
+  -> TableExplorerSelectionContribution reads the committed Explorer selection
+  -> ITableService.open({ resource, sheetId? })
   -> TableFileEditorModel / ITableModel own URI-backed model lifecycle
 ```
 
 For folder source replacement, Explorer may publish resource-backed rows in
-batches, but it defers the table-resource open until the replacement completes.
-That keeps the Explorer tree update ahead of table model resolution, matching
-the upstream Explorer-then-editor ordering.
+batches. `TableExplorerSelectionContribution` observes
+`IExplorerService.isImportingSources` and defers the table-resource open until
+the replacement completes. That keeps the Explorer tree update ahead of table
+model resolution, matching the upstream Explorer-then-editor ordering.
 
 Passing a URI through a support check, preparing it for Explorer display,
 selecting it, or opening it for preview does not create a parallel raw-table
@@ -232,12 +234,13 @@ Explorer context menu / template picker
   -> files.item.setTemplate command
   -> ISliceService.setTemplateSelection(resource, sheetId, selection)
   -> SliceState.templateSelections
-  -> WorkbenchDomainBridge projects selection into Explorer pane input
+  -> ExplorerViewPane rereads the Slice owner for presentation
 ```
 
-Explorer template-menu labels are view projection, not Bridge state. Explorer
-reads `IUserTemplateService` snapshots for labels and `ISliceService` selection
-projection from pane input; it does not read Template editor draft state.
+Explorer template-menu labels are view projection, not shared bridge state.
+Explorer reads `IUserTemplateService` snapshots for labels and
+`ISliceService.getState().templateSelections` for the active selections; it
+does not read Template editor draft state.
 
 Slice progress/readiness is likewise read from the Slice owner, not owned, by Explorer:
 
@@ -247,11 +250,12 @@ ISliceService.onDidChangeSliceState / onDidChangeResourceSliceResult({ resource,
   -> ExplorerViewPane / PlotService / Thumbnail paths update their own render state/cache
 ```
 
-`ExplorerPaneInput` must not carry Slice resource state, chart data flags, or a
-second resource list. Commands, Quick Access, decorations, and cross-domain
-bridges read `IExplorerService.files` when they need the authoritative Explorer
-row set. Slice state/result belongs to `ISliceService`; subscribers receive
-Slice events and reread `getResourceState(resource, sheetId)` or
+Do not introduce a pane-input projection ledger carrying Slice resource state,
+chart data flags, mode, Plot settings, or a second resource list. Commands,
+Quick Access, decorations, and feature contributions read
+`IExplorerService.files` and selection when they need authoritative Explorer
+state. Slice state/result belongs to `ISliceService`; subscribers receive Slice
+events and reread `getResourceState(resource, sheetId)` or
 `getResourceResult(resource, sheetId)` when their own UI or cache needs it.
 Explorer selection, hover, and visible-row notifications carry resource
 identity directly as `{ resource, sheetId? }`; do not add public
@@ -321,8 +325,9 @@ Tree and thumbnail are two presentations over the same Explorer resource model.
 They must share selection, file item actions, context menus, and source
 workflow wiring. Thumbnail rendering details live in `thumbnail.instructions.md`.
 When a table file has multiple table entries, Explorer selection uses the table
-resource plus `sheetId` for the exact visible row. Explorer-local imports open
-table resources directly through `ITableService.open({ resource })`.
+resource plus `sheetId` for the exact visible row. Explorer-local imports commit
+and select resource rows; the Table contribution opens the selected resource
+through `ITableService.open({ resource, sheetId? })`.
 File close/delete/reveal commands operate on `{ resource, sheetId }`; the template
 command delegates the current `resource` and optional `sheetId` directly to
 `ISliceService.setTemplateSelection(...)`.
@@ -344,8 +349,8 @@ IViewsService.openView(ExplorerViewId)
   -> upstream-style access to ExplorerViewPane for view-local source/removal workflows
 Explorer/source helpers
   -> non-UI source collection work inside contrib/files
-ITableService
-  -> table resource open for Explorer-local imports
+TableExplorerSelectionContribution
+  -> table resource open through ITableService for committed Explorer selection
 ```
 
 Rules:

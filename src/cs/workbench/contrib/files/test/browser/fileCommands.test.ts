@@ -382,13 +382,8 @@ function createExplorerServiceStub({
   return {
     _serviceBrand: undefined,
     files,
-    getPaneInput: () => ({
-      files,
-      mode: "table",
-      selectedResource: null,
-      selectedSheetId: null,
-      selectionKind: "table",
-    }),
+    selectedResource: null,
+    selectedSheetId: null,
     select: (resource: URI | null, reveal: unknown, sheetId?: string | null) => {
       onSelect({ resource, sheetId: sheetId ?? null }, reveal);
       return {

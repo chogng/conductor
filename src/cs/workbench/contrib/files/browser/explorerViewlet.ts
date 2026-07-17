@@ -37,7 +37,6 @@ import {
 import {
   ExplorerViewId,
   IExplorerService,
-  type ExplorerPaneInput,
   type ExplorerPaneMode,
 } from "src/cs/workbench/contrib/files/browser/files";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
@@ -46,6 +45,7 @@ import {
   getExplorerFileResourceIdentity,
   getExplorerFolderPath,
   getExplorerResourceIdentityKey,
+  findExplorerFileEntryByResource,
   getExplorerFileSourceIdentityKey,
   isExplorerPathInFolder,
   type ExplorerFileEntry,
@@ -58,9 +58,14 @@ import {
   IThumbnailService,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
-  ITableService,
-  type TableSource,
-} from "src/cs/workbench/services/table/common/table";
+  IPlotService,
+  type IPlotService as IPlotServiceType,
+} from "src/cs/workbench/services/plot/common/plot";
+import {
+  getOriginOpenPlotOptions,
+  ISettingsService,
+  type ISettingsService as ISettingsServiceType,
+} from "src/cs/workbench/services/settings/common/settings";
 import {
   tableFormatService,
 } from "src/cs/workbench/services/table/common/tableFormatService";
@@ -106,9 +111,8 @@ export abstract class BaseExplorerViewPane extends ViewPane {
   private readonly sourceWorkflow: FileSourceWorkflow;
   private readonly surfaceViewLayout: FilesViewLayout;
   private explorerView: ExplorerView | null = null;
-  private input: ExplorerPaneInput | null = null;
-  private deferTableOpenUntilSourceReplace = false;
-  private deferredSourceReplaceOpenTarget: ExplorerResourceIdentity | null = null;
+  private deferTableNavigationUntilSourceReplace = false;
+  private deferredSourceReplaceNavigationTarget: ExplorerResourceIdentity | null = null;
   private isDragging = false;
   private disposed = false;
   private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
@@ -126,7 +130,8 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     @IViewsService private readonly viewsService: IViewsService,
     @INotificationService private readonly notificationService: INotificationService,
     @IProgressService private readonly progressService: IProgressService,
-    @ITableService private readonly tableService: ITableService,
+    @IPlotService private readonly plotService: IPlotServiceType,
+    @ISettingsService private readonly settingsService: ISettingsServiceType,
     @ISliceService private readonly sliceService: ISliceService,
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
@@ -181,14 +186,14 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       },
       syncView: () => this.syncView(),
     });
-    this._register(this.explorerService.onDidChangePaneInput(() => {
-      this.update(this.explorerService.getPaneInput());
+    this._register(this.explorerService.onDidChangeContext(() => {
+      this.syncView();
     }));
     this._register(this.explorerService.onDidChangeFiles(() => {
-      this.update(this.input);
+      this.update();
     }));
     this._register(this.explorerService.onDidChangeViewLayout(() => {
-      this.update(this.input);
+      this.update();
     }));
     this._register(this.explorerService.onDidChangeSelection(() => {
       this.syncView();
@@ -205,19 +210,29 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     this._register(this.userTemplateService.onDidChangeUserTemplates(() => {
       this.syncView();
     }));
+    this._register(this.plotService.onDidChangePlotState(() => {
+      this.syncView();
+    }));
+    this._register(this.settingsService.onDidChangeConductorSettings(() => {
+      this.syncView();
+    }));
     this._register(this.sliceService.onDidChangeResourceSliceResult(() => {
       this.syncView();
     }));
     this._register(this.sliceService.onDidChangeSliceState(() => {
       this.syncView();
     }));
+    this._register(this.viewsService.onDidChangeViewContainerNavigation(event => {
+      if (event.location === ViewContainerLocation.Panel) {
+        this.syncView();
+      }
+    }));
 
-    this.update(this.explorerService.getPaneInput());
+    this.update();
     this.loadTemplates();
   }
 
-  public update(input: ExplorerPaneInput | null): void {
-    this.input = input;
+  public update(): void {
     this.reviewCurrentExplorerEntries();
 
     if (!this.explorerView) {
@@ -310,10 +325,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     ];
   }
 
-  private get paneInput(): ExplorerPaneInput {
-    return this.input ?? EMPTY_EXPLORER_PANE_INPUT;
-  }
-
   private get visibleEntries(): ExplorerFileEntry[] {
     const renderFiles = this.createExplorerRenderEntries(this.committedFiles);
     return this.shouldFilterChartThumbnailFiles()
@@ -332,25 +343,32 @@ export abstract class BaseExplorerViewPane extends ViewPane {
   }
 
   private get selectedResource(): URI | null {
-    return this.paneInput.selectedResource;
+    return this.explorerService.selectedResource;
   }
 
   private get selectedSheetId(): string | null {
-    return this.paneInput.selectedSheetId ?? null;
+    return this.explorerService.selectedSheetId;
   }
 
   private get viewLayout(): FilesViewLayout {
     return this.surfaceViewLayout;
   }
 
+  private get paneMode(): ExplorerPaneMode {
+    const activePanelViewContainerId = this.viewsService.getViewContainerNavigationState(
+      ViewContainerLocation.Panel,
+    ).activeViewContainerId;
+    return activePanelViewContainerId === ChartViewContainerId ? "chart" : "table";
+  }
+
   private shouldFilterChartThumbnailFiles(): boolean {
-    return this.paneInput.selectionKind === "chart" && this.viewLayout === "thumbnail";
+    return this.paneMode === "chart" && this.viewLayout === "thumbnail";
   }
 
   private createExplorerRenderEntries(
     files: readonly ExplorerFileEntry[],
   ): ExplorerFileEntry[] {
-    if (this.paneInput.selectionKind !== "chart") {
+    if (this.paneMode !== "chart") {
       return [...files];
     }
 
@@ -376,26 +394,26 @@ export abstract class BaseExplorerViewPane extends ViewPane {
   }
 
   private createExplorerViewProps(): ExplorerViewProps {
-    const input = this.paneInput;
+    const conductorSettings = this.settingsService.getConductorSettings();
     const files = this.visibleEntries;
     return {
       selectedResource: this.selectedResource,
       selectedSheetId: this.selectedSheetId,
       expandedFolderKeys: this.explorerService.expandedFolderKeys,
       explorerAppearance: this.appearanceService.getAppearance().explorer,
-      activePlotType: input.activePlotType,
+      activePlotType: this.plotService.getState().activePlotType,
       commandService: this.commandService,
-      originOpenPlotOptions: input.originOpenPlotOptions,
-      plotAxisSettings: input.plotAxisSettings,
+      originOpenPlotOptions: getOriginOpenPlotOptions(conductorSettings),
+      plotAxisSettings: conductorSettings?.plotAxisSettings,
       thumbnailPreviewService: this.thumbnailPreviewService,
       thumbnailService: this.thumbnailService,
-      templateSelections: input.templateSelections,
+      templateSelections: this.sliceService.getState().templateSelections,
       editable: this.explorerService.getContext().editable,
       templateRecords: this.createTemplateRecords(),
       files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
-      mode: input.mode,
+      mode: this.paneMode,
       viewLayout: this.viewLayout,
       onDraggingChange: this.handleDraggingChange,
       onFolderExpansionChange: this.handleFolderExpansionChange,
@@ -409,7 +427,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       onOpenFolderDialog: this.handleOpenFolderDialog,
       onRenameFile: this.handleRenameFile,
       onSelectFile: this.handleSelectFile,
-      thumbnailPlotModelsByFileId: input.thumbnailPlotModelsByFileId,
     };
   }
 
@@ -442,21 +459,21 @@ export abstract class BaseExplorerViewPane extends ViewPane {
   }
 
   private beginSourceReplace(): void {
-    this.deferTableOpenUntilSourceReplace = true;
-    this.deferredSourceReplaceOpenTarget = null;
+    this.deferTableNavigationUntilSourceReplace = true;
+    this.deferredSourceReplaceNavigationTarget = null;
   }
 
   private finishSourceReplace(completed: boolean): void {
-    const shouldOpenDeferredTable = this.deferTableOpenUntilSourceReplace;
-    if (!shouldOpenDeferredTable) {
+    const shouldNavigateToDeferredTable = this.deferTableNavigationUntilSourceReplace;
+    if (!shouldNavigateToDeferredTable) {
       return;
     }
 
-    this.deferTableOpenUntilSourceReplace = false;
+    this.deferTableNavigationUntilSourceReplace = false;
     if (completed) {
-      this.openDeferredSourceReplaceTable();
+      this.navigateAfterDeferredSourceReplace();
     } else {
-      this.deferredSourceReplaceOpenTarget = null;
+      this.deferredSourceReplaceNavigationTarget = null;
     }
     this.syncView();
   }
@@ -468,7 +485,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
 
   private showMoreActions(anchor: HTMLElement): void {
     const canCloseFolder = this.visibleEntries.length > 0;
-    const isChartMode = this.paneInput.mode === "chart";
+    const isChartMode = this.paneMode === "chart";
     const isThumbnailView = isChartMode && this.explorerService.viewLayout === "thumbnail";
     this.contextMenuService.showContextMenu({
       autoSelectFirstItem: true,
@@ -526,13 +543,12 @@ export abstract class BaseExplorerViewPane extends ViewPane {
   ): void => {
     const selectedTarget = this.selectFile(file, "force");
     const selectedEntry = findExplorerFileEntryByResource(this.visibleEntries, selectedTarget);
-    if (this.deferTableOpenUntilSourceReplace) {
-      this.deferSourceReplaceTableOpen(selectedEntry);
+    if (this.deferTableNavigationUntilSourceReplace) {
+      this.deferSourceReplaceTableNavigation(selectedEntry);
       this.syncView();
       return;
     }
 
-    this.openSelectedTableFile(selectedTarget);
     this.syncView();
   };
 
@@ -751,13 +767,12 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     }
 
     this.selectImportedTableFile(selectedEntry);
-    if (this.deferTableOpenUntilSourceReplace) {
-      this.deferSourceReplaceTableOpen(selectedEntry);
+    if (this.deferTableNavigationUntilSourceReplace) {
+      this.deferSourceReplaceTableNavigation(selectedEntry);
       this.syncView();
       return;
     }
 
-    this.openTableSourceFromExplorerFile(selectedEntry);
     this.navigateToTableAfterImport();
     this.syncView();
   }
@@ -781,16 +796,15 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       selectedResource: this.explorerService.selectedResource,
       selectedSheetId: this.explorerService.selectedSheetId,
     });
-    if (shouldSelectExplorerImportTableTarget(openTarget, this.paneInput.selectionKind)) {
+    if (shouldSelectExplorerImportTableTarget(openTarget, this.paneMode)) {
       this.selectImportedTableFile(openTarget.entry);
     }
-    if (this.deferTableOpenUntilSourceReplace) {
-      this.deferSourceReplaceTableOpen(openTarget.entry);
+    if (this.deferTableNavigationUntilSourceReplace) {
+      this.deferSourceReplaceTableNavigation(openTarget.entry);
       this.syncView();
       return;
     }
 
-    this.openTableSourceFromExplorerFile(openTarget.entry);
     this.navigateToTableAfterImport();
     this.syncView();
   }
@@ -837,31 +851,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     return this.explorerService.select(resourceIdentity?.resource ?? null, "force", resourceIdentity?.sheetId ?? null);
   }
 
-  private openSelectedTableFile(
-    resourceIdentity: ExplorerResourceIdentity | null,
-  ): void {
-    if (this.paneInput.selectionKind !== "table") {
-      return;
-    }
-
-    this.openExplorerTableFile(findExplorerFileEntryByResource(this.visibleEntries, resourceIdentity));
-  }
-
-  private openExplorerTableFile(file: ExplorerFileEntry | null | undefined): void {
-    if (this.paneInput.selectionKind !== "table") {
-      return;
-    }
-
-    this.openTableSourceFromExplorerFile(file);
-  }
-
-  private openTableSourceFromExplorerFile(file: ExplorerFileEntry | null | undefined): void {
-    const source = createTableSourceFromExplorerFile(file);
-    if (source) {
-      this.tableService.open(source);
-    }
-  }
-
   private reviewCurrentExplorerEntries(): void {
     const identities = getExplorerResourceIdentities(this.committedFiles);
     const signature = getExplorerResourceIdentitySignature(identities);
@@ -886,18 +875,18 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     }
   }
 
-  private deferSourceReplaceTableOpen(file: ExplorerFileEntry | null | undefined): void {
+  private deferSourceReplaceTableNavigation(file: ExplorerFileEntry | null | undefined): void {
     const target = getExplorerFileResourceIdentity(file);
     if (!target) {
       return;
     }
 
-    this.deferredSourceReplaceOpenTarget = target;
+    this.deferredSourceReplaceNavigationTarget = target;
   }
 
-  private openDeferredSourceReplaceTable(): void {
-    const target = this.deferredSourceReplaceOpenTarget;
-    this.deferredSourceReplaceOpenTarget = null;
+  private navigateAfterDeferredSourceReplace(): void {
+    const target = this.deferredSourceReplaceNavigationTarget;
+    this.deferredSourceReplaceNavigationTarget = null;
     if (!target) {
       return;
     }
@@ -907,7 +896,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.openTableSourceFromExplorerFile(entry);
     this.navigateToTableAfterImport();
   }
 
@@ -929,7 +917,6 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       ? getFirstExplorerResourceIdentity(remainingFiles)
       : getExplorerFileResourceIdentity(currentEntry);
     this.explorerService.select(nextIdentity?.resource ?? null, "force", nextIdentity?.sheetId ?? null);
-    this.openSelectedTableFile(nextIdentity);
   }
 
   private clearExplorerSelections(): void {
@@ -960,7 +947,8 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
     @IViewsService viewsService: IViewsService,
     @INotificationService notificationService: INotificationService,
     @IProgressService progressService: IProgressService,
-    @ITableService tableService: ITableService,
+    @IPlotService plotService: IPlotServiceType,
+    @ISettingsService settingsService: ISettingsServiceType,
     @ISliceService sliceService: ISliceService,
     @IThumbnailPreviewService thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService thumbnailService: IThumbnailService,
@@ -981,7 +969,8 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
       viewsService,
       notificationService,
       progressService,
-      tableService,
+      plotService,
+      settingsService,
       sliceService,
       thumbnailPreviewService,
       thumbnailService,
@@ -1072,23 +1061,6 @@ function findExplorerImportEntryByItemKey(
   return files.find(file => normalizeItemKey(file.itemKey) === normalizedItemKey) ?? null;
 }
 
-function findExplorerFileEntryByResource(
-  files: readonly ExplorerFileEntry[],
-  resourceIdentity:
-    | { readonly resource?: URI | null; readonly sheetId?: string | null }
-    | null
-    | undefined,
-): ExplorerFileEntry | null {
-  const resourceKey = getExplorerResourceIdentityKey(resourceIdentity);
-  if (!resourceKey) {
-    return null;
-  }
-
-  return files.find(file =>
-    getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file)) === resourceKey,
-  ) ?? null;
-}
-
 function getExplorerResourceIdentities(
   files: readonly ExplorerFileEntry[],
 ): readonly ExplorerResourceIdentity[] {
@@ -1168,34 +1140,6 @@ function reviveOptionalUri(value: unknown): URI | null {
   return null;
 }
 
-function createTableSourceFromExplorerFile(
-  file: ExplorerFileEntry | null | undefined,
-): TableSource | null {
-  const resource = getExplorerFileTableResource(file);
-  if (!resource) {
-    return null;
-  }
-
-  const tablePath = getExplorerFileTablePath(file);
-  const normalizedCsvPath = normalizePathValue(file?.normalizedCsvPath);
-  const sheetId = tablePath !== normalizedCsvPath && tableFormatService.isMaterializableWorkbook(resource)
-    ? normalizeItemKey(file?.sheetId)
-    : null;
-  return {
-    resource,
-    ...(sheetId ? { sheetId } : {}),
-  };
-}
-
-function getExplorerFileTableResource(file: ExplorerFileEntry | null | undefined): URI | null {
-  return file ? URI.revive(file.resource) : null;
-}
-
-function getExplorerFileTablePath(file: ExplorerFileEntry | null | undefined): string | null {
-  return normalizePathValue(file?.normalizedCsvPath) ??
-    normalizePathValue(file?.sourcePath);
-}
-
 function assertSupportedExplorerImportEntries(
   entries: readonly ExplorerFileEntry[],
 ): void {
@@ -1224,13 +1168,6 @@ function normalizePathValue(value: unknown): string | null {
   const path = String(value ?? "").trim();
   return path || null;
 }
-
-const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
-  mode: "table",
-  selectedResource: null,
-  selectedSheetId: null,
-  selectionKind: "table",
-};
 
 type ExplorerChartFileState = SliceFileState;
 

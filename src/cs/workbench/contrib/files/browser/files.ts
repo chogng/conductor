@@ -11,13 +11,6 @@ import type {
   ExplorerResourceIdentity,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { FilesViewLayout } from "src/cs/workbench/contrib/files/common/files";
-import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
-import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
-import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
-import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
-import type {
-  TemplateResourceSelection,
-} from "src/cs/workbench/services/slice/common/templateSelection";
 
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
 export const ExplorerViewContainerId = "workbench.viewContainer.files";
@@ -26,24 +19,7 @@ export const ExplorerViewId = "workbench.files";
 export type ExplorerViewLayout = FilesViewLayout;
 export type ExplorerPaneMode = "table" | "chart";
 
-export type ExplorerThumbnailPlotModel = PlotMainRenderModelSource & {
-  readonly signature: string;
-};
-
-export type ExplorerPaneInput = {
-  readonly activePlotType?: PlotType;
-  readonly mode: ExplorerPaneMode;
-  readonly originOpenPlotOptions?: OriginPlotOptions;
-  readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  readonly selectedResource: URI | null;
-  readonly selectedSheetId?: string | null;
-  readonly selectionKind: ExplorerPaneMode;
-  readonly templateSelections?: readonly TemplateResourceSelection[];
-  readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
-};
-
 export type ExplorerSelectionChangeEvent = {
-  readonly kind: ExplorerPaneMode;
   readonly selectedResource: URI | null;
   readonly selectedSheetId?: string | null;
 };
@@ -104,7 +80,7 @@ export interface IExplorerService {
   readonly onDidChangeFiles: Event<void>;
   readonly onDidChangeViewLayout: Event<ExplorerViewLayout>;
   readonly onDidChangeVisibleTargets: Event<ExplorerVisibleTargetsChangeEvent>;
-  readonly onDidChangePaneInput: Event<void>;
+  readonly onDidChangeContext: Event<void>;
 
   getContext(): ExplorerContext;
   registerView(view: IExplorerView): IDisposable;
@@ -125,6 +101,4 @@ export interface IExplorerService {
   setVisibleTargets(visibleTargets: readonly ExplorerResourceIdentity[], nearbyTargets?: readonly ExplorerResourceIdentity[]): void;
   setViewLayout(viewLayout: ExplorerViewLayout): void;
   toggleViewLayout(): void;
-  getPaneInput(): ExplorerPaneInput | null;
-  updatePaneInput(input: ExplorerPaneInput): void;
 }

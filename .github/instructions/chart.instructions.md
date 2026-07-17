@@ -115,8 +115,9 @@ Do not pass Plot-owned behavior or Explorer selection callbacks through
 
 ## Workbench Refresh Rules
 
-Explorer chart-file selection flows through Explorer -> WorkbenchDomainBridge ->
-Chart input without forcing a full workbench shell refresh.
+Explorer chart-file selection flows through Explorer ->
+`ChartExplorerSelectionContribution` -> Chart input without forcing a full
+workbench shell refresh.
 
 Plot, Template, Settings, and Export changes should not trigger full
 shell refreshes just to update Chart-adjacent auxiliary views. Use scoped

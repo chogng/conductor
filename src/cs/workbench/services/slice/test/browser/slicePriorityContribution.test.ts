@@ -47,7 +47,7 @@ suite("workbench/services/slice/test/browser/slicePriorityContribution", () => {
 		const sliceService = new TestSliceService();
 		store.add(new SlicePriorityContribution(explorer.service, sliceService));
 
-		explorer.fireSelection({ kind: "chart", selectedResource: null });
+		explorer.fireSelection({ selectedResource: null });
 		explorer.fireHoveredResource({ resource: null });
 
 		assert.deepEqual(sliceService.prioritizedResources, []);
@@ -150,19 +150,13 @@ const createExplorerService = ({
 			},
 			viewLayout: "tree",
 		}) satisfies ExplorerContext,
-		getPaneInput: () => ({
-			mode: "chart",
-			selectedResource,
-			selectedSheetId,
-			selectionKind: "chart",
-		}),
 		files: [],
 		isImportingSources: false,
 		hoveredResource,
 		onDidChangeExpandedFolderKeys: Event.None as IExplorerService["onDidChangeExpandedFolderKeys"],
 		onDidChangeFiles: Event.None as IExplorerService["onDidChangeFiles"],
 		onDidChangeHoveredResource: onDidChangeHoveredResourceEmitter.event,
-		onDidChangePaneInput: Event.None as Event<void>,
+		onDidChangeContext: Event.None as IExplorerService["onDidChangeContext"],
 		onDidChangeSelection: onDidChangeSelectionEmitter.event,
 		onDidChangeViewLayout: Event.None as IExplorerService["onDidChangeViewLayout"],
 		onDidChangeVisibleTargets: Event.None as IExplorerService["onDidChangeVisibleTargets"],
@@ -184,7 +178,6 @@ const createExplorerService = ({
 		setViewLayout: () => undefined,
 		setVisibleTargets: () => undefined,
 		toggleViewLayout: () => undefined,
-		updatePaneInput: () => undefined,
 		viewLayout: "tree",
 	};
 

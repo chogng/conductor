@@ -123,7 +123,6 @@ export class ExplorerView implements IDisposable {
       onCancelRenameFile: this.props.onCancelRenameFile,
       onRenameFile: this.props.onRenameFile,
       onSelectFile: this.props.onSelectFile,
-      thumbnailPlotModelsByFileId: this.props.thumbnailPlotModelsByFileId,
     };
   }
 

@@ -23,6 +23,7 @@ import {
 } from "src/cs/workbench/services/chart/common/chart";
 import { registerChartCommands } from "src/cs/workbench/contrib/chart/browser/chartCommands";
 import ChartViewPane from "src/cs/workbench/contrib/chart/browser/chartViewPane";
+import "src/cs/workbench/contrib/chart/browser/chartExplorerSelection";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);

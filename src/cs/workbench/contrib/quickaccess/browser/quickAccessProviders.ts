@@ -52,12 +52,11 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider<QuickAcc
   }
 
   protected getPicks(filter: string): readonly QuickAccessItem[] {
-    const paneInput = this.explorerService.getPaneInput();
     const activeContainerId = this.viewsService.getViewContainerNavigationState(
       ViewContainerLocation.Panel,
     ).activeViewContainerId;
     const selectionKind = getExplorerSelectionKind(activeContainerId);
-    if (!selectionKind || !paneInput || paneInput.selectionKind !== selectionKind) {
+    if (!selectionKind) {
       return [];
     }
 

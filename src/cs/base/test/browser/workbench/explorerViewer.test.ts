@@ -658,14 +658,10 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         onDidChangePreview: NoThumbnailPreviewEvent,
         prefetch: () => undefined,
         request: target => {
-          if (typeof target === "string") {
-            requestedTargets.push({ fileId: target });
-          } else {
-            requestedTargets.push({
-              resource: target.resource.toString(),
-              sheetId: target.sheetId ?? null,
-            });
-          }
+          requestedTargets.push({
+            resource: target.resource.toString(),
+            sheetId: target.sheetId ?? null,
+          });
           return { kind: "loading" };
         },
       },

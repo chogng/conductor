@@ -7,15 +7,12 @@ import assert from "assert";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
-import type {
-  ExplorerPaneInput,
-  ExplorerSelectionChangeEvent,
-} from "src/cs/workbench/contrib/files/browser/files";
+import type { ExplorerSelectionChangeEvent } from "src/cs/workbench/contrib/files/browser/files";
 
 suite("workbench/contrib/files/test/browser/explorerService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("shares explorer selection between table and chart", () => {
+  test("owns one Explorer selection", () => {
     const service = store.add(new ExplorerService());
     const events: ExplorerSelectionChangeEvent[] = [];
     const tableResource = URI.file("/workspace/table-a.csv");
@@ -24,18 +21,15 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       events.push(event);
     }));
 
-    service.updatePaneInput(createPaneInput("table"));
     service.select(tableResource);
-    service.updatePaneInput(createPaneInput("chart", tableResource));
     service.select(chartResource);
 
     assert.equal(service.selectedResource?.toString(), chartResource.toString());
     assert.deepEqual(events.map(event => ({
-      kind: event.kind,
       selectedResource: event.selectedResource?.toString(),
     })), [
-      { kind: "table", selectedResource: tableResource.toString() },
-      { kind: "chart", selectedResource: chartResource.toString() },
+      { selectedResource: tableResource.toString() },
+      { selectedResource: chartResource.toString() },
     ]);
     disposable.dispose();
   });
@@ -83,13 +77,12 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     assert.equal(service.selectedResource?.toString(), resource.toString());
     assert.equal(service.selectedSheetId, "source-c");
     assert.deepEqual(events.map(event => ({
-      kind: event.kind,
       selectedResource: event.selectedResource?.toString(),
       selectedSheetId: event.selectedSheetId,
     })), [
-      { kind: "table", selectedResource: resource.toString(), selectedSheetId: "source-a" },
-      { kind: "table", selectedResource: resource.toString(), selectedSheetId: "source-b" },
-      { kind: "table", selectedResource: resource.toString(), selectedSheetId: "source-c" },
+      { selectedResource: resource.toString(), selectedSheetId: "source-a" },
+      { selectedResource: resource.toString(), selectedSheetId: "source-b" },
+      { selectedResource: resource.toString(), selectedSheetId: "source-c" },
     ]);
     disposable.dispose();
   });
@@ -178,33 +171,24 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     disposable.dispose();
   });
 
-  test("publishes Explorer pane input", () => {
+  test("publishes Explorer context changes", () => {
     const service = store.add(new ExplorerService());
     let changeCount = 0;
-    const disposable = store.add(service.onDidChangePaneInput(() => {
+    const disposable = store.add(service.onDidChangeContext(() => {
       changeCount += 1;
     }));
-    const input: ExplorerPaneInput = {
-      mode: "table",
-      selectedResource: null,
-      selectedSheetId: null,
-      selectionKind: "table",
-    };
 
-    service.updatePaneInput(input);
-    service.updatePaneInput({
-      mode: "table",
-      selectedResource: null,
-      selectedSheetId: null,
-      selectionKind: "table",
+    service.setEditable({
+      resource: { resource: URI.file("/data/A.csv") },
+      isEditing: true,
     });
+    service.setEditable(null);
 
-    assert.equal(service.getPaneInput(), input);
-    assert.equal(changeCount, 1);
+    assert.equal(changeCount, 2);
     disposable.dispose();
   });
 
-  test("keeps committed files separate from pane input", () => {
+  test("reconciles selection with committed files", () => {
     const service = store.add(new ExplorerService());
     const fileA = {
       fileId: "file-a",
@@ -218,31 +202,12 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     };
 
     service.replaceFiles([fileA, fileB]);
-    service.updatePaneInput({
-      mode: "table",
-      selectedResource: null,
-      selectedSheetId: null,
-      selectionKind: "table",
-    });
-    service.updatePaneInput({
-      mode: "chart",
-      selectedResource: null,
-      selectedSheetId: null,
-      selectionKind: "chart",
-    });
+    assert.equal(service.selectedResource?.toString(), fileA.resource.toString());
+    service.select(fileB.resource);
+    service.removeFiles(["file-b"]);
 
-    assert.deepEqual(service.files.map(file => file.fileId), ["file-a", "file-b"]);
-    assert.equal(service.getPaneInput()?.mode, "chart");
+    assert.deepEqual(service.files.map(file => file.fileId), ["file-a"]);
+    assert.equal(service.selectedResource?.toString(), fileA.resource.toString());
   });
 
-});
-
-const createPaneInput = (
-  selectionKind: ExplorerPaneInput["selectionKind"],
-  selectedResource: URI | null = null,
-): ExplorerPaneInput => ({
-  mode: selectionKind === "chart" ? "chart" : "table",
-  selectedResource,
-  selectedSheetId: null,
-  selectionKind,
 });

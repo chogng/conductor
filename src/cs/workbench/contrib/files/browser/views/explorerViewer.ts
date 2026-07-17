@@ -51,7 +51,6 @@ import {
 import type {
   ExplorerEditableData,
   ExplorerPaneMode,
-  ExplorerThumbnailPlotModel,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
   isTemplateApplyPerformanceTraceEnabled,
@@ -103,6 +102,7 @@ import type {
   IThumbnailPreviewService,
   IThumbnailService,
   ThumbnailPreviewChangeEvent,
+  ThumbnailPreviewPlotModel,
   ThumbnailPreviewState,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
@@ -150,7 +150,6 @@ export type ExplorerViewerProps = {
   readonly onRenameFile?: (file: ExplorerFileEntry, nextName: string) => void;
   readonly onSelectFile: (file: ExplorerFileEntry | null) => void;
   readonly templateSelections?: readonly TemplateResourceSelection[];
-  readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
 
 type FileTreeNode = ExplorerTreeNode<ExplorerFileEntry>;
@@ -239,7 +238,7 @@ type HoverThumbnailCacheEntry = {
   isActive: boolean;
   isLoading: boolean;
   node: HTMLElement;
-  plotModel: ExplorerThumbnailPlotModel | null;
+  plotModel: ThumbnailPreviewPlotModel | null;
   plotModelSignature: string;
   warmedPlotModelSignature: string;
   lastUsed: number;
@@ -1034,11 +1033,7 @@ export class ExplorerViewer implements IDisposable {
       return true;
     }
 
-    const previousPlotSignature =
-      previousProps.thumbnailPlotModelsByFileId?.[fileId]?.signature ?? "";
-    const nextPlotSignature =
-      nextProps.thumbnailPlotModelsByFileId?.[fileId]?.signature ?? "";
-    return previousPlotSignature !== nextPlotSignature;
+    return false;
   }
 
   dispose(): void {
@@ -1757,9 +1752,7 @@ export class ExplorerViewer implements IDisposable {
       ? this.getThumbnailPreviewState(file, "visible")
       : this.getThumbnailPreviewState(file, null);
     const previewPlotModel = getPreviewPlotModel(previewState);
-    const plotModel = previewPlotModel ??
-      this.getThumbnailPlotModel(fileId) ??
-      this.getCachedHoverThumbnailPlotModel(fileId);
+    const plotModel = previewPlotModel ?? this.getCachedHoverThumbnailPlotModel(fileId);
     const isLoading = previewState.kind === "loading" && !plotModel;
     entry.node.setAttribute(
       "aria-label",
@@ -2519,9 +2512,8 @@ export class ExplorerViewer implements IDisposable {
     const cacheKey = normalizedFileId || "__unknown__";
     const previewState = this.getThumbnailPreviewState(file, "hover");
     const previewPlotModel = getPreviewPlotModel(previewState);
-    const fallbackPlotModel = previewPlotModel ? null : this.getThumbnailPlotModel(fileId);
     const cached = this.hoverThumbnailCache.get(cacheKey);
-    const plotModel = previewPlotModel ?? fallbackPlotModel ?? cached?.plotModel ?? null;
+    const plotModel = previewPlotModel ?? cached?.plotModel ?? null;
     const isLoading = previewState.kind === "loading" && !plotModel;
     const fileSignature = createHoverThumbnailFileSignature(file);
     const plotModelSignature = plotModel?.signature ?? "";
@@ -2563,7 +2555,7 @@ export class ExplorerViewer implements IDisposable {
         fileId: normalizedFileId,
         isLoading,
         plotModelSignature,
-        plotModelSource: getThumbnailHoverPlotModelSource(previewPlotModel, fallbackPlotModel),
+        plotModelSource: getThumbnailHoverPlotModelSource(previewPlotModel),
         previewState,
       });
       return cached.node;
@@ -2627,7 +2619,7 @@ export class ExplorerViewer implements IDisposable {
         fileId: normalizedFileId,
         isLoading,
         plotModelSignature,
-        plotModelSource: getThumbnailHoverPlotModelSource(previewPlotModel, fallbackPlotModel),
+        plotModelSource: getThumbnailHoverPlotModelSource(previewPlotModel),
         previewState,
       });
       return cached.node;
@@ -2664,7 +2656,7 @@ export class ExplorerViewer implements IDisposable {
       fileId: normalizedFileId,
       isLoading,
       plotModelSignature,
-      plotModelSource: getThumbnailHoverPlotModelSource(previewPlotModel, fallbackPlotModel),
+      plotModelSource: getThumbnailHoverPlotModelSource(previewPlotModel),
       previewState,
     });
     return node;
@@ -2696,14 +2688,7 @@ export class ExplorerViewer implements IDisposable {
     });
   }
 
-  private getThumbnailPlotModel(fileId: string): ExplorerThumbnailPlotModel | null {
-    const normalizedFileId = String(fileId ?? "").trim();
-    return normalizedFileId
-      ? this.props.thumbnailPlotModelsByFileId?.[normalizedFileId] ?? null
-      : null;
-  }
-
-  private getCachedHoverThumbnailPlotModel(fileId: string): ExplorerThumbnailPlotModel | null {
+  private getCachedHoverThumbnailPlotModel(fileId: string): ThumbnailPreviewPlotModel | null {
     const normalizedFileId = String(fileId ?? "").trim();
     return normalizedFileId
       ? this.hoverThumbnailCache.get(normalizedFileId)?.plotModel ?? null
@@ -2746,8 +2731,7 @@ export class ExplorerViewer implements IDisposable {
     const thumbnailFile = { title: String(file.fileName ?? file.fileId ?? "") };
     const previewState = this.getThumbnailPreviewState(file, null);
     const previewPlotModel = getPreviewPlotModel(previewState);
-    const fallbackPlotModel = previewPlotModel ? null : this.getThumbnailPlotModel(normalizedFileId);
-    const plotModel = previewPlotModel ?? fallbackPlotModel ?? cached.plotModel;
+    const plotModel = previewPlotModel ?? cached.plotModel;
     const isLoading = previewState.kind === "loading" && !plotModel;
     const plotModelSignature = plotModel?.signature ?? "";
     const hasCachedPlotModel = Boolean(cached.plotModelSignature);
@@ -2814,7 +2798,7 @@ export class ExplorerViewer implements IDisposable {
 
   private warmDetachedHoverThumbnail(
     cached: HoverThumbnailCacheEntry,
-    plotModel: ExplorerThumbnailPlotModel | null,
+    plotModel: ThumbnailPreviewPlotModel | null,
     plotModelSignature: string,
     fileId: string,
   ): void {
@@ -2997,7 +2981,7 @@ function getEffectiveViewLayout(
 
 function getPreviewPlotModel(
   state: ThumbnailPreviewState,
-): ExplorerThumbnailPlotModel | null {
+): ThumbnailPreviewPlotModel | null {
   return state.kind === "ready" || state.kind === "rawReady" || state.kind === "fastReady"
     ? state.model
     : null;
@@ -3058,14 +3042,9 @@ function sortRecordKeys(value: unknown): unknown {
 }
 
 function getThumbnailHoverPlotModelSource(
-  previewPlotModel: ExplorerThumbnailPlotModel | null,
-  fallbackPlotModel: ExplorerThumbnailPlotModel | null,
-): "explorer" | "none" | "preview" {
-  if (previewPlotModel) {
-    return "preview";
-  }
-
-  return fallbackPlotModel ? "explorer" : "none";
+  previewPlotModel: ThumbnailPreviewPlotModel | null,
+): "none" | "preview" {
+  return previewPlotModel ? "preview" : "none";
 }
 
 function createThumbnailGridItemKey(

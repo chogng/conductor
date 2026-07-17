@@ -24,19 +24,19 @@ import { ExplorerView } from "src/cs/workbench/contrib/files/browser/views/explo
 import { ExplorerViewer } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
-  type ExplorerPaneInput,
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
 import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
 import { ViewContainerLocation } from "src/cs/workbench/common/views";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import type { ITableService, TableSource } from "src/cs/workbench/services/table/common/table";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IUserTemplateService } from "src/cs/workbench/services/userTemplate/common/userTemplate";
 import type { IDecorationsService } from "src/cs/workbench/services/decorations/common/decorations";
 import type { ISliceService } from "src/cs/workbench/services/slice/common/slice";
+import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
+import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type {
   IReviewService,
 } from "src/cs/workbench/services/review/common/review";
@@ -119,52 +119,6 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
     }
   });
 
-  test("defers table open until folder source replacement finishes", () => {
-    const openedResources: string[] = [];
-    const reviewedResources: string[] = [];
-    const pane = createExplorerViewPane({
-      onOpenTable: source => {
-        if (source?.resource) {
-          openedResources.push(source.resource.toString());
-        }
-      },
-      onResolveReviewSummary: target => {
-        reviewedResources.push(target.resource.toString());
-      },
-    });
-    const resource = URI.file("/workspace/293K/output/Output_.csv");
-    const explorerEntry = createExplorerImportEntry({
-      fileName: "Output_.csv",
-      itemKey: "source-output",
-      relativePath: "293K/output/Output_.csv",
-      resource,
-    });
-
-    try {
-      (pane as unknown as {
-        beginSourceReplace(): void;
-      }).beginSourceReplace();
-      (pane as unknown as {
-        replaceExplorerFiles(
-          entries: readonly ExplorerFileEntry[],
-          selectedItemKey: string | null,
-        ): void;
-      }).replaceExplorerFiles([explorerEntry], "source-output");
-
-      assert.deepEqual(openedResources, []);
-      assert.deepEqual(reviewedResources, [resource.toString()]);
-
-      (pane as unknown as {
-        finishSourceReplace(completed: boolean): void;
-      }).finishSourceReplace(true);
-
-      assert.deepEqual(openedResources, [resource.toString()]);
-      assert.deepEqual(reviewedResources, [resource.toString()]);
-    } finally {
-      pane.dispose();
-    }
-  });
-
   test("reviews appended URI imports before hover summary reads", () => {
     const reviewedResources: string[] = [];
     const resource = URI.file("/workspace/transfer/3.csv");
@@ -197,10 +151,7 @@ type CreateExplorerViewPaneOptions = {
   readonly files?: readonly ExplorerFileEntry[];
   readonly moveFileToTrash?: (resource: URI) => Promise<void>;
   readonly onFilesChange?: (files: readonly ExplorerFileEntry[]) => void;
-  readonly onOpenTable?: (source: TableSource | null) => void;
   readonly onResolveReviewSummary?: (target: ReviewSummaryTarget) => void;
-  readonly onUpdatePaneInput?: (input: ExplorerPaneInput) => void;
-  readonly paneInput?: ExplorerPaneInput | null;
 };
 
 const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): ExplorerViewPane => {
@@ -219,8 +170,6 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       onWillShowDialog: Event.None,
     } as unknown as IDialogService,
     createExplorerService(
-      options.paneInput ?? null,
-      options.onUpdatePaneInput,
       options.files ?? [],
       options.onFilesChange,
     ),
@@ -242,8 +191,18 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       withProgress: async (_options, task) => task({ report: () => undefined }),
     } as IProgressService,
     {
-      open: (source: TableSource | null) => options.onOpenTable?.(source),
-    } as unknown as ITableService,
+      onDidChangePlotState: Event.None,
+      getState: () => ({
+        activePlotType: "iv",
+        axisTitleOverridesByKey: {},
+        hiddenLegendKeysByPlotKey: {},
+        legendLabelsByFileId: {},
+      }),
+    } as unknown as IPlotService,
+    {
+      onDidChangeConductorSettings: Event.None,
+      getConductorSettings: () => null,
+    } as unknown as ISettingsService,
     createSliceService(),
     {
       onDidChangePreview: Event.None,
@@ -345,6 +304,7 @@ const createInstantiationService = (
 
 const createViewsService = (): IViewsService => ({
   _serviceBrand: undefined,
+  onDidChangeViewContainerNavigation: Event.None,
   getViewContainerNavigationState: (location: ViewContainerLocation) => ({
     activeViewContainerId: null,
     historyIndex: -1,
@@ -355,8 +315,6 @@ const createViewsService = (): IViewsService => ({
 } as unknown as IViewsService);
 
 const createExplorerService = (
-  paneInput: ExplorerPaneInput | null,
-  onUpdatePaneInput?: (input: ExplorerPaneInput) => void,
   initialFiles: readonly ExplorerFileEntry[] = [],
   onFilesChange?: (files: readonly ExplorerFileEntry[]) => void,
 ): IExplorerService => {
@@ -377,7 +335,7 @@ const createExplorerService = (
     onDidChangeExpandedFolderKeys: Event.None,
     onDidChangeFiles: Event.None,
     onDidChangeHoveredResource: Event.None,
-    onDidChangePaneInput: Event.None,
+    onDidChangeContext: Event.None,
     onDidChangeSelection: Event.None,
     onDidChangeViewLayout: Event.None,
     onDidChangeVisibleTargets: Event.None,
@@ -402,7 +360,6 @@ const createExplorerService = (
       },
       viewLayout: "tree",
     }),
-    getPaneInput: () => paneInput,
     reconcileExpandedFolderKeys: () => [],
     refresh: async () => undefined,
     registerView: () => toDisposable(() => undefined),
@@ -430,9 +387,6 @@ const createExplorerService = (
     setViewLayout: () => undefined,
     setVisibleTargets: () => undefined,
     toggleViewLayout: () => undefined,
-    updatePaneInput: (input: ExplorerPaneInput) => {
-      onUpdatePaneInput?.(input);
-    },
   } as unknown as IExplorerService;
 };
 

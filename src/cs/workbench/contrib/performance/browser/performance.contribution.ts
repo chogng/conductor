@@ -30,6 +30,7 @@ import {
   INotificationService,
   Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
+import "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 
 const TABLE_PERFORMANCE_DIAGNOSTICS_CONTRIBUTION_ID = "workbench.contrib.tablePerformanceDiagnostics";
 const TABLE_PERFORMANCE_DIAGNOSTICS_FLUSH_INTERVAL_MS = 60_000;

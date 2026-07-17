@@ -35,12 +35,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       },
     ];
     explorerService.replaceFiles(files);
-    explorerService.updatePaneInput({
-      mode: "table",
-      selectedResource: sourceResource,
-      selectedSheetId: null,
-      selectionKind: "table",
-    });
+    explorerService.select(sourceResource);
 
     const sourceResources = resolveRevealResources(
       createAccessor([[IExplorerService, explorerService]]),
@@ -67,12 +62,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       sourcePath: "C:/data/file.csv",
     }];
     explorerService.replaceFiles(files);
-    explorerService.updatePaneInput({
-      mode: "table",
-      selectedResource: resource,
-      selectedSheetId: null,
-      selectionKind: "table",
-    });
+    explorerService.select(resource);
 
     let revealedPath: string | null = null;
     const nativeHostService = {
@@ -101,12 +91,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       resource,
       sourcePath: "C:/data/file.csv",
     }]);
-    explorerService.updatePaneInput({
-      mode: "table",
-      selectedResource: resource,
-      selectedSheetId: null,
-      selectionKind: "table",
-    });
+    explorerService.select(resource);
 
     assert.deepEqual(
       resolveRevealResources(createAccessor([[IExplorerService, explorerService]]), resource),
@@ -123,12 +108,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       resource,
     }];
     explorerService.replaceFiles(files);
-    explorerService.updatePaneInput({
-      mode: "table",
-      selectedResource: resource,
-      selectedSheetId: null,
-      selectionKind: "table",
-    });
+    explorerService.select(resource);
     const accessor = createAccessor([[IExplorerService, explorerService]]);
 
     CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID)?.handler(accessor, { resource });
@@ -149,12 +129,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       fileName: "file.csv",
       resource,
     }]);
-    explorerService.updatePaneInput({
-      mode: "table",
-      selectedResource: resource,
-      selectedSheetId: null,
-      selectionKind: "table",
-    });
+    explorerService.select(resource);
     const accessor = createAccessor([[IExplorerService, explorerService]]);
 
     CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID)?.handler(accessor, resource);

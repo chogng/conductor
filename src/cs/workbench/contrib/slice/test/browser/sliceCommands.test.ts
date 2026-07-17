@@ -561,8 +561,9 @@ const createAccessor = ({
 		[IExplorerService, {
 			_serviceBrand: undefined,
 			files: explorerFiles,
-			getPaneInput: () => ({ mode: "table", selectedResource: null, selectionKind: "table" }),
 			isImportingSources,
+			selectedResource: null,
+			selectedSheetId: null,
 		}],
 		[INotificationService, {
 			_serviceBrand: undefined,

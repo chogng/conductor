@@ -53,17 +53,18 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.ok(true);
 	});
 
-	test("hover previews synchronously use PlotService when cache is cold and invalidate by file id", async () => {
+	test("hover previews synchronously use PlotService when cache is cold and invalidate by resource", async () => {
 		let cachedCalls = 0;
 		let calculatedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+				getCachedCalculatedData: (_input: PlotPreviewInput) => {
 					cachedCalls += 1;
 					return null;
 				},
-				getCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+				getCalculatedData: (input: PlotPreviewInput) => {
 					calculatedCalls += 1;
+					const fileId = getPreviewInputId(input);
 					return {
 						fileId,
 						signature: `plot:${fileId}`,
@@ -74,44 +75,47 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangePlotState: Event.None,
 			} as unknown as IPlotService,
 		));
-		const changedFileIds: string[] = [];
+		const changedResources: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			if (event.fileId) {
-				changedFileIds.push(event.fileId);
-			}
+			changedResources.push(event.resource.toString());
 		}));
 
-		assert.equal(service.get("file-a").kind, "idle");
-		assert.equal(service.request("file-a", "hover").kind, "ready");
+		assert.equal(service.get(createPreviewTarget("file-a")).kind, "idle");
+		assert.equal(service.request(createPreviewTarget("file-a"), "hover").kind, "ready");
 		assert.equal(cachedCalls, 1);
 		assert.equal(calculatedCalls, 1);
 		await timeout();
-		assert.equal(service.get("file-a").kind, "ready");
-		assert.equal(service.request("file-a", "hover").kind, "ready");
+		assert.equal(service.get(createPreviewTarget("file-a")).kind, "ready");
+		assert.equal(service.request(createPreviewTarget("file-a"), "hover").kind, "ready");
 		assert.equal(cachedCalls, 1);
 		assert.equal(calculatedCalls, 1);
-		service.invalidate(["file-a"]);
-		assert.equal(service.get("file-a").kind, "ready");
-		assert.deepEqual(changedFileIds, ["file-a"]);
+		service.invalidate([createPreviewTarget("file-a")]);
+		assert.equal(service.get(createPreviewTarget("file-a")).kind, "ready");
+		assert.deepEqual(changedResources, [createPreviewTarget("file-a").resource.toString()]);
 	});
 
 	test("hover previews use cached Plot display models as fast thumbnails", () => {
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => ({
-					activeFile: null,
-					fileId,
-					kind: "iv",
-					pointsCount: 1,
-					seriesList: [],
-					signature: `calculated:${fileId}`,
-					source: { fileId, inputKind: "record" },
-					xDomain: [0, 1],
-					xUnitLabel: "V",
-					yDomain: [0, 1],
-					yUnitLabel: "A",
-				}),
-				getCachedPlotDisplayModel: ({ fileId }: { readonly fileId: string }) => ({
+				getCachedCalculatedData: (input: PlotPreviewInput) => {
+					const fileId = getPreviewInputId(input);
+					return {
+						activeFile: null,
+						fileId,
+						kind: "iv",
+						pointsCount: 1,
+						seriesList: [],
+						signature: `calculated:${fileId}`,
+						source: { fileId, inputKind: "record" },
+						xDomain: [0, 1],
+						xUnitLabel: "V",
+						yDomain: [0, 1],
+						yUnitLabel: "A",
+					};
+				},
+				getCachedPlotDisplayModel: (input: PlotPreviewInput) => {
+					const fileId = getPreviewInputId(input);
+					return {
 					chart: {
 						defaultXAxisTitle: "x",
 						defaultYAxisTitle: "y",
@@ -140,7 +144,8 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 					inspector: null,
 					plotType: "iv",
 					unitControl: null,
-				}),
+					};
+				},
 				getCalculatedData: () => {
 					throw new Error("fast thumbnails should not synchronously calculate when display cache is warm");
 				},
@@ -151,7 +156,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			} as unknown as IPlotService,
 		));
 
-		const state = service.request("file-a", "hover");
+		const state = service.request(createPreviewTarget("file-a"), "hover");
 
 		assert.equal(state.kind, "fastReady");
 		assert.equal(state.kind === "fastReady" ? state.signature : "", "calculated:file-a");
@@ -210,19 +215,27 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 	});
 
 	test("plot cache changes refresh matching previews without clearing resource previews", () => {
-		const cacheEmitter = store.add(new Emitter<{ readonly fileId: string; readonly plotType: "iv" }>());
+		const cacheEmitter = store.add(new Emitter<{
+			readonly plotType: "iv";
+			readonly resource: URI;
+			readonly sheetId?: string | null;
+		}>());
+		const fileAInput = createPreviewTarget("file-a");
 		const resourceInput = {
 			resource: URI.file("/data/Uri.csv"),
 			sheetId: "sheet-a",
 		};
 		let sessionBackedSignature = "plot:file-a:initial";
-		const changedResources: Array<{ readonly fileId?: string | null; readonly resource?: string | null }> = [];
+		const changedResources: string[] = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: Parameters<IPlotService["getCachedCalculatedData"]>[0]) => ({
-					fileId: input.fileId ?? null,
-					signature: input.resource ? "plot:uri-a" : sessionBackedSignature,
-				}),
+				getCachedCalculatedData: (input: PlotPreviewInput) => {
+					const fileId = getPreviewInputId(input);
+					return {
+						fileId,
+						signature: fileId === "file-a" ? sessionBackedSignature : "plot:uri-a",
+					};
+				},
 				getCalculatedData: () => {
 					throw new Error("thumbnail previews must not synchronously calculate cached plot data");
 				},
@@ -233,75 +246,32 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			} as unknown as IPlotService,
 		));
 		store.add(service.onDidChangePreview(event => {
-			changedResources.push({
-				fileId: event.fileId,
-				resource: event.resource?.toString() ?? null,
-			});
+			changedResources.push(event.resource.toString());
 		}));
 
-		assert.equal(service.request("file-a", "hover").kind, "ready");
+		assert.equal(service.request(fileAInput, "hover").kind, "ready");
 		assert.equal(service.request(resourceInput, "hover").kind, "ready");
 		changedResources.length = 0;
 
 		sessionBackedSignature = "plot:file-a:next";
-		cacheEmitter.fire({ fileId: "file-a", plotType: "iv" });
+		cacheEmitter.fire({ plotType: "iv", resource: fileAInput.resource });
 
 		assert.equal(service.get(resourceInput).kind, "ready");
-		assert.deepEqual(changedResources, [
-			{ fileId: "file-a", resource: null },
-		]);
+		assert.deepEqual(changedResources, [fileAInput.resource.toString()]);
 	});
 
 	test("fast thumbnails stay stable when full calculated data has the same signature", () => {
-		const displayModelEmitter = new Emitter<{ readonly fileId: string; readonly plotType: string }>();
+		const target = createPreviewTarget("file-a");
+		const displayModelEmitter = new Emitter<{
+			readonly plotType: string;
+			readonly resource: URI;
+		}>();
 		let displayCacheWarm = true;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => ({
-					activeFile: null,
-					fileId,
-					kind: "iv",
-					pointsCount: 1,
-					seriesList: [],
-					signature: `calculated:${fileId}`,
-					source: { fileId, inputKind: "record" },
-					xDomain: [0, 1],
-					xUnitLabel: "V",
-					yDomain: [0, 1],
-					yUnitLabel: "A",
-				}),
-				getCachedPlotDisplayModel: ({ fileId }: { readonly fileId: string }) => displayCacheWarm
-					? {
-						chart: {
-							defaultXAxisTitle: "x",
-							defaultYAxisTitle: "y",
-							model: {
-								axisLabels: null,
-								pointsCount: 1,
-								seriesList: [{
-									data: [{ x: 0, y: 0 }],
-									id: "series-a",
-									name: "A",
-								}],
-								xDomain: [0, 1],
-								xUnitLabel: "V",
-								yDomain: [0, 1],
-								yUnitLabel: "A",
-							},
-							plotXFactor: 1,
-							plotYFactor: 1,
-							xAxisTitle: "x",
-							xAxisTitleContext: { axis: "x", fileId, pane: "chart", plotType: "iv" },
-							yAxisTitle: "y",
-							yAxisTitleContext: { axis: "y", fileId, pane: "chart", plotType: "iv" },
-							yScaleMode: "linear",
-						},
-						fileId,
-						inspector: null,
-						plotType: "iv",
-						unitControl: null,
-					}
-					: null,
+				getCachedCalculatedData: createCalculatedDataForPreview,
+				getCachedPlotDisplayModel: (input: PlotPreviewInput) =>
+					displayCacheWarm ? createDisplayModelForPreview(input) : null,
 				getCalculatedData: () => {
 					throw new Error("fast thumbnail stability should not synchronously calculate");
 				},
@@ -312,72 +282,32 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				prefetchPlotDisplayModel: () => undefined,
 			} as unknown as IPlotService,
 		));
-		const changedFileIds: string[] = [];
+		const changedResources: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			if (event.fileId) {
-				changedFileIds.push(event.fileId);
-			}
+			changedResources.push(event.resource.toString());
 		}));
 
-		assert.equal(service.request("file-a", "hover").kind, "fastReady");
-		changedFileIds.length = 0;
+		assert.equal(service.request(target, "hover").kind, "fastReady");
+		changedResources.length = 0;
 		displayCacheWarm = false;
-		displayModelEmitter.fire({ fileId: "file-a", plotType: "iv" });
+		displayModelEmitter.fire({ plotType: "iv", resource: target.resource });
 
-		assert.equal(service.get("file-a").kind, "fastReady");
-		assert.deepEqual(changedFileIds, []);
+		assert.equal(service.get(target).kind, "fastReady");
+		assert.deepEqual(changedResources, []);
 	});
 
 	test("ready previews upgrade to fast thumbnails when display cache becomes warm", () => {
-		const displayModelEmitter = new Emitter<{ readonly fileId: string; readonly plotType: string }>();
+		const target = createPreviewTarget("file-a");
+		const displayModelEmitter = new Emitter<{
+			readonly plotType: string;
+			readonly resource: URI;
+		}>();
 		let displayCacheWarm = false;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => ({
-					activeFile: null,
-					fileId,
-					kind: "iv",
-					pointsCount: 1,
-					seriesList: [],
-					signature: `calculated:${fileId}`,
-					source: { fileId, inputKind: "record" },
-					xDomain: [0, 1],
-					xUnitLabel: "V",
-					yDomain: [0, 1],
-					yUnitLabel: "A",
-				}),
-				getCachedPlotDisplayModel: ({ fileId }: { readonly fileId: string }) => displayCacheWarm
-					? {
-						chart: {
-							defaultXAxisTitle: "x",
-							defaultYAxisTitle: "y",
-							model: {
-								axisLabels: null,
-								pointsCount: 1,
-								seriesList: [{
-									data: [{ x: 0, y: 0 }],
-									id: "series-a",
-									name: "A",
-								}],
-								xDomain: [0, 1],
-								xUnitLabel: "V",
-								yDomain: [0, 1],
-								yUnitLabel: "A",
-							},
-							plotXFactor: 1,
-							plotYFactor: 1,
-							xAxisTitle: "x",
-							xAxisTitleContext: { axis: "x", fileId, pane: "chart", plotType: "iv" },
-							yAxisTitle: "y",
-							yAxisTitleContext: { axis: "y", fileId, pane: "chart", plotType: "iv" },
-							yScaleMode: "linear",
-						},
-						fileId,
-						inspector: null,
-						plotType: "iv",
-						unitControl: null,
-					}
-					: null,
+				getCachedCalculatedData: createCalculatedDataForPreview,
+				getCachedPlotDisplayModel: (input: PlotPreviewInput) =>
+					displayCacheWarm ? createDisplayModelForPreview(input) : null,
 				getCalculatedData: () => {
 					throw new Error("ready thumbnail upgrade should not synchronously calculate");
 				},
@@ -388,20 +318,18 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				prefetchPlotDisplayModel: () => undefined,
 			} as unknown as IPlotService,
 		));
-		const changedFileIds: string[] = [];
+		const changedResources: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			if (event.fileId) {
-				changedFileIds.push(event.fileId);
-			}
+			changedResources.push(event.resource.toString());
 		}));
 
-		assert.equal(service.request("file-a", "hover").kind, "ready");
-		changedFileIds.length = 0;
+		assert.equal(service.request(target, "hover").kind, "ready");
+		changedResources.length = 0;
 		displayCacheWarm = true;
-		displayModelEmitter.fire({ fileId: "file-a", plotType: "iv" });
+		displayModelEmitter.fire({ plotType: "iv", resource: target.resource });
 
-		assert.equal(service.get("file-a").kind, "fastReady");
-		assert.deepEqual(changedFileIds, ["file-a"]);
+		assert.equal(service.get(target).kind, "fastReady");
+		assert.deepEqual(changedResources, [target.resource.toString()]);
 	});
 
 	test("hover request retries a cached loading preview", () => {
@@ -409,8 +337,9 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		let cachedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+				getCachedCalculatedData: (input: PlotPreviewInput) => {
 					cachedCalls += 1;
+					const fileId = getPreviewInputId(input);
 					return modelReady
 						? {
 							fileId,
@@ -426,19 +355,21 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangePlotState: Event.None,
 			} as unknown as IPlotService,
 		));
-		const changedFileIds: string[] = [];
+		const changedResources: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			if (event.fileId) {
-				changedFileIds.push(event.fileId);
-			}
+			changedResources.push(event.resource.toString());
 		}));
 
-		assert.equal(service.request("file-a", "nearby").kind, "loading");
+		const target = createPreviewTarget("file-a");
+		assert.equal(service.request(target, "nearby").kind, "loading");
 		modelReady = true;
 
-		assert.equal(service.request("file-a", "hover").kind, "ready");
+		assert.equal(service.request(target, "hover").kind, "ready");
 		assert.equal(cachedCalls, 2);
-		assert.deepEqual(changedFileIds, ["file-a", "file-a"]);
+		assert.deepEqual(changedResources, [
+			target.resource.toString(),
+			target.resource.toString(),
+		]);
 	});
 
 	test("visible request queues a cached loading preview without synchronous retry", async () => {
@@ -446,8 +377,9 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		let cachedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+				getCachedCalculatedData: (input: PlotPreviewInput) => {
 					cachedCalls += 1;
+					const fileId = getPreviewInputId(input);
 					return modelReady
 						? {
 							fileId,
@@ -464,23 +396,23 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			} as unknown as IPlotService,
 		));
 
-		assert.equal(service.request("file-a", "nearby").kind, "loading");
+		assert.equal(service.request(createPreviewTarget("file-a"), "nearby").kind, "loading");
 		modelReady = true;
-		assert.equal(service.request("file-a", "visible").kind, "loading");
+		assert.equal(service.request(createPreviewTarget("file-a"), "visible").kind, "loading");
 		assert.equal(cachedCalls, 1);
 
 		await timeout();
 
 		assert.equal(cachedCalls, 2);
-		assert.equal(service.get("file-a").kind, "ready");
+		assert.equal(service.get(createPreviewTarget("file-a")).kind, "ready");
 	});
 
 	test("preview requests promote resource display prefetch priority when hover cannot synchronously resolve", async () => {
 		const plotPrefetches: Array<{ resource: string; priority: string }> = [];
 		const calculatedResources: Array<string | null> = [];
 		let modelReady = false;
-		const hoverTarget = { fileId: "hover-a", resource: URI.file("/workspace/hover-a.csv") };
-		const visibleTarget = { fileId: "visible-a", resource: URI.file("/workspace/visible-a.csv") };
+		const hoverTarget = { resource: URI.file("/workspace/hover-a.csv") };
+		const visibleTarget = { resource: URI.file("/workspace/visible-a.csv") };
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
 				getCachedCalculatedData: (input: Parameters<IPlotService["getCachedCalculatedData"]>[0]) => {
@@ -525,7 +457,8 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		const calculatedFileIds: string[] = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+				getCachedCalculatedData: (input: PlotPreviewInput) => {
+					const fileId = getPreviewInputId(input);
 					calculatedFileIds.push(fileId);
 					return {
 						fileId,
@@ -541,21 +474,25 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			} as unknown as IPlotService,
 		));
 
-		service.prefetch(["file-a", "file-b"], "nearby");
+		service.prefetch([
+			createPreviewTarget("file-a"),
+			createPreviewTarget("file-b"),
+		], "nearby");
 
 		assert.deepEqual(calculatedFileIds, []);
 		await timeout();
 
 		assert.deepEqual(calculatedFileIds, ["file-a", "file-b"]);
-		assert.equal(service.get("file-a").kind, "ready");
-		assert.equal(service.get("file-b").kind, "ready");
+		assert.equal(service.get(createPreviewTarget("file-a")).kind, "ready");
+		assert.equal(service.get(createPreviewTarget("file-b")).kind, "ready");
 	});
 
 	test("preview prefetch processes visible then recent files before nearby backlog", async () => {
 		const calculatedFileIds: string[] = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+				getCachedCalculatedData: (input: PlotPreviewInput) => {
+					const fileId = getPreviewInputId(input);
 					calculatedFileIds.push(fileId);
 					return {
 						fileId,
@@ -571,9 +508,14 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			} as unknown as IPlotService,
 		));
 
-		service.prefetch(["nearby-a", "nearby-b", "nearby-c", "nearby-d"], "nearby");
-		service.prefetch(["recent-a"], "recent");
-		service.prefetch(["visible-a"], "visible");
+		service.prefetch([
+			createPreviewTarget("nearby-a"),
+			createPreviewTarget("nearby-b"),
+			createPreviewTarget("nearby-c"),
+			createPreviewTarget("nearby-d"),
+		], "nearby");
+		service.prefetch([createPreviewTarget("recent-a")], "recent");
+		service.prefetch([createPreviewTarget("visible-a")], "visible");
 
 		await timeout();
 
@@ -582,13 +524,15 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 	});
 
 	test("preview prefetch refreshes when plot cache becomes warm", async () => {
-		const cacheEmitter = store.add(new Emitter<{ readonly fileId: string; readonly plotType: "iv" }>());
+		const target = createPreviewTarget("file-a");
+		const cacheEmitter = store.add(new Emitter<ThumbnailPlotCacheEventForTest>());
 		let modelReady = false;
 		let cachedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+				getCachedCalculatedData: (input: PlotPreviewInput) => {
 					cachedCalls += 1;
+					const fileId = getPreviewInputId(input);
 					return modelReady
 						? {
 							fileId,
@@ -605,28 +549,30 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			} as unknown as IPlotService,
 		));
 
-		service.prefetch(["file-a"], "visible");
+		service.prefetch([target], "visible");
 
 		await timeout();
 
 		assert.equal(cachedCalls, 1);
-		assert.equal(service.get("file-a").kind, "loading");
+		assert.equal(service.get(target).kind, "loading");
 
 		modelReady = true;
-		cacheEmitter.fire({ fileId: "file-a", plotType: "iv" });
+		cacheEmitter.fire({ plotType: "iv", resource: target.resource });
 
 		assert.equal(cachedCalls, 2);
-		assert.equal(service.get("file-a").kind, "ready");
+		assert.equal(service.get(target).kind, "ready");
 	});
 
 	test("targeted plot cache changes retry loading hover previews", () => {
-		const cacheEmitter = store.add(new Emitter<{ readonly fileId: string; readonly plotType: "iv" }>());
+		const target = createPreviewTarget("file-a");
+		const cacheEmitter = store.add(new Emitter<ThumbnailPlotCacheEventForTest>());
 		let modelReady = false;
 		let cachedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+				getCachedCalculatedData: (input: PlotPreviewInput) => {
 					cachedCalls += 1;
+					const fileId = getPreviewInputId(input);
 					return modelReady
 						? {
 							fileId,
@@ -640,36 +586,42 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangePlotState: Event.None,
 			} as unknown as IPlotService,
 		));
-		const changedFileIds: string[] = [];
+		const changedResources: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			if (event.fileId) {
-				changedFileIds.push(event.fileId);
-			}
+			changedResources.push(event.resource.toString());
 		}));
 
-		assert.equal(service.request("file-a", "hover").kind, "loading");
+		assert.equal(service.request(target, "hover").kind, "loading");
 		assert.equal(cachedCalls, 1);
 
 		modelReady = true;
-		cacheEmitter.fire({ fileId: "file-a", plotType: "iv" });
+		cacheEmitter.fire({ plotType: "iv", resource: target.resource });
 
-		assert.equal(service.get("file-a").kind, "ready");
+		assert.equal(service.get(target).kind, "ready");
 		assert.equal(cachedCalls, 2);
-		assert.deepEqual(changedFileIds, ["file-a", "file-a"]);
+		assert.deepEqual(changedResources, [
+			target.resource.toString(),
+			target.resource.toString(),
+		]);
 	});
 
 	test("plot cache changes update only affected thumbnail previews", async () => {
-		const cacheEmitter = store.add(new Emitter<{ readonly fileId: string; readonly plotType: "iv" }>());
+		const targetA = createPreviewTarget("file-a");
+		const targetB = createPreviewTarget("file-b");
+		const cacheEmitter = store.add(new Emitter<ThumbnailPlotCacheEventForTest>());
 		const signaturesByFileId: Record<string, string> = {
 			"file-a": "plot:file-a",
 			"file-b": "plot:file-b",
 		};
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => ({
-					fileId,
-					signature: signaturesByFileId[fileId] ?? `plot:${fileId}`,
-				}),
+				getCachedCalculatedData: (input: PlotPreviewInput) => {
+					const fileId = getPreviewInputId(input);
+					return {
+						fileId,
+						signature: signaturesByFileId[fileId] ?? `plot:${fileId}`,
+					};
+				},
 				getCalculatedData: () => {
 					throw new Error("thumbnail previews must not synchronously calculate plot data");
 				},
@@ -678,27 +630,25 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangePlotState: Event.None,
 			} as unknown as IPlotService,
 		));
-		const changedFileIds: string[] = [];
+		const changedResources: string[] = [];
 		store.add(service.onDidChangePreview(event => {
-			if (event.fileId) {
-				changedFileIds.push(event.fileId);
-			}
+			changedResources.push(event.resource.toString());
 		}));
 
-		service.request("file-a", "hover");
-		service.request("file-b", "hover");
+		service.request(targetA, "hover");
+		service.request(targetB, "hover");
 		await timeout();
-		changedFileIds.length = 0;
+		changedResources.length = 0;
 
-		assert.equal(service.get("file-a").kind, "ready");
-		assert.equal(service.get("file-b").kind, "ready");
+		assert.equal(service.get(targetA).kind, "ready");
+		assert.equal(service.get(targetB).kind, "ready");
 
 		signaturesByFileId["file-b"] = "plot:file-b:next";
-		cacheEmitter.fire({ fileId: "file-b", plotType: "iv" });
+		cacheEmitter.fire({ plotType: "iv", resource: targetB.resource });
 
-		assert.equal(service.get("file-a").kind, "ready");
-		assert.equal(service.get("file-b").kind, "ready");
-		assert.deepEqual(changedFileIds, ["file-b"]);
+		assert.equal(service.get(targetA).kind, "ready");
+		assert.equal(service.get(targetB).kind, "ready");
+		assert.deepEqual(changedResources, [targetB.resource.toString()]);
 	});
 
 	test("bitmap drawing skips detached canvases instead of using fallback dimensions", () => {
@@ -731,3 +681,83 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 
 const timeout = async (): Promise<void> =>
 	new Promise(resolve => setTimeout(resolve, 0));
+
+type PlotPreviewInput = Parameters<IPlotService["getCachedCalculatedData"]>[0];
+
+type ThumbnailPlotCacheEventForTest = {
+	readonly plotType: "iv";
+	readonly resource: URI;
+	readonly sheetId?: string | null;
+};
+
+const createPreviewTarget = (fileId: string): {
+	readonly resource: URI;
+} => ({
+	resource: URI.file(`/data/${fileId}.csv`),
+});
+
+const getPreviewInputId = (input: PlotPreviewInput): string => {
+	const fileName = input.resource?.path.split("/").at(-1) ?? "";
+	return fileName.replace(/\.csv$/i, "");
+};
+
+const createCalculatedDataForPreview = (input: PlotPreviewInput) => {
+	const fileId = getPreviewInputId(input);
+	return {
+		activeFile: null,
+		fileId,
+		kind: "iv" as const,
+		pointsCount: 1,
+		seriesList: [],
+		signature: `calculated:${fileId}`,
+		source: { fileId, inputKind: "record" as const },
+		xDomain: [0, 1] as [number, number],
+		xUnitLabel: "V",
+		yDomain: [0, 1] as [number, number],
+		yUnitLabel: "A",
+	};
+};
+
+const createDisplayModelForPreview = (input: PlotPreviewInput) => {
+	const fileId = getPreviewInputId(input);
+	return {
+		chart: {
+			defaultXAxisTitle: "x",
+			defaultYAxisTitle: "y",
+			model: {
+				axisLabels: null,
+				pointsCount: 1,
+				seriesList: [{
+					data: [{ x: 0, y: 0 }],
+					id: "series-a",
+					name: "A",
+				}],
+				xDomain: [0, 1] as [number, number],
+				xUnitLabel: "V",
+				yDomain: [0, 1] as [number, number],
+				yUnitLabel: "A",
+			},
+			plotXFactor: 1,
+			plotYFactor: 1,
+			xAxisTitle: "x",
+			xAxisTitleContext: {
+				axis: "x" as const,
+				fileId,
+				pane: "chart" as const,
+				plotType: "iv" as const,
+			},
+			yAxisTitle: "y",
+			yAxisTitleContext: {
+				axis: "y" as const,
+				fileId,
+				pane: "chart" as const,
+				plotType: "iv" as const,
+			},
+			yScaleMode: "linear" as const,
+		},
+		fileId,
+		inspector: null,
+		plotType: "iv" as const,
+		unitControl: null,
+	};
+};

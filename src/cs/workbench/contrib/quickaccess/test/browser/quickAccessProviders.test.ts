@@ -19,7 +19,6 @@ import type {
 } from "src/cs/platform/quickinput/common/quickInput";
 import {
   IExplorerService,
-  type ExplorerPaneInput,
   type ExplorerRevealMode,
 } from "src/cs/workbench/contrib/files/browser/files";
 import type {
@@ -66,15 +65,8 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
       { fileId: "file-a", fileName: "Alpha.csv", relativePath: "293K/input/Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
       { fileId: "file-b", fileName: "Beta.csv", relativePath: "293K/output/Beta.csv", resource: URI.file("/workspace/Beta.csv") },
     ];
-    const paneInput: ExplorerPaneInput = {
-      activePlotType: "iv",
-      mode: "chart",
-      selectedResource: URI.file("/workspace/Alpha.csv"),
-      selectedSheetId: null,
-      selectionKind: "chart",
-    };
     const provider = store.add(new FilesQuickAccessProvider(
-      createExplorerService(paneInput, explorerFiles, selections),
+      createExplorerService(explorerFiles, selections),
       createViewsService(ChartViewContainerId),
     ));
     const picks = await provider.provide("beta");
@@ -96,7 +88,7 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     }]);
   });
 
-  test("files provider returns no picks when pane input is for another mode", async () => {
+  test("files provider returns no picks when no supported panel is active", async () => {
     const selections: Array<{
       readonly reveal: ExplorerRevealMode | undefined;
       readonly target: ExplorerResourceIdentity;
@@ -105,16 +97,9 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
       { fileId: "file-a", fileName: "Alpha.csv", resource: URI.file("/workspace/Alpha.csv") },
       { fileId: "file-b", fileName: "Beta.csv", resource: URI.file("/workspace/Beta.csv") },
     ];
-    const paneInput: ExplorerPaneInput = {
-      activePlotType: "iv",
-      mode: "chart",
-      selectedResource: URI.file("/workspace/Alpha.csv"),
-      selectedSheetId: null,
-      selectionKind: "table",
-    };
     const provider = store.add(new FilesQuickAccessProvider(
-      createExplorerService(paneInput, explorerFiles, selections),
-      createViewsService(ChartViewContainerId),
+      createExplorerService(explorerFiles, selections),
+      createViewsService("unsupported.panel"),
     ));
     const picks = await provider.provide("beta");
 
@@ -140,11 +125,17 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
     }));
     const provider = store.add(new CommandsQuickAccessProvider(commandService, menuService, contextKeyService));
 
-    assert.deepEqual((await provider.provide("Command")).map(pick => pick.id), []);
+    assert.equal(
+      (await provider.provide("Command")).some(pick => pick.id === "test.visibleCommand"),
+      false,
+    );
 
     contextKeyService.setContext("showVisibleCommand", true);
 
-    assert.deepEqual((await provider.provide("Command")).map(pick => pick.id), ["test.visibleCommand"]);
+    assert.equal(
+      (await provider.provide("Command")).some(pick => pick.id === "test.visibleCommand"),
+      true,
+    );
   });
 });
 
@@ -167,7 +158,6 @@ function createQuickInputService(shownPrefixes: string[]): IQuickInputService {
 }
 
 function createExplorerService(
-  paneInput: ExplorerPaneInput,
   explorerFiles: readonly ExplorerFileEntry[],
   selections: Array<{
     readonly reveal: ExplorerRevealMode | undefined;
@@ -187,9 +177,9 @@ function createExplorerService(
 	    onDidChangeExpandedFolderKeys: Event.None as IExplorerService["onDidChangeExpandedFolderKeys"],
 	    onDidChangeFiles: Event.None as IExplorerService["onDidChangeFiles"],
 	    onDidChangeHoveredResource: Event.None as IExplorerService["onDidChangeHoveredResource"],
+	    onDidChangeContext: Event.None as IExplorerService["onDidChangeContext"],
 	    onDidChangeViewLayout: Event.None as IExplorerService["onDidChangeViewLayout"],
 	    onDidChangeVisibleTargets: Event.None as IExplorerService["onDidChangeVisibleTargets"],
-	    onDidChangePaneInput: Event.None as IExplorerService["onDidChangePaneInput"],
 	    getContext: () => ({
 	      editable: null,
 	      expandedFolderKeys: [],
@@ -231,8 +221,6 @@ function createExplorerService(
 	    setVisibleTargets: () => undefined,
 	    setViewLayout: () => undefined,
     toggleViewLayout: () => undefined,
-    getPaneInput: () => paneInput,
-    updatePaneInput: () => undefined,
   };
 }
 

@@ -103,10 +103,11 @@ flowchart TD
 2. Thumbnail view creates or updates the canvas and asks the thumbnail renderer to draw from the Plot model.
 3. Thumbnail service reads or updates its bitmap cache by render input signature.
 4. Explorer publishes visible/nearby resource/sheet identities while thumbnail layout is active.
-5. Domain bridge resolves recent Explorer file references to resource/sheet
-   identities and prefetches recent, visible, and nearby thumbnail previews.
-   Explorer callers pass `resource` and optional `sheetId` directly; they do not
-   fall back to file-id preview targets when a row has no resolved resource.
+5. `ThumbnailExplorerPrefetchContribution` resolves recent Explorer file
+   references to resource/sheet identities and prefetches recent, visible, and
+   nearby thumbnail previews. Explorer callers pass `resource` and optional
+   `sheetId` directly; they do not fall back to file-id preview targets when a
+   row has no resolved resource.
 6. Preview service reads Plot cached data, keeps loading state on miss, and retries on Plot cache events.
 7. Preview service fires `onDidChangePreview` with the resource/sheet identity
    that changed for Explorer previews.

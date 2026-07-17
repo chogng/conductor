@@ -23,6 +23,7 @@ import { ThumbnailViewPane } from "src/cs/workbench/contrib/thumbnail/browser/th
 import { ThumbnailContributionId } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 
 import "src/cs/workbench/contrib/thumbnail/browser/thumbnailActions";
+import "src/cs/workbench/contrib/thumbnail/browser/thumbnailExplorerPrefetch";
 import "src/cs/workbench/contrib/thumbnail/browser/media/thumbnail.css";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);

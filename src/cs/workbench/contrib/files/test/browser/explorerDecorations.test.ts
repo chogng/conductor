@@ -267,15 +267,9 @@ const createExplorerServiceForTest = (
 ): IExplorerService => ({
 	_serviceBrand: undefined,
 	files: [...files],
-	getPaneInput: () => ({
-		mode: "table",
-		selectedResource: null,
-		selectedSheetId: null,
-		selectionKind: "table",
-	}),
 	isImportingSources: false,
 	onDidChangeFiles: Event.None as Event<void>,
-	onDidChangePaneInput: Event.None as Event<void>,
+	onDidChangeContext: Event.None as IExplorerService["onDidChangeContext"],
 	setEditable: () => undefined,
 	setHoveredResource: () => undefined,
 } as unknown as IExplorerService);

@@ -67,6 +67,7 @@ import "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 import "src/cs/workbench/services/calculation/browser/calculation.contribution";
 import "src/cs/workbench/services/slice/browser/slicePriority.contribution";
+import "src/cs/workbench/services/calculation/browser/calculationPriority.contribution";
 
 //#endregion
 
@@ -88,6 +89,7 @@ import "src/cs/workbench/browser/workbench.contribution";
 //#region --- workbench contributions
 
 import "src/cs/workbench/contrib/chart/browser/chart.contribution";
+import "src/cs/workbench/contrib/plot/browser/plotExplorerPrefetch";
 import "src/cs/workbench/contrib/performance/browser/performance.contribution";
 import "src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution";
 import "src/cs/workbench/contrib/sash/browser/sash.contribution";

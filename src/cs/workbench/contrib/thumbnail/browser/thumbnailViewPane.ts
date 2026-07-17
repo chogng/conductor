@@ -24,7 +24,14 @@ import {
   type IReviewService as IReviewServiceType,
 } from "src/cs/workbench/services/review/common/review";
 import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
-import { ITableService } from "src/cs/workbench/services/table/common/table";
+import {
+  IPlotService,
+  type IPlotService as IPlotServiceType,
+} from "src/cs/workbench/services/plot/common/plot";
+import {
+  ISettingsService,
+  type ISettingsService as ISettingsServiceType,
+} from "src/cs/workbench/services/settings/common/settings";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -54,7 +61,8 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
     @IViewsService viewsService: IViewsService,
     @INotificationService notificationService: INotificationService,
     @IProgressService progressService: IProgressService,
-    @ITableService tableService: ITableService,
+    @IPlotService plotService: IPlotServiceType,
+    @ISettingsService settingsService: ISettingsServiceType,
     @ISliceService sliceService: ISliceService,
     @IThumbnailPreviewService thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService thumbnailService: IThumbnailService,
@@ -75,7 +83,8 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
       viewsService,
       notificationService,
       progressService,
-      tableService,
+      plotService,
+      settingsService,
       sliceService,
       thumbnailPreviewService,
       thumbnailService,

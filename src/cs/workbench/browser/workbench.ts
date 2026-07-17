@@ -39,6 +39,9 @@ import {
   type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
+  findExplorerFileEntryByResource,
+} from "src/cs/workbench/contrib/files/common/explorerModel";
+import {
   IParametersService,
   ParametersViewContainerId,
 } from "src/cs/workbench/services/parameters/common/parameters";
@@ -80,10 +83,6 @@ import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
 import {
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
-import {
-  WorkbenchDomainBridge,
-  resolveExplorerDomainSelection,
-} from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import {
@@ -500,7 +499,6 @@ export class Workbench extends Layout {
   private commandService!: ICommandService;
   private contextKeyService!: IContextKeyService;
   private activePanelViewContainerContext: IContextKey<string> | null = null;
-  private calculationService!: ICalculationService;
   private chartService!: IChartService;
   private explorerService!: IExplorerService;
   private layoutService!: IWorkbenchLayoutService;
@@ -508,14 +506,10 @@ export class Workbench extends Layout {
   private parametersService!: IParametersService;
   private plotService!: IPlotService;
   private settingsService!: ISettingsService;
-  private sliceService!: ISliceServiceType;
   private viewsService!: IViewsService;
-  private tableService!: ITableService;
   private templateViewStateService!: ITemplateViewStateServiceType;
-  private thumbnailPreviewService!: IThumbnailPreviewService;
   private titleService!: ITitleService;
   private exportService!: IExportService;
-  private domainBridge: WorkbenchDomainBridge | null = null;
   private cancelScheduledAuxiliarySurfacesRefresh: (() => void) | null = null;
   private readonly scheduledAuxiliarySurfacesRefreshReasons = new Set<WorkbenchAuxiliaryRefreshReason>();
   private scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
@@ -624,7 +618,6 @@ export class Workbench extends Layout {
   private installServiceLayer(services: WorkbenchServices): void {
     measureWorkbenchBoot("workbench:service-layer:install", () => {
       measureWorkbenchBoot("workbench:service-layer:install:assign", () => {
-        this.calculationService = services.calculationService;
         this.chartService = services.chartService;
         this.commandService = services.commandService;
         this.contextKeyService = services.contextKeyService;
@@ -635,11 +628,8 @@ export class Workbench extends Layout {
         this.parametersService = services.parametersService;
         this.plotService = services.plotService;
         this.settingsService = services.settingsService;
-        this.sliceService = services.sliceService;
         this.viewsService = services.viewsService;
-        this.tableService = services.tableService;
         this.templateViewStateService = services.templateViewStateService;
-        this.thumbnailPreviewService = services.thumbnailPreviewService;
         this.titleService = services.titleService;
       });
 
@@ -656,27 +646,6 @@ export class Workbench extends Layout {
         this.settingsService.update(this.getSettingsServiceOptions());
         return panelViewContainerId;
       });
-
-      const domainBridge = measureWorkbenchBoot("workbench:service-layer:install:bridge-create", () =>
-        this._register(new WorkbenchDomainBridge({
-          calculationService: this.calculationService,
-          chartService: this.chartService,
-          explorerService: this.explorerService,
-          getActivePanelViewContainerId: () => this.activePanelViewContainerId,
-          onDidChangeActivePanelViewContainer: listener =>
-            this.viewsService.onDidChangeViewContainerNavigation(event => {
-              if (event.location === ViewContainerLocation.Panel) {
-                listener();
-              }
-            }),
-          plotService: this.plotService,
-          settingsService: this.settingsService,
-          sliceService: this.sliceService,
-          tableService: this.tableService,
-          thumbnailPreviewService: this.thumbnailPreviewService,
-        })),
-      );
-      this.domainBridge = domainBridge;
 
       measureWorkbenchBoot("workbench:service-layer:install:listeners", () => {
         this._register(this.settingsService.onDidChangeConductorSettings(() => {
@@ -751,9 +720,6 @@ export class Workbench extends Layout {
         } finally {
           this.suppressNavigationRefresh = false;
         }
-      });
-      measureWorkbenchBoot("workbench:service-layer:install:domain-sync", () => {
-        domainBridge.sync({ deferSecondaryWork: initialPanelViewContainerId === TableViewContainerId });
       });
       measureWorkbenchBoot("workbench:service-layer:install:refresh-initial", () => {
         this.refreshWorkbench("initial");
@@ -1254,10 +1220,14 @@ export class Workbench extends Layout {
   //#region view inputs and selection
 
   private getSelectedChartFileId(): string | null {
-    return resolveExplorerDomainSelection(
-      this.explorerService,
-      this.explorerService.files,
-    ).chartFileId;
+    const file = this.explorerService.selectedResource
+      ? findExplorerFileEntryByResource(this.explorerService.files, {
+          resource: this.explorerService.selectedResource,
+          sheetId: this.explorerService.selectedSheetId,
+        })
+      : null;
+    const fileId = String(file?.fileId ?? "").trim();
+    return fileId || null;
   }
 
   //#endregion

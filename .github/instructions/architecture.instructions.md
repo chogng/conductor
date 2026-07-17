@@ -274,7 +274,10 @@ Do not add a parallel global ledger for these models or results.
 - Command handlers: `<feature>Commands.ts` or `<feature>Actions.ts` for small handlers.
 - State owners: `<domain>Service.ts`, model/store/controller/provider/reader/cache files named by responsibility.
 - View rendering: `views/**`, widgets, panes.
-- Cross-domain projection: explicit workbench bridge code, not hidden callbacks in pane inputs.
+- Cross-domain projection: owner-specific feature contributions that subscribe
+  to source-owner events and write only through the destination owner's public
+  API. Do not centralize unrelated projections in a workbench bridge or hide
+  them in pane inputs.
 
 Do not add a `Manager` or generic `Controller` to avoid naming the real owner.
 Use service component names from `service-components.instructions.md`.

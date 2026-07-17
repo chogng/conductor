@@ -133,8 +133,9 @@ import/export command
 - Do not pass `ITableService`, table row readers, or table model methods through Template view/workflow input.
 - Template execution is an owner API on `ISliceService`; UI must not invoke
   Template-owned controller code as an execution API.
-- WorkbenchDomainBridge must not construct or push Template-owned execution
-  workflow inputs, and must not read `TemplateState` for Explorer current-template display.
+- Cross-domain feature contributions must not construct or push Template-owned
+  execution workflow inputs, and must not read `TemplateState` for Explorer
+  current-template display.
   Explorer current-template display is a view projection in ExplorerViewPane;
   per-resource slicing selections come from `ISliceService`.
 - Per-resource template selections for slicing belong to `ISliceService`; do not
@@ -151,7 +152,7 @@ import/export command
 - Active `{ resource, sheetId? }` identities should move the current chart/Explorer resource to the front of full and incremental slice queues.
 - Explorer hover/selection priority for slicing belongs to
   `SlicePriorityContribution` -> `ISliceService.prioritizeResource(...)`; do not route
-  it through WorkbenchDomainBridge or Template code.
+  it through a workbench bridge or Template code.
 - New resource/sheet slice progress belongs to `ISliceService`; consumers subscribe and
   reread state through `getResourceState(resource, sheetId)`.
 - Per-resource readiness belongs to Slice; Explorer projects it into badges/chart-state without adding/removing file tree items.

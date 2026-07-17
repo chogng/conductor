@@ -1,6 +1,6 @@
 ---
 description: Explorer decoration rules for Review summaries, resource-scoped updates, stale result protection, and row reuse.
-applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/review/**,src/cs/workbench/browser/workbenchDomainBridge.ts'
+applyTo: 'src/cs/workbench/contrib/files/**,src/cs/workbench/services/review/**'
 ---
 # Explorer Decorations
 

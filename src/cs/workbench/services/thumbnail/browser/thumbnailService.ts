@@ -36,9 +36,8 @@ const PREVIEW_BATCH_LIMIT = 4;
 const PREVIEW_FRAME_BUDGET_MS = 6;
 
 type NormalizedThumbnailPreviewTarget = {
-	readonly fileId?: string | null;
 	readonly key: string;
-	readonly resource?: URI | null;
+	readonly resource: URI;
 	readonly sheetId?: string | null;
 };
 
@@ -115,7 +114,6 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 
 		this.rememberTarget(normalizedTarget);
 		const endPerf = startPerf("thumbnailPreview.request", {
-			fileId: normalizedTarget.fileId ?? null,
 			priority,
 			targetKey: normalizedTarget.key,
 		});
@@ -204,7 +202,10 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		const changedTargets: NormalizedThumbnailPreviewTarget[] = [];
 		if (!normalizedTargets?.length) {
 			for (const [key] of this.statesByKey) {
-				changedTargets.push(this.targetsByKey.get(key) ?? { fileId: key, key });
+				const target = this.targetsByKey.get(key);
+				if (target) {
+					changedTargets.push(target);
+				}
 			}
 			this.statesByKey.clear();
 			this.requestedPreviewPrioritiesByKey.clear();
@@ -348,7 +349,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 			}
 		}
 
-		return nextKey ? this.targetsByKey.get(nextKey) ?? { fileId: nextKey, key: nextKey } : null;
+		return nextKey ? this.targetsByKey.get(nextKey) ?? null : null;
 	}
 
 	private updatePreviewState(
@@ -364,7 +365,6 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		const preserveReady = isReadyPreviewState(previous) && next.kind === "loading";
 		const resolved = preserveReady ? previous : resolveReadyPreviewState(previous, next);
 		logPerf("thumbnailPreview.update", {
-			fileId: target.fileId ?? null,
 			nextState: next.kind,
 			previousState: previous.kind,
 			preserveReady,
@@ -384,7 +384,6 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 	}
 
 	private updatePreviewStateFromPlotCacheEvent(event: {
-		readonly fileId?: string;
 		readonly plotType: string;
 		readonly resource?: URI | null;
 		readonly sheetId?: string | null;
@@ -467,7 +466,6 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 	}
 
 	private resolveTargetsFromPlotCacheEvent(event: {
-		readonly fileId?: string;
 		readonly resource?: URI | null;
 		readonly sheetId?: string | null;
 	}): readonly NormalizedThumbnailPreviewTarget[] {
@@ -477,19 +475,13 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 			return target ? [target] : [];
 		}
 
-		const fileId = normalizePreviewFileId(event.fileId);
-		if (!fileId) {
-			return [];
-		}
-
-		const target = this.targetsByKey.get(fileId);
-		return target ? [target] : [{ fileId, key: fileId }];
+		return [];
 	}
 
 	private fireDidChangePreview(target: NormalizedThumbnailPreviewTarget): void {
 		this.onDidChangePreviewEmitter.fire({
-			...(target.fileId ? { fileId: target.fileId } : {}),
-			...(target.resource ? { resource: target.resource, sheetId: target.sheetId ?? null } : {}),
+			resource: target.resource,
+			sheetId: target.sheetId ?? null,
 		});
 	}
 
@@ -515,32 +507,17 @@ const asThumbnailCanvas = (target: ThumbnailBitmapTarget): HTMLCanvasElement => 
 const createPlotPreviewInput = (
 	target: NormalizedThumbnailPreviewTarget,
 	plotType: PlotType,
-) => target.resource
-	? {
-		plotType,
-		resource: target.resource,
-		sheetId: target.sheetId,
-	}
-	: {
-		fileId: normalizePreviewFileId(target.fileId),
-		plotType,
-	};
-
-const normalizePreviewFileId = (fileId: unknown): string | null => {
-	const normalized = String(fileId ?? "").trim();
-	return normalized || null;
-};
+) => ({
+	plotType,
+	resource: target.resource,
+	sheetId: target.sheetId,
+});
 
 const normalizePreviewTarget = (
 	target: ThumbnailPreviewTarget | NormalizedThumbnailPreviewTarget,
 ): NormalizedThumbnailPreviewTarget | null => {
 	if (typeof target === "object" && "key" in target) {
 		return target;
-	}
-
-	if (typeof target === "string") {
-		const fileId = normalizePreviewFileId(target);
-		return fileId ? { fileId, key: fileId } : null;
 	}
 
 	const key = createThumbnailPreviewResourceKey(target.resource, target.sheetId);

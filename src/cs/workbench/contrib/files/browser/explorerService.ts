@@ -8,8 +8,6 @@ import { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   IExplorerService,
-  type ExplorerPaneInput,
-  type ExplorerPaneMode,
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerHoveredResourceChangeEvent,
   type ExplorerSelectionChangeEvent,
@@ -22,10 +20,8 @@ import {
   type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
-  areTemplateResourceSelectionsEqual,
-} from "src/cs/workbench/services/slice/common/templateSelection";
-import {
   filterNewExplorerFiles,
+  getExplorerFileResourceIdentity,
   getExplorerResourceIdentityKey,
   mergeExplorerCommittedFiles,
   type ExplorerFileEntry,
@@ -47,8 +43,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public readonly onDidChangeViewLayout = this.onDidChangeViewLayoutEmitter.event;
   private readonly onDidChangeVisibleTargetsEmitter = this._register(new Emitter<ExplorerVisibleTargetsChangeEvent>());
   public readonly onDidChangeVisibleTargets = this.onDidChangeVisibleTargetsEmitter.event;
-  private readonly onDidChangePaneInputEmitter = this._register(new Emitter<void>());
-  public readonly onDidChangePaneInput = this.onDidChangePaneInputEmitter.event;
+  private readonly onDidChangeContextEmitter = this._register(new Emitter<void>());
+  public readonly onDidChangeContext = this.onDidChangeContextEmitter.event;
 
   private currentSelectedResource: URI | null = null;
   private currentSelectedSheetId: string | null = null;
@@ -60,7 +56,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
   private currentViewLayout: ExplorerViewLayout = "tree";
   private currentIsImportingSources = false;
   private currentFiles: ExplorerFileEntry[] = [];
-  private paneInput: ExplorerPaneInput | null = null;
   private readonly views = new Set<IExplorerView>();
   private editable: ExplorerEditableData | null = null;
   private toCopy: ExplorerCopyState = {
@@ -136,7 +131,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
     }
 
     this.editable = data;
-    this.onDidChangePaneInputEmitter.fire(undefined);
+    this.onDidChangeContextEmitter.fire(undefined);
   }
 
   public setToCopy(resources: readonly ExplorerResourceIdentity[], isCut: boolean): void {
@@ -260,7 +255,13 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   public setImportingSources(isImportingSources: boolean): void {
-    this.currentIsImportingSources = Boolean(isImportingSources);
+    const nextIsImportingSources = Boolean(isImportingSources);
+    if (this.currentIsImportingSources === nextIsImportingSources) {
+      return;
+    }
+
+    this.currentIsImportingSources = nextIsImportingSources;
+    this.onDidChangeContextEmitter.fire(undefined);
   }
 
   public setVisibleTargets(
@@ -299,19 +300,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
     this.setViewLayout(this.currentViewLayout === "thumbnail" ? "tree" : "thumbnail");
   }
 
-  public getPaneInput(): ExplorerPaneInput | null {
-    return this.paneInput;
-  }
-
-  public updatePaneInput(input: ExplorerPaneInput): void {
-    if (this.paneInput && isSameExplorerPaneInput(this.paneInput, input)) {
-      return;
-    }
-
-    this.paneInput = input;
-    this.onDidChangePaneInputEmitter.fire(undefined);
-  }
-
   private applySelection(resource: URI | null | undefined, sheetId: string | null | undefined): {
     readonly changed: boolean;
     readonly selectedResource: URI | null;
@@ -321,7 +309,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
       normalizeExplorerResource(resource),
       normalizeExplorerSheetId(sheetId),
     );
-    this.fireSelectionChange(this.getSelectionKind(), result);
+    this.fireSelectionChange(result);
     return {
       changed: result.changed,
       selectedResource: result.selectedResource,
@@ -331,10 +319,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
   private getSelectedResource(): URI | null {
     return this.currentSelectedResource;
-  }
-
-  private getSelectionKind(): ExplorerPaneMode {
-    return this.paneInput?.selectionKind ?? "table";
   }
 
   private setSelectedTarget(resource: URI | null, sheetId: string | null): {
@@ -359,7 +343,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
     this.currentSelectedResource = nextResource;
     this.currentSelectedSheetId = nextSheetId;
-    this.updatePaneInputSelection();
 
     return {
       changed: true,
@@ -369,7 +352,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   private fireSelectionChange(
-    kind: ExplorerPaneMode,
     result: {
       readonly changed: boolean;
       readonly selectedResource: URI | null;
@@ -381,7 +363,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
     }
 
     this.onDidChangeSelectionEmitter.fire({
-      kind,
       selectedResource: result.selectedResource,
       ...(result.selectedSheetId ? { selectedSheetId: result.selectedSheetId } : {}),
     });
@@ -406,29 +387,24 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
     this.currentFiles = nextFiles;
     this.onDidChangeFilesEmitter.fire(undefined);
-  }
-
-  private updatePaneInputSelection(): void {
-    if (!this.paneInput) {
+    const selectedKey = getExplorerResourceIdentityKey({
+      resource: this.currentSelectedResource,
+      sheetId: this.currentSelectedSheetId,
+    });
+    const hasSelectedFile = selectedKey
+      ? nextFiles.some(file =>
+          getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file)) === selectedKey)
+      : false;
+    if (hasSelectedFile) {
       return;
     }
 
-    this.updatePaneInput({
-      ...this.paneInput,
-      selectedResource: this.currentSelectedResource,
-      selectedSheetId: this.currentSelectedSheetId,
-    });
+    const firstResource = getExplorerFileResourceIdentity(nextFiles[0] ?? null);
+    this.select(firstResource?.resource ?? null, undefined, firstResource?.sheetId ?? null);
   }
 }
 
 registerSingleton(IExplorerService, ExplorerService, InstantiationType.Delayed);
-
-const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
-  mode: "table",
-  selectedResource: null,
-  selectedSheetId: null,
-  selectionKind: "table",
-};
 
 const normalizeExplorerFileId = (value: unknown): string | null => {
   const normalized = String(value ?? "").trim();
@@ -521,26 +497,6 @@ const normalizeExplorerSheetId = (sheetId: unknown): string | null => {
   return normalized || null;
 };
 
-const isSameExplorerPaneInput = (
-  current: ExplorerPaneInput,
-  next: ExplorerPaneInput,
-): boolean =>
-  current.activePlotType === next.activePlotType &&
-  current.mode === next.mode &&
-  areExplorerResourcesEqual(current.selectedResource, next.selectedResource) &&
-  current.selectedSheetId === next.selectedSheetId &&
-  current.selectionKind === next.selectionKind &&
-  areTemplateResourceSelectionsEqual(
-    current.templateSelections ?? [],
-    next.templateSelections ?? [],
-  ) &&
-  areOriginPlotOptionsEqual(current.originOpenPlotOptions, next.originOpenPlotOptions) &&
-  areShallowRecordsEqual(current.plotAxisSettings, next.plotAxisSettings) &&
-  areThumbnailPlotModelsEqual(
-    current.thumbnailPlotModelsByFileId ?? {},
-    next.thumbnailPlotModelsByFileId ?? {},
-  );
-
 const isSameExplorerEditableData = (
   current: ExplorerEditableData | null,
   next: ExplorerEditableData | null,
@@ -590,43 +546,3 @@ const areExplorerResourceIdentitiesEqual = (
 ): boolean =>
   areExplorerResourcesEqual(current?.resource, next?.resource) &&
   normalizeExplorerSheetId(current?.sheetId) === normalizeExplorerSheetId(next?.sheetId);
-
-const areOriginPlotOptionsEqual = (
-  current: ExplorerPaneInput["originOpenPlotOptions"],
-  next: ExplorerPaneInput["originOpenPlotOptions"],
-): boolean =>
-  current?.command === next?.command &&
-  current?.legendFontSize === next?.legendFontSize &&
-  current?.lineWidth === next?.lineWidth &&
-  current?.type === next?.type &&
-  current?.xyPairs === next?.xyPairs &&
-  areStringArraysEqual(current?.postCommands ?? [], next?.postCommands ?? []);
-
-const areShallowRecordsEqual = (
-  current: ExplorerPaneInput["plotAxisSettings"],
-  next: ExplorerPaneInput["plotAxisSettings"],
-): boolean => {
-  if (current === next) {
-    return true;
-  }
-  if (!current || !next) {
-    return false;
-  }
-
-  const currentKeys = Object.keys(current).sort();
-  const nextKeys = Object.keys(next).sort();
-  const currentRecord = current as Record<string, unknown>;
-  const nextRecord = next as Record<string, unknown>;
-  return areStringArraysEqual(currentKeys, nextKeys) &&
-    currentKeys.every(key => Object.is(currentRecord[key], nextRecord[key]));
-};
-
-const areThumbnailPlotModelsEqual = (
-  current: NonNullable<ExplorerPaneInput["thumbnailPlotModelsByFileId"]>,
-  next: NonNullable<ExplorerPaneInput["thumbnailPlotModelsByFileId"]>,
-): boolean => {
-  const currentKeys = Object.keys(current).sort();
-  const nextKeys = Object.keys(next).sort();
-  return areStringArraysEqual(currentKeys, nextKeys) &&
-    currentKeys.every(key => current[key]?.signature === next[key]?.signature);
-};

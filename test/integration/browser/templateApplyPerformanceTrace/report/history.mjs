@@ -75,15 +75,6 @@ export const createPerformanceMetricRow = ({
     analysisPerfReport?.entries ?? [],
     "plotMainChart.draw",
   );
-  const plotDisplayTargetPrewarm = summarizeStageDuration(
-    analysisPerfReport?.entries ?? [],
-    "workbenchDomainBridge.prefetchPlotDisplayTargets",
-  );
-  const plotDisplayTargetPrewarmReasons = summarizePerfStageReasons(
-    analysisPerfReport?.entries ?? [],
-    "workbenchDomainBridge.prefetchPlotDisplayTargets",
-    "priority",
-  );
   const plotDisplayBatchPrewarm = summarizeStageDuration(
     analysisPerfReport?.entries ?? [],
     "plotService.prefetchPlotDisplayModels",
@@ -238,18 +229,6 @@ export const createPerformanceMetricRow = ({
     ),
     plotDisplayBatchPrewarmRecentCount: readNumber(plotDisplayBatchPrewarmReasons.recent) ?? 0,
     plotDisplayBatchPrewarmVisibleCount: readNumber(plotDisplayBatchPrewarmReasons.visible) ?? 0,
-    plotDisplayTargetPrewarmActiveCount: readNumber(plotDisplayTargetPrewarmReasons.active) ?? 0,
-    plotDisplayTargetPrewarmCount: summaryCount(plotDisplayTargetPrewarm),
-    plotDisplayTargetPrewarmFileCount: sumPerfStageNumber(
-      analysisPerfReport?.entries ?? [],
-      "workbenchDomainBridge.prefetchPlotDisplayTargets",
-      "requestedFileCount",
-    ),
-    plotDisplayTargetPrewarmHoverCount: readNumber(plotDisplayTargetPrewarmReasons.hover) ?? 0,
-    plotDisplayTargetPrewarmNearbyCount: readNumber(plotDisplayTargetPrewarmReasons.nearby) ?? 0,
-    plotDisplayTargetPrewarmP95Ms: summaryP95(plotDisplayTargetPrewarm),
-    plotDisplayTargetPrewarmRecentCount: readNumber(plotDisplayTargetPrewarmReasons.recent) ?? 0,
-    plotDisplayTargetPrewarmVisibleCount: readNumber(plotDisplayTargetPrewarmReasons.visible) ?? 0,
     plotWorkerBackgroundDispatchCount: countPerfStageMetaValue(
       analysisPerfReport?.entries ?? [],
       "plotWorkerClient.dispatch",
@@ -392,14 +371,6 @@ export const metricHistoryKeys = [
   "plotDisplayBatchPrewarmRecentCount",
   "plotDisplayBatchPrewarmRequestCount",
   "plotDisplayBatchPrewarmVisibleCount",
-  "plotDisplayTargetPrewarmActiveCount",
-  "plotDisplayTargetPrewarmCount",
-  "plotDisplayTargetPrewarmFileCount",
-  "plotDisplayTargetPrewarmHoverCount",
-  "plotDisplayTargetPrewarmNearbyCount",
-  "plotDisplayTargetPrewarmP95Ms",
-  "plotDisplayTargetPrewarmRecentCount",
-  "plotDisplayTargetPrewarmVisibleCount",
   "plotWorkerBackgroundDispatchCount",
   "plotWorkerCreatedCount",
   "plotWorkerDispatchCount",
@@ -615,7 +586,6 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "plotDisplayCacheTrimmedHover",
     "plotDisplayCacheTrimmedActive",
     "plotDisplayBatchPrewarmQueuedCount",
-    "plotDisplayTargetPrewarmRecentCount",
     "plotWorkerCreatedCount",
     "plotWorkerMaxQueueLength",
     "plotMainDrawP95Ms",
