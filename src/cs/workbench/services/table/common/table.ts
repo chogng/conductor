@@ -107,32 +107,6 @@ export type TableCellValueResult =
 		readonly value: string;
 	};
 
-export type TableCellSearchQuery = {
-	readonly pattern: string;
-	readonly isCaseSensitive?: boolean;
-	readonly isRegExp?: boolean;
-	readonly matchWholeCell?: boolean;
-	readonly range?: TableRange | null;
-	readonly sheetId?: string | null;
-};
-
-export type TableCellSearchMatch = {
-	readonly cell: TableCell;
-	readonly value: string;
-};
-
-export type TableCellSearchResult =
-	| { readonly kind: "empty" }
-	| {
-		readonly kind: "invalidPattern";
-		readonly message: string;
-	}
-	| { readonly kind: "notFound" }
-	| {
-		readonly kind: "ok";
-		readonly match: TableCellSearchMatch;
-	};
-
 type TableHighlight = {
 	readonly columns?: readonly number[];
 	readonly ranges?: readonly TableRange[];
@@ -431,7 +405,6 @@ export interface ITableService {
 	adjustColumnDisplayScale(colIndex: number, deltaExponent: number): boolean;
 	clearSelection(): boolean;
 	clearHighlight(): void;
-	findCell(query: TableCellSearchQuery): Promise<TableCellSearchResult>;
 	getCellValue(cell: TableCell): Promise<TableCellValueResult>;
 	getColumnWidths(source: TableSource | null | undefined): readonly TableColumnWidth[];
 	getPreviewRow(rowIndex: number): unknown[] | null;

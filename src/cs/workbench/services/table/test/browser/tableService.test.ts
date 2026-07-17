@@ -470,8 +470,8 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
-  test("reads and searches active table cell values through the service owner API", async () => {
-    const resource = URI.file("/workspace/data/search.csv");
+  test("reads active table cell values through the service owner API", async () => {
+    const resource = URI.file("/workspace/data/cells.csv");
     const { service } = createTableServiceFixture({
       fileService: createCsvFileService([
         ["Header", "Alpha"],
@@ -480,7 +480,6 @@ suite("workbench/services/table/browser/tableService", () => {
       ]),
     });
 
-    assert.deepEqual(await service.findCell({ pattern: "alpha" }), { kind: "empty" });
     service.open({ resource });
     await waitForReadyTableService(service);
 
@@ -496,61 +495,11 @@ suite("workbench/services/table/browser/tableService", () => {
       kind: "ok",
       value: "Gamma",
     });
-    assert.deepEqual(await service.findCell({ pattern: "alpha" }), {
-      kind: "ok",
-      match: {
-        cell: {
-          colIndex: 1,
-          rowIndex: 0,
-          sheetId: null,
-        },
-        value: "Alpha",
-      },
-    });
-    assert.deepEqual(await service.findCell({
-      isCaseSensitive: true,
-      pattern: "Alpha",
-      range: {
-        endCol: 1,
-        endRow: 2,
-        startCol: 0,
-        startRow: 1,
-      },
-    }), {
-      kind: "ok",
-      match: {
-        cell: {
-          colIndex: 1,
-          rowIndex: 2,
-          sheetId: null,
-        },
-        value: "AlphaBeta",
-      },
-    });
-    assert.deepEqual(await service.findCell({
-      isRegExp: true,
-      matchWholeCell: true,
-      pattern: "^Gamma$",
-    }), {
-      kind: "ok",
-      match: {
-        cell: {
-          colIndex: 1,
-          rowIndex: 1,
-          sheetId: null,
-        },
-        value: "Gamma",
-      },
-    });
-    assert.deepEqual(await service.findCell({ pattern: "missing" }), { kind: "notFound" });
-
-    const invalidPattern = await service.findCell({ isRegExp: true, pattern: "[" });
-    assert.equal(invalidPattern.kind, "invalidPattern");
     service.dispose();
   });
 
-  test("reads and searches only the active workbook sheet", async () => {
-    const resource = URI.file("/workspace/data/search-workbook.xlsx");
+  test("reads only the active workbook sheet", async () => {
+    const resource = URI.file("/workspace/data/cells-workbook.xlsx");
     const workbookBase64 = await createXlsxBase64([{
       name: "Forward",
       rows: [["Name", "Value"], ["first", "forward-only"]],
@@ -585,45 +534,6 @@ suite("workbench/services/table/browser/tableService", () => {
       rowIndex: 1,
       sheetId: "1:Forward",
     }), { kind: "empty" });
-    assert.deepEqual(await service.findCell({ pattern: "forward-only" }), { kind: "notFound" });
-    assert.deepEqual(await service.findCell({
-      pattern: "reverse-only",
-      sheetId: "2:Reverse",
-    }), {
-      kind: "ok",
-      match: {
-        cell: {
-          colIndex: 1,
-          rowIndex: 1,
-          sheetId: "2:Reverse",
-        },
-        value: "reverse-only",
-      },
-    });
-    assert.deepEqual(await service.findCell({
-      pattern: "reverse-only",
-      sheetId: "1:Forward",
-    }), { kind: "empty" });
-    assert.deepEqual(await service.findCell({
-      pattern: "reverse-only",
-      range: {
-        endCol: 1,
-        endRow: 1,
-        sheetId: "2:Reverse",
-        startCol: 1,
-        startRow: 1,
-      },
-    }), {
-      kind: "ok",
-      match: {
-        cell: {
-          colIndex: 1,
-          rowIndex: 1,
-          sheetId: "2:Reverse",
-        },
-        value: "reverse-only",
-      },
-    });
     service.dispose();
   });
 

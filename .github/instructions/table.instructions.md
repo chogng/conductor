@@ -18,7 +18,7 @@ measurement structure.
 - current `TableSource`;
 - externally visible selection snapshot for commands/copy;
 - selected text generation;
-- current cell value lookup and active-table cell search;
+- current cell value lookup;
 - focus/reveal/highlight state;
 - non-interactive range decoration state for display-only overlays;
 - settings-derived column sizing mode projection and fixed column width persistence;
@@ -54,7 +54,6 @@ sheet-key derivation rules in service/view files.
 | `services/table/common/tableFormatAssociations.ts` | resource/name/extension association helpers for table format resolution. |
 | `services/table/common/tableFormatService.ts` | table format policy and resource/name support checks; owns CSV/TSV/XLS/XLSX classification and materialization capability, not URI scheme, read encoding, or languageId. |
 | `services/table/common/tableReadBuffer.ts` | table-owned text/byte read buffer contracts between tableFile reader and parser. |
-| `services/table/common/tableSearch.ts` | pure table cell search query matcher helpers; it does not read rows or own active table state. |
 | `services/table/common/tableStructureParser.ts` | CSV/TSV/XLS/XLSX `TableReadBuffer` -> physical table structure snapshots for `ITableModel` content and sheets. |
 | `services/tableFile/common/tablefiles.ts` | `ITableFileService` contract for the file-backed table working-copy branch. |
 | `services/tableFile/common/tableFileReader.ts` | URI-backed table file reader; consumes `TableFormatId` policy and table text/byte helpers to produce `TableReadBuffer`. |
@@ -118,7 +117,7 @@ Session/settings/command/search bridge
   -> ITableModel snapshot owns parsed CSV/TSV/XLS/XLSX content, parser diagnostics, defaultSheetId, and sheet content without storing derived sheet keys
   -> tableService/tableViewModel derives migration preview projection from TableModelSnapshot without pushing it into TableModelResolvedContent
   -> tableViewModel reads resource-backed ITableModel content without converting the source identity into a raw fileId
-  -> ITableService.getCellValue / findCell consume active tableViewModel rows through the table owner API and return current-sheet coordinates
+  -> ITableService.getCellValue consumes active tableViewModel rows through the table owner API and returns current-sheet coordinates
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers
   -> TableWidget forwards selection/focus/highlight/decoration snapshots to the base table widget

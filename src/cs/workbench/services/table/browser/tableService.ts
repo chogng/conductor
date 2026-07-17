@@ -18,8 +18,6 @@ import {
   normalizeTableSource,
   TABLE_COPY_MAX_CELLS,
   toTableSheetKey,
-  type TableCellSearchQuery,
-  type TableCellSearchResult,
   type TableCellValueResult,
   type TableViewModel,
   type TableRevealMode,
@@ -42,7 +40,6 @@ import {
   type TableColumnSizingMode,
   type TableColumnWidth,
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
-import { createTableCellMatcher } from "src/cs/workbench/services/table/common/tableSearch";
 import {
   ISettingsService,
   normalizeTableAutoFitColumnWidthsEnabled,
@@ -89,14 +86,6 @@ type TableCopyPlan = {
   readonly startRow: number;
 };
 
-type TableCellSearchPlan = {
-  readonly endCol: number;
-  readonly endRow: number;
-  readonly sheetId: string | null;
-  readonly startCol: number;
-  readonly startRow: number;
-};
-
 type TableDecorationContext = {
   readonly decorationResource: NonNullable<ReturnType<typeof createTableDecorationResource>>;
 };
@@ -131,7 +120,6 @@ const createTableDecorationContext = (
 };
 
 const TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX = "table.columnLayout.";
-const TABLE_CELL_SEARCH_CHUNK_SIZE_ROWS = 500;
 
 const getTableTargetContext = (tableViewModel: TableViewModel): TableTargetContext | null => {
   const state = tableViewModel.getState();
@@ -351,50 +339,6 @@ const resolveTableCopyPlan = (tableViewModel: TableViewModel): TableCopyPlan | n
   }
 
   return null;
-};
-
-const resolveTableCellSearchPlan = (
-  tableViewModel: TableViewModel,
-  query: TableCellSearchQuery,
-): TableCellSearchPlan | null => {
-  const context = getTableTargetContext(tableViewModel);
-  if (!context || context.rowCount <= 0 || context.columnCount <= 0) {
-    return null;
-  }
-
-  const querySheetId = typeof query.sheetId === "string" && query.sheetId.trim()
-    ? query.sheetId.trim()
-    : null;
-  if (query.range) {
-    const range = normalizeTargetRange(tableViewModel, {
-      ...query.range,
-      sheetId: query.range.sheetId ?? querySheetId,
-    });
-    if (range && querySheetId && range.sheetId !== querySheetId) {
-      return null;
-    }
-    return range
-      ? {
-          endCol: range.endCol,
-          endRow: range.endRow,
-          sheetId: range.sheetId ?? null,
-          startCol: range.startCol,
-          startRow: range.startRow,
-        }
-      : null;
-  }
-
-  if (!acceptsTargetSheet(context, querySheetId)) {
-    return null;
-  }
-
-  return {
-    endCol: context.columnCount - 1,
-    endRow: context.rowCount - 1,
-    sheetId: context.sheetId,
-    startCol: 0,
-    startRow: 0,
-  };
 };
 
 const toTableCellValue = (value: unknown): string =>
@@ -1000,56 +944,6 @@ export class TableService extends Disposable implements ITableService {
       rowCount,
       text: createTableSelectionTsv(tableViewModel, plan),
     };
-  }
-
-  public async findCell(query: TableCellSearchQuery): Promise<TableCellSearchResult> {
-    const matcher = createTableCellMatcher(query);
-    if (matcher.kind !== "ok") {
-      return matcher;
-    }
-
-    const tableViewModel = this.getActiveTableViewModel();
-    const plan = tableViewModel ? resolveTableCellSearchPlan(tableViewModel, query) : null;
-    if (!tableViewModel || !plan) {
-      return { kind: "empty" };
-    }
-
-    for (
-      let chunkStart = plan.startRow;
-      chunkStart <= plan.endRow;
-      chunkStart += TABLE_CELL_SEARCH_CHUNK_SIZE_ROWS
-    ) {
-      const chunkEndExclusive = Math.min(
-        plan.endRow + 1,
-        chunkStart + TABLE_CELL_SEARCH_CHUNK_SIZE_ROWS,
-      );
-      await tableViewModel.ensureRows(chunkStart, chunkEndExclusive);
-      if (!this.isActiveTableViewModel(tableViewModel)) {
-        return { kind: "empty" };
-      }
-
-      for (let rowIndex = chunkStart; rowIndex < chunkEndExclusive; rowIndex += 1) {
-        const row = tableViewModel.get(rowIndex);
-        for (let colIndex = plan.startCol; colIndex <= plan.endCol; colIndex += 1) {
-          const value = toTableCellValue(row[colIndex]);
-          if (matcher.matches(value)) {
-            return {
-              kind: "ok",
-              match: {
-                cell: {
-                  colIndex,
-                  rowIndex,
-                  sheetId: plan.sheetId,
-                },
-                value,
-              },
-            };
-          }
-        }
-      }
-    }
-
-    return { kind: "notFound" };
   }
 
   public clearHighlight(): void {
