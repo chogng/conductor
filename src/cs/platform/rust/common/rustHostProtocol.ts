@@ -51,11 +51,17 @@ export type ExportOriginCsvRequest = {
 export type ResolveStructuredContentRequest = {
   fileName: string;
   inputPath: string;
+  requestId: string;
+};
+
+export type CancelStructuredContentRequest = {
+  requestId: string;
 };
 
 export interface IRustHostService {
   analyzeCalculation(request: AnalyzeCalculationRequest): Promise<RustHostResponse>;
   calculateRc(request: CalculateRcRequest): Promise<RustHostResponse>;
+  cancelStructuredContent(request: CancelStructuredContentRequest): Promise<boolean>;
   exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustHostResponse>;
   resolveStructuredContent(request: ResolveStructuredContentRequest): Promise<RustHostResponse>;
 }

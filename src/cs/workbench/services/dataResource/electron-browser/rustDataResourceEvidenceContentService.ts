@@ -2,8 +2,14 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import {
+	CancellationToken,
+	CancellationTokenSource,
+} from "src/cs/base/common/cancellation";
+import { disposableTimeout, raceCancellation } from "src/cs/base/common/async";
+import { CancellationError } from "src/cs/base/common/errors";
 import { Emitter, type Event } from "src/cs/base/common/event";
-import { Disposable } from "src/cs/base/common/lifecycle";
+import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import {
 	IFileService,
@@ -52,9 +58,13 @@ type RustHostResponse =
 	};
 
 type RustStructuredContentBridge = {
+	cancelStructuredContentWithRust?: (payload: {
+		readonly requestId: string;
+	}) => Promise<unknown>;
 	resolveStructuredContentWithRust?: (payload: {
 		readonly fileName: string;
 		readonly path: string;
+		readonly requestId: string;
 	}) => Promise<RustHostResponse>;
 };
 
@@ -64,6 +74,16 @@ type DesktopIpcRenderer = {
 
 const MaxStableReadAttempts = 3;
 
+type PendingRustResolve = {
+	readonly cancellation: CancellationTokenSource;
+	readonly promise: Promise<DataResourceContentSnapshot>;
+};
+
+type RustStructuredContentRequestHandle = {
+	readonly promise: Promise<RustHostResponse>;
+	cancel(): void;
+};
+
 export class RustDataResourceEvidenceContentService extends Disposable implements IDataResourceEvidenceContentService {
 	public declare readonly _serviceBrand: undefined;
 
@@ -71,9 +91,11 @@ export class RustDataResourceEvidenceContentService extends Disposable implement
 	public readonly onDidChangeContent: Event<URI> = this.onDidChangeContentEmitter.event;
 	private readonly contentVersions = new Map<string, number>();
 	private readonly generations = new Map<string, number>();
-	private readonly pendingResolves = new Map<string, Promise<DataResourceContentSnapshot>>();
+	private readonly orphanCancellationByKey = new Map<string, IDisposable>();
+	private readonly pendingResolves = new Map<string, PendingRustResolve>();
 	private readonly referenceCounts = new Map<string, number>();
 	private readonly snapshots = new Map<string, DataResourceContentSnapshot>();
+	private requestIdPool = 0;
 
 	public constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -90,6 +112,21 @@ export class RustDataResourceEvidenceContentService extends Disposable implement
 				this.onDidChangeContentEmitter.fire(change.resource);
 			}
 		}));
+		this._register({
+			dispose: () => {
+				for (const cancellation of this.orphanCancellationByKey.values()) {
+					cancellation.dispose();
+				}
+				this.orphanCancellationByKey.clear();
+				for (const pending of this.pendingResolves.values()) {
+					pending.cancellation.cancel();
+					pending.cancellation.dispose();
+				}
+				this.pendingResolves.clear();
+				this.referenceCounts.clear();
+				this.snapshots.clear();
+			},
+		});
 	}
 
 	public canHandleResource(resource: URI): boolean {
@@ -98,29 +135,44 @@ export class RustDataResourceEvidenceContentService extends Disposable implement
 			(hasBridgeMethod() || hasIpcRenderer());
 	}
 
-	public async createContentReference(resource: URI): Promise<IDataResourceContentReference> {
+	public async createContentReference(
+		resource: URI,
+		token: CancellationToken = CancellationToken.None,
+	): Promise<IDataResourceContentReference> {
 		if (!this.canHandleResource(resource)) {
 			throw new Error(`Rust evidence content does not support ${resource.toString()}.`);
 		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 
 		const key = resource.toString();
-		this.referenceCounts.set(key, (this.referenceCounts.get(key) ?? 0) + 1);
+		this.retainReference(key);
+		let released = false;
+		const release = (): void => {
+			if (released) {
+				return;
+			}
+			released = true;
+			this.releaseReference(key);
+		};
+		const cancellationListener = token.onCancellationRequested(release);
 		try {
-			const object = await this.resolveContent(resource);
-			let disposed = false;
+			const object = await raceCancellation(this.resolveContent(resource), token);
+			if (!object || token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			cancellationListener.dispose();
 			return {
 				kind: "file",
 				object,
 				dispose: () => {
-					if (disposed) {
-						return;
-					}
-					disposed = true;
-					this.releaseReference(key);
+					release();
 				},
 			};
 		} catch (error) {
-			this.releaseReference(key);
+			cancellationListener.dispose();
+			release();
 			throw error;
 		}
 	}
@@ -137,10 +189,12 @@ export class RustDataResourceEvidenceContentService extends Disposable implement
 		}
 		const pending = this.pendingResolves.get(key);
 		if (pending) {
-			return pending;
+			return pending.promise;
 		}
 
-		const pendingResolve = this.resolveStableContent(resource)
+		const cancellation = new CancellationTokenSource();
+		let pendingResolve!: PendingRustResolve;
+		const promise = this.resolveStableContent(resource, cancellation.token)
 			.then(snapshot => {
 				this.snapshots.set(key, snapshot);
 				return snapshot;
@@ -149,22 +203,50 @@ export class RustDataResourceEvidenceContentService extends Disposable implement
 				if (this.pendingResolves.get(key) === pendingResolve) {
 					this.pendingResolves.delete(key);
 				}
+				cancellation.dispose();
 			});
+		pendingResolve = {
+			cancellation,
+			promise,
+		};
 		this.pendingResolves.set(key, pendingResolve);
-		return pendingResolve;
+		return promise;
 	}
 
-	private async resolveStableContent(resource: URI): Promise<DataResourceContentSnapshot> {
+	private async resolveStableContent(
+		resource: URI,
+		token: CancellationToken,
+	): Promise<DataResourceContentSnapshot> {
 		const key = resource.toString();
 		for (let attempt = 0; attempt < MaxStableReadAttempts; attempt += 1) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const generation = this.generations.get(key) ?? 0;
 			const before = await this.fileService.stat(resource);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const startedAt = performance.now();
-			const response = await invokeRustStructuredContent({
+			const request = invokeRustStructuredContent({
 				fileName: getFileName(resource),
 				path: resource.fsPath,
+				requestId: this.createRequestId(),
 			});
+			const cancellationListener = token.onCancellationRequested(() => request.cancel());
+			let response: RustHostResponse | undefined;
+			try {
+				response = await raceCancellation(request.promise, token);
+			} finally {
+				cancellationListener.dispose();
+			}
+			if (!response || token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const after = await this.fileService.stat(resource);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			logPerf("dataResource.rustEvidenceContent.resolve", {
 				attempt,
 				durationMs: performance.now() - startedAt,
@@ -186,10 +268,21 @@ export class RustDataResourceEvidenceContentService extends Disposable implement
 		throw new Error("The data resource changed while Rust was resolving Review evidence.");
 	}
 
+	private createRequestId(): string {
+		this.requestIdPool += 1;
+		return `data-resource-structured-${this.requestIdPool}`;
+	}
+
 	private nextContentVersion(key: string): number {
 		const version = (this.contentVersions.get(key) ?? 0) + 1;
 		this.contentVersions.set(key, version);
 		return version;
+	}
+
+	private retainReference(key: string): void {
+		this.orphanCancellationByKey.get(key)?.dispose();
+		this.orphanCancellationByKey.delete(key);
+		this.referenceCounts.set(key, (this.referenceCounts.get(key) ?? 0) + 1);
 	}
 
 	private releaseReference(key: string): void {
@@ -200,7 +293,22 @@ export class RustDataResourceEvidenceContentService extends Disposable implement
 		}
 		this.referenceCounts.delete(key);
 		this.snapshots.delete(key);
-		this.pendingResolves.delete(key);
+		const pending = this.pendingResolves.get(key);
+		if (!pending || this.orphanCancellationByKey.has(key)) {
+			return;
+		}
+		const cancellation = disposableTimeout(() => {
+			this.orphanCancellationByKey.delete(key);
+			if (
+				this.referenceCounts.has(key) ||
+				this.pendingResolves.get(key) !== pending
+			) {
+				return;
+			}
+			this.pendingResolves.delete(key);
+			pending.cancellation.cancel();
+		});
+		this.orphanCancellationByKey.set(key, cancellation);
 	}
 }
 
@@ -473,26 +581,58 @@ const hasIpcRenderer = (): boolean => {
 	return typeof ipcRenderer?.invoke === "function";
 };
 
-const invokeRustStructuredContent = async (payload: {
+const invokeRustStructuredContent = (payload: {
 	readonly fileName: string;
 	readonly path: string;
-}): Promise<RustHostResponse> => {
+	readonly requestId: string;
+}): RustStructuredContentRequestHandle => {
 	const bridgeMethod = getBridge()?.resolveStructuredContentWithRust;
+	let promise: Promise<RustHostResponse>;
 	if (typeof bridgeMethod === "function") {
-		return bridgeMethod(payload);
+		promise = bridgeMethod(payload);
+	} else {
+		const ipcRenderer = getIpcRenderer();
+		if (!ipcRenderer) {
+			throw new Error("The Rust structured-content bridge is unavailable.");
+		}
+		promise = ipcRenderer.invoke(
+			workbenchIpcChannels.rustHostResolveStructuredContent,
+			payload,
+		) as Promise<RustHostResponse>;
 	}
+	let cancelled = false;
+	return {
+		promise,
+		cancel: () => {
+			if (cancelled) {
+				return;
+			}
+			cancelled = true;
+			const cancelBridgeMethod = getBridge()?.cancelStructuredContentWithRust;
+			if (typeof cancelBridgeMethod === "function") {
+				void cancelBridgeMethod({ requestId: payload.requestId }).catch(() => {});
+				return;
+			}
+			const ipcRenderer = getIpcRenderer();
+			if (ipcRenderer) {
+				void ipcRenderer.invoke(
+					workbenchIpcChannels.rustHostCancelStructuredContent,
+					{ requestId: payload.requestId },
+				).catch(() => {});
+			}
+		},
+	};
+};
+
+const getIpcRenderer = (): DesktopIpcRenderer | null => {
 	const ipcRenderer = (
 		globalThis.window as Window & {
 			conductor?: { ipcRenderer?: DesktopIpcRenderer };
 		} | undefined
 	)?.conductor?.ipcRenderer;
-	if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
-		throw new Error("The Rust structured-content bridge is unavailable.");
-	}
-	return ipcRenderer.invoke(
-		workbenchIpcChannels.rustHostResolveStructuredContent,
-		payload,
-	) as Promise<RustHostResponse>;
+	return ipcRenderer && typeof ipcRenderer.invoke === "function"
+		? ipcRenderer
+		: null;
 };
 
 registerSingleton(

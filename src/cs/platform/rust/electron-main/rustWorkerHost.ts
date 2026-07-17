@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { CancellationError } from "../../../base/common/errors.js";
 import type {
   IRustWorkerHost,
+  RustWorkerCommandHandle,
   RustWorkerCommandOptions,
   RustWorkerCommandPayload,
 } from "../common/rustWorker.js";
@@ -22,6 +24,16 @@ type RustWorkerSlot = {
   stdoutBuffer: string;
 };
 
+type ScheduledRustRequest = {
+  readonly command: string;
+  readonly payload: RustWorkerCommandPayload;
+  readonly reject: (error: unknown) => void;
+  readonly resolve: (result: unknown) => void;
+  readonly timeoutMs: number;
+  settled: boolean;
+  slot: RustWorkerSlot | null;
+};
+
 export type RustWorkerExecutableResolverOptions = {
   appRootPath: string;
   env: NodeJS.ProcessEnv;
@@ -34,6 +46,7 @@ export type RustWorkerHostOptions = {
   isWindows: boolean;
   processingPoolSize: number;
   resolveExecutablePath: () => string | null;
+  spawnProcessingWorker?: () => ChildProcessWithoutNullStreams;
 };
 
 const DEFAULT_TIMEOUT_MS = 120000;
@@ -143,6 +156,8 @@ export const resolveRustWorkerExecutablePath = ({
 export class RustWorkerHost implements IRustWorkerHost {
   public declare readonly _serviceBrand: undefined;
 
+  private readonly activeProcessingRequestsBySlot = new Map<RustWorkerSlot, ScheduledRustRequest>();
+  private readonly processingQueue: ScheduledRustRequest[] = [];
   private readonly processingSlots: RustWorkerSlot[] = [];
   private processingSlotCursor = 0;
 
@@ -153,13 +168,128 @@ export class RustWorkerHost implements IRustWorkerHost {
     payload: RustWorkerCommandPayload = {},
     options: RustWorkerCommandOptions = {},
   ): Promise<unknown> {
-    const slot = this.getProcessingSlot();
-    return this.sendSlotCommand(
-      slot,
-      command,
-      payload,
-      options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    );
+    return this.startProcessingCommand(command, payload, options).promise;
+  }
+
+  public startProcessingCommand(
+    command: string,
+    payload: RustWorkerCommandPayload = {},
+    options: RustWorkerCommandOptions = {},
+  ): RustWorkerCommandHandle {
+    let request!: ScheduledRustRequest;
+    const promise = new Promise<unknown>((resolve, reject) => {
+      request = {
+        command,
+        payload,
+        reject,
+        resolve,
+        settled: false,
+        slot: null,
+        timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      };
+    });
+    this.processingQueue.push(request);
+    this.dispatchProcessingQueue();
+    return {
+      promise,
+      cancel: () => this.cancelProcessingRequest(request),
+    };
+  }
+
+  private dispatchProcessingQueue(): void {
+    while (this.processingQueue.length > 0) {
+      const slot = this.getIdleProcessingSlot();
+      if (!slot) {
+        return;
+      }
+      const request = this.processingQueue.shift();
+      if (!request || request.settled) {
+        continue;
+      }
+
+      request.slot = slot;
+      this.activeProcessingRequestsBySlot.set(slot, request);
+      try {
+        void this.sendSlotCommand(
+          slot,
+          request.command,
+          request.payload,
+          request.timeoutMs,
+        ).then(
+          result => this.finishProcessingRequest(request, null, result),
+          error => this.finishProcessingRequest(request, error),
+        );
+      } catch (error) {
+        this.finishProcessingRequest(request, error);
+      }
+    }
+  }
+
+  private finishProcessingRequest(
+    request: ScheduledRustRequest,
+    error: unknown,
+    result?: unknown,
+  ): void {
+    if (request.settled) {
+      return;
+    }
+    request.settled = true;
+    const slot = request.slot;
+    request.slot = null;
+    if (slot && this.activeProcessingRequestsBySlot.get(slot) === request) {
+      this.activeProcessingRequestsBySlot.delete(slot);
+    }
+    if (error) {
+      request.reject(error);
+    } else {
+      request.resolve(result);
+    }
+    this.dispatchProcessingQueue();
+  }
+
+  private cancelProcessingRequest(request: ScheduledRustRequest): void {
+    if (request.settled) {
+      return;
+    }
+
+    const queuedIndex = this.processingQueue.indexOf(request);
+    if (queuedIndex >= 0) {
+      this.processingQueue.splice(queuedIndex, 1);
+    }
+    const slot = request.slot;
+    request.slot = null;
+    request.settled = true;
+    request.reject(new CancellationError());
+    if (slot && this.activeProcessingRequestsBySlot.get(slot) === request) {
+      this.activeProcessingRequestsBySlot.delete(slot);
+      this.stopProcessingSlot(
+        slot,
+        new CancellationError(),
+      );
+    }
+    this.dispatchProcessingQueue();
+  }
+
+  private getIdleProcessingSlot(): RustWorkerSlot | null {
+    while (this.processingSlots.length < this.options.processingPoolSize) {
+      this.processingSlots.push(
+        this.createProcessingSlot(`process-${this.processingSlots.length + 1}`),
+      );
+    }
+
+    for (let offset = 0; offset < this.processingSlots.length; offset += 1) {
+      const index = (this.processingSlotCursor + offset) % this.processingSlots.length;
+      const slot = this.processingSlots[index];
+      if (
+        slot.busyCount !== 0 ||
+        this.activeProcessingRequestsBySlot.has(slot)
+      ) {
+        continue;
+      }
+      this.processingSlotCursor = (index + 1) % this.processingSlots.length;
+      return slot;
+    }
+    return null;
   }
 
   public async disposeProcessingFile(fileId: string): Promise<void> {
@@ -201,10 +331,11 @@ export class RustWorkerHost implements IRustWorkerHost {
       return slot.child;
     }
 
-    const child = spawn(this.getExecutablePath(), ["--stdio-worker"], {
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-    });
+    const child = this.options.spawnProcessingWorker?.() ??
+      spawn(this.getExecutablePath(), ["--stdio-worker"], {
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+      });
     slot.child = child;
     slot.stdoutBuffer = "";
 
@@ -229,6 +360,7 @@ export class RustWorkerHost implements IRustWorkerHost {
     child.on("error", (error) => {
       if (slot.child === child) slot.child = null;
       this.rejectProcessingSlotPending(slot, error);
+      this.dispatchProcessingQueue();
     });
 
     child.on("exit", (code, signal) => {
@@ -239,30 +371,10 @@ export class RustWorkerHost implements IRustWorkerHost {
           `conductor-rs exited (${slot.name}, code=${code ?? "null"} signal=${signal ?? "null"}).`,
         ),
       );
+      this.dispatchProcessingQueue();
     });
 
     return child;
-  }
-
-  private getProcessingSlot(): RustWorkerSlot {
-    while (this.processingSlots.length < this.options.processingPoolSize) {
-      this.processingSlots.push(
-        this.createProcessingSlot(`process-${this.processingSlots.length + 1}`),
-      );
-    }
-
-    let selected = this.processingSlots[0];
-    for (let offset = 0; offset < this.processingSlots.length; offset += 1) {
-      const index = (this.processingSlotCursor + offset) % this.processingSlots.length;
-      const slot = this.processingSlots[index];
-      if (slot.busyCount < selected.busyCount) {
-        selected = slot;
-      }
-    }
-
-    this.processingSlotCursor =
-      (this.processingSlots.indexOf(selected) + 1) % this.processingSlots.length;
-    return selected;
   }
 
   private sendSlotCommand(
@@ -278,9 +390,11 @@ export class RustWorkerHost implements IRustWorkerHost {
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
-        slot.pending.delete(id);
-        slot.busyCount = Math.max(0, slot.busyCount - 1);
-        reject(new Error(`conductor-rs command timed out: ${command}`));
+        this.stopProcessingSlot(
+          slot,
+          new Error(`conductor-rs command timed out: ${command}`),
+        );
+        this.dispatchProcessingQueue();
       }, timeoutMs);
 
       slot.pending.set(id, { reject, resolve, timeoutId });
@@ -292,12 +406,14 @@ export class RustWorkerHost implements IRustWorkerHost {
           slot.busyCount = Math.max(0, slot.busyCount - 1);
           clearTimeout(timeoutId);
           reject(error);
+          this.dispatchProcessingQueue();
         });
       } catch (error) {
         slot.pending.delete(id);
         slot.busyCount = Math.max(0, slot.busyCount - 1);
         clearTimeout(timeoutId);
         reject(error);
+        this.dispatchProcessingQueue();
       }
     });
   }
@@ -328,6 +444,7 @@ export class RustWorkerHost implements IRustWorkerHost {
 
     if (message?.ok === true) {
       pending.resolve(message.result ?? {});
+      this.dispatchProcessingQueue();
       return;
     }
 
@@ -339,6 +456,7 @@ export class RustWorkerHost implements IRustWorkerHost {
         ? (message.error as { message: string }).message
         : "conductor-rs failed.";
     pending.reject(new Error(errorMessage));
+    this.dispatchProcessingQueue();
   }
 
   private rejectProcessingSlotPending(slot: RustWorkerSlot, error: unknown): void {
@@ -350,21 +468,29 @@ export class RustWorkerHost implements IRustWorkerHost {
     slot.busyCount = 0;
   }
 
-  private stopProcessingSlot(slot: RustWorkerSlot): void {
+  private stopProcessingSlot(
+    slot: RustWorkerSlot,
+    error: unknown = new Error(`conductor-rs stopped (${slot.name}).`),
+  ): void {
     if (!slot.child) return;
     const child = slot.child;
     slot.child = null;
     slot.stdoutBuffer = "";
-    this.rejectProcessingSlotPending(
-      slot,
-      new Error(`conductor-rs stopped (${slot.name}).`),
-    );
+    this.rejectProcessingSlotPending(slot, error);
     this.forceStopChildProcess(child);
   }
 
   private stopProcessingEngines(): void {
+    const stoppedError = new Error("conductor-rs processing host stopped.");
+    for (const request of this.processingQueue.splice(0)) {
+      if (request.settled) {
+        continue;
+      }
+      request.settled = true;
+      request.reject(stoppedError);
+    }
     for (const slot of this.processingSlots) {
-      this.stopProcessingSlot(slot);
+      this.stopProcessingSlot(slot, stoppedError);
     }
     this.processingSlots.length = 0;
     this.processingSlotCursor = 0;

@@ -1,9 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { IRustWorkerHost } from "../../platform/rust/common/rustWorker.js";
+import type {
+  IRustWorkerHost,
+  RustWorkerCommandHandle,
+} from "../../platform/rust/common/rustWorker.js";
 import type {
   AnalyzeCalculationRequest,
   CalculateRcRequest,
+  CancelStructuredContentRequest,
   ExportOriginCsvRequest,
   IRustHostService,
   ResolveStructuredContentRequest,
@@ -51,6 +55,8 @@ const buildFailure = (
 });
 
 export class RustHostService implements IRustHostService {
+  private readonly structuredContentRequests = new Map<string, RustWorkerCommandHandle>();
+
   constructor(
     private readonly options: ServiceOptions,
   ) {}
@@ -109,6 +115,21 @@ export class RustHostService implements IRustHostService {
         startedAt,
       );
     }
+  }
+
+  public async cancelStructuredContent(
+    request: CancelStructuredContentRequest,
+  ): Promise<boolean> {
+    const requestId = request.requestId.trim();
+    const handle = requestId
+      ? this.structuredContentRequests.get(requestId)
+      : undefined;
+    if (!handle) {
+      return false;
+    }
+    this.structuredContentRequests.delete(requestId);
+    handle.cancel();
+    return true;
   }
 
   public async exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustHostResponse> {
@@ -181,7 +202,9 @@ export class RustHostService implements IRustHostService {
   public async resolveStructuredContent(
     request: ResolveStructuredContentRequest,
   ): Promise<RustHostResponse> {
+    const requestId = request.requestId.trim();
     if (
+      !requestId ||
       !request.inputPath ||
       !this.options.isSupportedStructuredContentPath(request.inputPath)
     ) {
@@ -189,15 +212,24 @@ export class RustHostService implements IRustHostService {
     }
 
     const startedAt = Date.now();
-    try {
-      const result = await this.options.rustWorkerHost.sendProcessingCommand(
-        "resolveStructuredContent",
-        {
-          fileName: request.fileName || path.basename(request.inputPath),
-          path: request.inputPath,
-        },
-        { timeoutMs: 120000 },
+    if (this.structuredContentRequests.has(requestId)) {
+      return buildFailure(
+        "RUST_STRUCTURED_CONTENT_DUPLICATE_REQUEST",
+        "Duplicate structured-content request id.",
+        startedAt,
       );
+    }
+    const handle = this.options.rustWorkerHost.startProcessingCommand(
+      "resolveStructuredContent",
+      {
+        fileName: request.fileName || path.basename(request.inputPath),
+        path: request.inputPath,
+      },
+      { timeoutMs: 120000 },
+    );
+    this.structuredContentRequests.set(requestId, handle);
+    try {
+      const result = await handle.promise;
       return buildSuccess(startedAt, result, "rust-pool");
     } catch (error) {
       return buildFailure(
@@ -205,6 +237,10 @@ export class RustHostService implements IRustHostService {
         (error as Error)?.message || "conductor-rs failed to resolve structured content.",
         startedAt,
       );
+    } finally {
+      if (this.structuredContentRequests.get(requestId) === handle) {
+        this.structuredContentRequests.delete(requestId);
+      }
     }
   }
 

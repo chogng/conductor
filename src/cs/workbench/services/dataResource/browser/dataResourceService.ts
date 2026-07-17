@@ -287,7 +287,11 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 			: this.contentService;
 		let reference: IDataResourceContentReference | null = null;
 		try {
-			reference = await sourceService.createContentReference(target.resource);
+			reference = await this.createEvidenceContentReference(
+				sourceService,
+				target.resource,
+				token,
+			);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -315,7 +319,11 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 				) {
 					break;
 				}
-				const nextReference = await sourceService.createContentReference(target.resource);
+				const nextReference = await this.createEvidenceContentReference(
+					sourceService,
+					target.resource,
+					token,
+				);
 				if (token.isCancellationRequested) {
 					nextReference.dispose();
 					throw new CancellationError();
@@ -346,6 +354,17 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 				dispose: () => undefined,
 			};
 		}
+	}
+
+	private createEvidenceContentReference(
+		sourceService: IDataResourceEvidenceContentService | IDataResourceContentServiceType,
+		resource: URI,
+		token: CancellationToken,
+	): Promise<IDataResourceContentReference> {
+		return sourceService === this.contentService
+			? this.contentService.createContentReference(resource)
+			: (sourceService as IDataResourceEvidenceContentService)
+				.createContentReference(resource, token);
 	}
 
 	public resolve(target: DataResourceStructuredContentTarget): void {

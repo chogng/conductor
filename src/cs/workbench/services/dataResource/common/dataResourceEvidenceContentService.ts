@@ -2,6 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import type { Event } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
@@ -25,6 +26,9 @@ export interface IDataResourceEvidenceContentService extends IDisposable {
 	readonly onDidChangeContent: Event<URI>;
 
 	canHandleResource(resource: URI): boolean;
-	createContentReference(resource: URI): Promise<IDataResourceContentReference>;
+	createContentReference(
+		resource: URI,
+		token?: CancellationToken,
+	): Promise<IDataResourceContentReference>;
 	get(resource: URI | null | undefined): DataResourceContentSnapshot | undefined;
 }

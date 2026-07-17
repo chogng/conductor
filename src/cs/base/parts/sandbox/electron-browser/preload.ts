@@ -132,6 +132,10 @@ function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
       return ipcRenderer.invoke(workbenchIpcChannels.rustHostResolveStructuredContent, payload);
     },
 
+    async cancelStructuredContentWithRust(payload: unknown) {
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostCancelStructuredContent, payload);
+    },
+
     async saveOriginZip(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.originZipSave, payload);
     },

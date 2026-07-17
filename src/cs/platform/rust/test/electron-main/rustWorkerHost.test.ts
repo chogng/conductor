@@ -6,11 +6,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { EventEmitter } from "node:events";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 
 import {
+	RustWorkerHost,
 	resolveRustProcessingPoolSize,
 	resolveRustWorkerExecutablePath,
 } from "src/cs/platform/rust/electron-main/rustWorkerHost";
+import { isCancellationError } from "src/cs/base/common/errors";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/rust/electron-main/rustWorkerHost", () => {
@@ -73,10 +77,119 @@ suite("platform/rust/electron-main/rustWorkerHost", () => {
 		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "64" }), 64);
 		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "invalid" }), 8);
 	});
+
+	test("cancels one active command by replacing its exclusive worker slot", async () => {
+		const processes: TestRustWorkerProcess[] = [];
+		const host = new RustWorkerHost({
+			isWindows: false,
+			processingPoolSize: 1,
+			resolveExecutablePath: () => "test-conductor-rs",
+			spawnProcessingWorker: () => {
+				const process = new TestRustWorkerProcess();
+				processes.push(process);
+				return process as unknown as ChildProcessWithoutNullStreams;
+			},
+		});
+		const first = host.startProcessingCommand("first");
+		const firstRejected = assert.rejects(first.promise, error => isCancellationError(error));
+		const second = host.startProcessingCommand("second");
+
+		assert.equal(processes.length, 1);
+		assert.deepEqual(processes[0]?.commands.map(command => command.command), ["first"]);
+		first.cancel();
+
+		await firstRejected;
+		await waitFor(() => processes.length === 2 && processes[1]?.commands.length === 1);
+		assert.equal(processes[0]?.killed, true);
+		assert.deepEqual(processes[1]?.commands.map(command => command.command), ["second"]);
+		processes[1]?.respond(0, { value: 2 });
+		assert.deepEqual(await second.promise, { value: 2 });
+		host.stop();
+	});
+
+	test("cancels a queued command without stopping the active worker", async () => {
+		const processes: TestRustWorkerProcess[] = [];
+		const host = new RustWorkerHost({
+			isWindows: false,
+			processingPoolSize: 1,
+			resolveExecutablePath: () => "test-conductor-rs",
+			spawnProcessingWorker: () => {
+				const process = new TestRustWorkerProcess();
+				processes.push(process);
+				return process as unknown as ChildProcessWithoutNullStreams;
+			},
+		});
+		const active = host.startProcessingCommand("active");
+		const queued = host.startProcessingCommand("queued");
+		const queuedRejected = assert.rejects(queued.promise, error => isCancellationError(error));
+
+		queued.cancel();
+		await queuedRejected;
+		assert.equal(processes[0]?.killed, false);
+		assert.deepEqual(processes[0]?.commands.map(command => command.command), ["active"]);
+
+		processes[0]?.respond(0, { value: 1 });
+		assert.deepEqual(await active.promise, { value: 1 });
+		host.stop();
+	});
 });
 
 function touch(filePath: string): string {
 	fs.mkdirSync(path.dirname(filePath), { recursive: true });
 	fs.writeFileSync(filePath, "");
 	return filePath;
+}
+
+class TestRustWorkerProcess extends EventEmitter {
+	public readonly commands: Array<Record<string, unknown>> = [];
+	public killed = false;
+	public readonly pid = undefined;
+	public readonly stderr = new TestProcessStream();
+	public readonly stdout = new TestProcessStream();
+	public readonly stdin = {
+		write: (
+			value: string,
+			_encoding: string,
+			callback: (error?: Error | null) => void,
+		): boolean => {
+			this.commands.push(JSON.parse(value.trim()) as Record<string, unknown>);
+			callback();
+			return true;
+		},
+	};
+
+	public kill(): boolean {
+		if (this.killed) {
+			return false;
+		}
+		this.killed = true;
+		this.emit("exit", null, "SIGTERM");
+		return true;
+	}
+
+	public respond(index: number, result: unknown): void {
+		const command = this.commands[index];
+		assert.ok(command);
+		this.stdout.emit("data", `${JSON.stringify({
+			id: command.id,
+			ok: true,
+			result,
+		})}\n`);
+	}
+}
+
+class TestProcessStream extends EventEmitter {
+	public setEncoding(): this {
+		return this;
+	}
+}
+
+async function waitFor(condition: () => boolean): Promise<void> {
+	for (let attempt = 0; attempt < 20; attempt += 1) {
+		if (condition()) {
+			return;
+		}
+		await new Promise(resolve => setTimeout(resolve, 0));
+	}
+	assert.fail("Timed out waiting for Rust worker host state.");
 }
