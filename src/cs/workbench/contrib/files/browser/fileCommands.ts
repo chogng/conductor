@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from "src/cs/base/common/actions";
+import { CancellationTokenSource } from "src/cs/base/common/cancellation";
 import { getErrorMessage } from "src/cs/base/common/errors";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
@@ -25,6 +26,7 @@ import {
 import {
   INotificationService,
   Severity,
+  type INotificationHandle,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   IReviewService,
@@ -33,6 +35,14 @@ import {
 
 const ReviewReevaluationConcurrency = 8;
 const ReviewReevaluationNotificationId = "files.reviewReevaluation";
+
+type ReviewReevaluationRun = {
+  readonly cancellation: CancellationTokenSource;
+  progressNotification?: INotificationHandle;
+  superseded: boolean;
+};
+
+let activeReviewReevaluationRun: ReviewReevaluationRun | null = null;
 
 export const addFolderHandler: ICommandHandler = accessor => {
   withExplorerView(accessor, explorerView => explorerView.openFolderImport());
@@ -93,10 +103,6 @@ export const reevaluateFileReviewHandler: ICommandHandler<[unknown], Promise<voi
   }
 
   const notificationService = accessor.get(INotificationService);
-  const status = notificationService.status(localize(
-    "files.reviewReevaluation.single.progress",
-    "Reevaluating Review...",
-  ));
   try {
     const result = await accessor.get(IReviewService).reevaluate(resourceIdentity);
     notifySingleReviewReevaluationResult(notificationService, result);
@@ -106,28 +112,32 @@ export const reevaluateFileReviewHandler: ICommandHandler<[unknown], Promise<voi
       "Failed to reevaluate Review: {message}",
       { message: getErrorMessage(error) },
     ));
-  } finally {
-    status.close();
   }
 };
 
 export const reevaluateAllFileReviewsHandler: ICommandHandler<[], Promise<void>> = async accessor => {
+  const run = beginReviewReevaluationRun();
   const explorerService = accessor.get(IExplorerService);
   const notificationService = accessor.get(INotificationService);
-  const targets = getUniqueExplorerReviewTargets(explorerService.files);
-  if (!targets.length) {
-    notificationService.info(localize(
-      "files.reviewReevaluation.all.empty",
-      "No file reviews are available to reevaluate.",
-    ));
-    return;
-  }
+  try {
+    const targets = getUniqueExplorerReviewTargets(explorerService.files);
+    if (!targets.length) {
+      notificationService.info(localize(
+        "files.reviewReevaluation.all.empty",
+        "No file reviews are available to reevaluate.",
+      ));
+      return;
+    }
 
-  await reevaluateExplorerReviews({
-    notificationService,
-    reviewService: accessor.get(IReviewService),
-    targets,
-  });
+    await reevaluateExplorerReviews({
+      notificationService,
+      reviewService: accessor.get(IReviewService),
+      run,
+      targets,
+    });
+  } finally {
+    finishReviewReevaluationRun(run);
+  }
 };
 
 export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
@@ -179,14 +189,16 @@ const notifySingleReviewReevaluationResult = (
 const reevaluateExplorerReviews = async ({
   notificationService,
   reviewService,
+  run,
   targets,
 }: {
   readonly notificationService: INotificationService;
   readonly reviewService: IReviewService;
+  readonly run: ReviewReevaluationRun;
   readonly targets: readonly ExplorerResourceIdentity[];
 }): Promise<void> => {
   const disposables = new DisposableStore();
-  let cancelled = false;
+  const token = run.cancellation.token;
   let completedWork = 0;
   let reevaluatedCount = 0;
   let unavailablePersistenceCount = 0;
@@ -197,7 +209,7 @@ const reevaluateExplorerReviews = async ({
     "",
     true,
     () => {
-      cancelled = true;
+      run.cancellation.cancel();
     },
   ));
   const progressNotification = notificationService.notify({
@@ -209,10 +221,11 @@ const reevaluateExplorerReviews = async ({
       primary: [cancelAction],
     },
   });
+  run.progressNotification = progressNotification;
 
   let nextTargetIndex = 0;
   const runWorker = async (): Promise<void> => {
-    while (!cancelled) {
+    while (!token.isCancellationRequested) {
       const targetIndex = nextTargetIndex;
       nextTargetIndex += 1;
       const target = targets[targetIndex];
@@ -220,8 +233,13 @@ const reevaluateExplorerReviews = async ({
         return;
       }
 
+      let completed = false;
       try {
-        const result = await reviewService.reevaluate(target);
+        const result = await reviewService.reevaluate(target, token);
+        if (token.isCancellationRequested) {
+          return;
+        }
+        completed = true;
         if (!result) {
           failedCount += 1;
         } else {
@@ -231,13 +249,19 @@ const reevaluateExplorerReviews = async ({
           }
         }
       } catch (error) {
+        if (token.isCancellationRequested) {
+          return;
+        }
+        completed = true;
         failedCount += 1;
         console.warn("Failed to reevaluate Review.", error);
       } finally {
-        completedWork += 1;
-        progressNotification.updateMessage(
-          createReviewReevaluationProgressMessage(completedWork, targets.length),
-        );
+        if (completed) {
+          completedWork += 1;
+          progressNotification.updateMessage(
+            createReviewReevaluationProgressMessage(completedWork, targets.length),
+          );
+        }
       }
     }
   };
@@ -247,7 +271,14 @@ const reevaluateExplorerReviews = async ({
     await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
   } finally {
     progressNotification.close();
+    if (run.progressNotification === progressNotification) {
+      run.progressNotification = undefined;
+    }
     disposables.dispose();
+  }
+
+  if (run.superseded) {
+    return;
   }
 
   const cancelledCount = Math.max(0, targets.length - completedWork);
@@ -270,6 +301,33 @@ const reevaluateExplorerReviews = async ({
       unsaved: unavailablePersistenceCount,
     },
   ));
+};
+
+const beginReviewReevaluationRun = (): ReviewReevaluationRun => {
+  if (activeReviewReevaluationRun) {
+    activeReviewReevaluationRun.superseded = true;
+    activeReviewReevaluationRun.cancellation.cancel();
+    activeReviewReevaluationRun.progressNotification?.close();
+    activeReviewReevaluationRun.progressNotification = undefined;
+  }
+
+  const run: ReviewReevaluationRun = {
+    cancellation: new CancellationTokenSource(),
+    superseded: false,
+  };
+  activeReviewReevaluationRun = run;
+  return run;
+};
+
+const finishReviewReevaluationRun = (
+  run: ReviewReevaluationRun,
+): void => {
+  run.progressNotification?.close();
+  run.progressNotification = undefined;
+  run.cancellation.dispose();
+  if (activeReviewReevaluationRun === run) {
+    activeReviewReevaluationRun = null;
+  }
 };
 
 const createReviewReevaluationProgressMessage = (

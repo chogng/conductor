@@ -2,6 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from "src/cs/base/common/cancellation";
+import { CancellationError } from "src/cs/base/common/errors";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
@@ -274,7 +276,11 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 
 	public async resolveStructuredEvidence(
 		target: DataResourceStructuredContentTarget,
+		token: CancellationToken = CancellationToken.None,
 	): Promise<IDataResourceStructuredEvidenceReference> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		this.trackResource(target.resource);
 		const sourceService = this.evidenceContentService.canHandleResource(target.resource)
 			? this.evidenceContentService
@@ -282,6 +288,9 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		let reference: IDataResourceContentReference | null = null;
 		try {
 			reference = await sourceService.createContentReference(target.resource);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			let resolution: DataResourceStructuredEvidenceResolution;
 			while (true) {
 				const snapshot = reference.object;
@@ -292,7 +301,11 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 					target,
 					this.semanticPatches,
 					this.structuredContentEvidenceService,
+					token,
 				);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				const currentSnapshot = sourceService.get(target.resource);
 				if (
 					currentSnapshot?.version === snapshot.version &&
@@ -303,6 +316,10 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 					break;
 				}
 				const nextReference = await sourceService.createContentReference(target.resource);
+				if (token.isCancellationRequested) {
+					nextReference.dispose();
+					throw new CancellationError();
+				}
 				reference.dispose();
 				reference = nextReference;
 			}
@@ -315,6 +332,9 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 			};
 		} catch (error) {
 			reference?.dispose();
+			if (token.isCancellationRequested) {
+				throw error;
+			}
 			return {
 				object: {
 					kind: "loadError",
@@ -445,6 +465,7 @@ const createStructuredEvidenceResolution = async (
 	target: DataResourceStructuredContentTarget,
 	semanticPatches: TemplateSemanticPatches,
 	structuredContentEvidenceService: IStructuredContentEvidenceService,
+	token: CancellationToken,
 ): Promise<DataResourceStructuredEvidenceResolution> => {
 	if (snapshot.errorMessage) {
 		return {
@@ -470,7 +491,7 @@ const createStructuredEvidenceResolution = async (
 	}
 
 	const fileName = getStructuredContentFileName(target.resource, selectedSheet);
-	const evidence = await structuredContentEvidenceService.create(content, semanticPatches);
+	const evidence = await structuredContentEvidenceService.create(content, semanticPatches, token);
 	return {
 		kind: "ready",
 		snapshot: {

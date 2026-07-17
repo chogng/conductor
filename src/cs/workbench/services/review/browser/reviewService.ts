@@ -5,7 +5,8 @@
 import { Emitter } from "src/cs/base/common/event";
 import { LinkedMap, Touch } from "src/cs/base/common/map";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import { disposableTimeout } from "src/cs/base/common/async";
+import { CancellationToken } from "src/cs/base/common/cancellation";
+import { disposableTimeout, raceCancellation } from "src/cs/base/common/async";
 import { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
@@ -105,6 +106,11 @@ type ActiveUriReview = {
   readonly workspaceGeneration: number;
 };
 
+type ActiveUriReevaluation = {
+  readonly promise: Promise<ReviewReevaluationResult | null>;
+  readonly token: CancellationToken;
+};
+
 const ReviewChangeBatchDelayMs = 16;
 const PersistedReviewVersion = 1;
 const PersistedReviewStoragePrefix = "review.result.v1:";
@@ -128,7 +134,7 @@ export class ReviewService extends Disposable implements IReviewService {
   private readonly pendingReviewChangeTargetsByKey = new Map<string, NormalizedUriReviewTarget>();
   private readonly staleUriReviewKeys = new Set<string>();
   private readonly activeUriReviewsByKey = new Map<string, ActiveUriReview>();
-  private readonly activeUriReevaluationsByKey = new Map<string, Promise<ReviewReevaluationResult | null>>();
+  private readonly activeUriReevaluationsByKey = new Map<string, ActiveUriReevaluation>();
   private readonly pendingUriReviewRefreshTargetsByKey = new Map<string, NormalizedUriReviewTarget>();
   private readonly uriReviewCacheByKey = new Map<string, UriReviewCacheEntry>();
   private readonly uriReviewGenerationByKey = new Map<string, number>();
@@ -247,24 +253,34 @@ export class ReviewService extends Disposable implements IReviewService {
     return entry?.summary ?? null;
   }
 
-  public async reevaluate(target: ReviewSummaryTarget): Promise<ReviewReevaluationResult | null> {
+  public async reevaluate(
+    target: ReviewSummaryTarget,
+    token: CancellationToken = CancellationToken.None,
+  ): Promise<ReviewReevaluationResult | null> {
     const reviewTarget = normalizeUriReviewTarget(target);
-    if (!reviewTarget || !this.dataResourceService) {
+    if (!reviewTarget || !this.dataResourceService || token.isCancellationRequested) {
       return null;
     }
 
     const key = getUriReviewTargetKey(reviewTarget);
     const activeReevaluation = this.activeUriReevaluationsByKey.get(key);
-    if (activeReevaluation) {
-      return activeReevaluation;
+    if (activeReevaluation && !activeReevaluation.token.isCancellationRequested) {
+      return activeReevaluation.promise;
     }
 
-    const reevaluation = this.doReevaluate(key, reviewTarget).finally(() => {
-      if (this.activeUriReevaluationsByKey.get(key) === reevaluation) {
+    const reevaluation = raceCancellation(
+      this.doReevaluate(key, reviewTarget, token),
+      token,
+      null,
+    ).finally(() => {
+      if (this.activeUriReevaluationsByKey.get(key)?.promise === reevaluation) {
         this.activeUriReevaluationsByKey.delete(key);
       }
     });
-    this.activeUriReevaluationsByKey.set(key, reevaluation);
+    this.activeUriReevaluationsByKey.set(key, {
+      promise: reevaluation,
+      token,
+    });
     return reevaluation;
   }
 
@@ -281,15 +297,17 @@ export class ReviewService extends Disposable implements IReviewService {
   private async doReevaluate(
     key: string,
     target: NormalizedUriReviewTarget,
+    token: CancellationToken,
   ): Promise<ReviewReevaluationResult | null> {
     this.trackUriReviewTarget(key, target);
     this.markUriReviewTargetStale(key);
     this.pendingUriReviewRefreshTargetsByKey.delete(key);
     this.fireReviewChange(target);
 
-    const review = this.startUriReview(key, target);
+    const review = this.startUriReview(key, target, token);
     const entry = await review.promise;
     const isCurrent = () =>
+      !token.isCancellationRequested &&
       this.getUriReviewGeneration(key) === review.generation &&
       this.workspaceGeneration === review.workspaceGeneration;
     if (!isCurrent()) {
@@ -816,10 +834,11 @@ export class ReviewService extends Disposable implements IReviewService {
   private startUriReview(
     key: string,
     target: NormalizedUriReviewTarget,
+    token: CancellationToken = CancellationToken.None,
   ): ActiveUriReview {
     const generation = this.getUriReviewGeneration(key);
     const workspaceGeneration = this.workspaceGeneration;
-    const promise = this.resolveUriReviewSummary(target).finally(() => {
+    const promise = this.resolveUriReviewSummary(target, token).finally(() => {
       if (this.activeUriReviewsByKey.get(key)?.promise === promise) {
         this.activeUriReviewsByKey.delete(key);
         if (!this.uriReviewTargetsByKey.get(key)) {
@@ -833,16 +852,25 @@ export class ReviewService extends Disposable implements IReviewService {
     return review;
   }
 
-  private async resolveUriReviewSummary(target: NormalizedUriReviewTarget): Promise<UriReviewCacheEntry | null> {
+  private async resolveUriReviewSummary(
+    target: NormalizedUriReviewTarget,
+    token: CancellationToken = CancellationToken.None,
+  ): Promise<UriReviewCacheEntry | null> {
     if (!this.dataResourceService) {
       return null;
     }
 
     let reference: IDataResourceStructuredEvidenceReference | null = null;
     try {
-      reference = await this.dataResourceService.resolveStructuredEvidence(createDataResourceStructuredContentTarget(target));
+      reference = await this.dataResourceService.resolveStructuredEvidence(
+        createDataResourceStructuredContentTarget(target),
+        token,
+      );
       return this.createUriReviewSummaryFromStructuredContent(target, reference.object);
     } catch (error) {
+      if (token.isCancellationRequested) {
+        return null;
+      }
       return {
         modelSignature: createUriReviewErrorSignature(target, error),
         reviewEngineVersion: REVIEW_ENGINE_VERSION,

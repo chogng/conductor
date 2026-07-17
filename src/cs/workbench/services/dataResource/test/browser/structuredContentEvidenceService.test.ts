@@ -4,6 +4,8 @@
 
 import assert from "assert";
 
+import { CancellationTokenSource } from "src/cs/base/common/cancellation";
+import { isCancellationError } from "src/cs/base/common/errors";
 import type { IWebWorkerClient } from "src/cs/base/common/worker/webWorker";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
@@ -76,6 +78,40 @@ suite("workbench/services/dataResource/test/browser/structuredContentEvidenceSer
 		assert.strictEqual(resolveStructuredContentEvidenceWorkerCount(64), 64);
 		assert.strictEqual(resolveStructuredContentEvidenceWorkerCount(1), 1);
 		assert.strictEqual(resolveStructuredContentEvidenceWorkerCount(0), 1);
+	});
+
+	test("terminates a cancelled active worker and immediately dispatches the next request", async () => {
+		const workers: TestStructuredContentEvidenceWorkerClient[] = [];
+		const service = store.add(new StructuredContentEvidenceService(() => {
+			const worker = new TestStructuredContentEvidenceWorkerClient();
+			workers.push(worker);
+			return worker as unknown as IWebWorkerClient<IStructuredContentEvidenceWorker>;
+		}, 1));
+		const firstSource = store.add(new CancellationTokenSource());
+		const content = {
+			columnCount: 2,
+			maxCellLengths: [1, 1],
+			rowCount: 2,
+			rows: [["X", "Y"], ["0", "1"]],
+		};
+		const patches = {
+			rules: [],
+			terms: [],
+		};
+
+		const first = service.create(content, patches, firstSource.token);
+		await waitFor(() => workers[0]?.requestCount === 1);
+		const second = service.create(content, patches);
+		firstSource.cancel();
+
+		await assert.rejects(first, error => isCancellationError(error));
+		await waitFor(() =>
+			workers.length === 2 &&
+			workers[0]?.disposed === true &&
+			workers[1]?.requestCount === 1
+		);
+		await workers[1]?.complete();
+		await second;
 	});
 });
 

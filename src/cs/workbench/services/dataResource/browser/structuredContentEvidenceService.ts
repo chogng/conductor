@@ -2,7 +2,9 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'src/cs/base/common/lifecycle';
+import { CancellationToken } from 'src/cs/base/common/cancellation';
+import { CancellationError } from 'src/cs/base/common/errors';
+import { Disposable, type IDisposable } from 'src/cs/base/common/lifecycle';
 import type { IWebWorkerClient } from 'src/cs/base/common/worker/webWorker';
 import { getPerfNow, logPerf } from 'src/cs/workbench/common/perf';
 import type { IStructuredContentEvidenceWorker } from 'src/cs/workbench/services/dataResource/browser/structuredContentEvidenceWorker';
@@ -16,6 +18,7 @@ const STRUCTURED_CONTENT_EVIDENCE_WORKER_TIMEOUT_MS = 60_000;
 export type StructuredContentEvidenceWorkerClientFactory = () => IWebWorkerClient<IStructuredContentEvidenceWorker>;
 
 type QueuedEvidenceRequest = {
+	readonly cancellationListener: IDisposable;
 	readonly content: TableModelContentSnapshot;
 	readonly patches: TemplateSemanticPatches;
 	readonly reject: (error: Error) => void;
@@ -46,12 +49,26 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 	public create(
 		content: TableModelContentSnapshot,
 		patches: TemplateSemanticPatches,
+		token: CancellationToken = CancellationToken.None,
 	): Promise<StructuredContentEvidence> {
 		if (this.disposed) {
 			return Promise.reject(new Error('The DataResource evidence service is disposed.'));
 		}
+		if (token.isCancellationRequested) {
+			return Promise.reject(new CancellationError());
+		}
 		return new Promise<StructuredContentEvidence>((resolve, reject) => {
-			const request = { content, patches, reject, resolve };
+			let request: QueuedEvidenceRequest;
+			const cancellationListener = token.onCancellationRequested(() => {
+				this.cancelRequest(request);
+			});
+			request = {
+				cancellationListener,
+				content,
+				patches,
+				reject,
+				resolve,
+			};
 			this.pendingRequests.push(request);
 			logPerf('dataResource.evidenceWorker.submit', {
 				activeWorkerCount: this.getActiveWorkerCount(),
@@ -69,9 +86,11 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 		this.disposed = true;
 		const error = new Error('The DataResource evidence service was disposed.');
 		for (const request of this.pendingRequests.splice(0)) {
+			request.cancellationListener.dispose();
 			request.reject(error);
 		}
 		for (const slot of this.slots) {
+			slot.activeRequest?.cancellationListener.dispose();
 			slot.activeRequest?.reject(error);
 			slot.activeRequest = null;
 			slot.worker.dispose();
@@ -102,7 +121,9 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 				try {
 					slot = this.createSlot();
 				} catch (error) {
-					this.pendingRequests.shift()?.reject(toError(error));
+					const request = this.pendingRequests.shift();
+					request?.cancellationListener.dispose();
+					request?.reject(toError(error));
 					continue;
 				}
 			}
@@ -172,6 +193,7 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 			return;
 		}
 		slot.activeRequest = null;
+		request.cancellationListener.dispose();
 		logPerf('dataResource.evidenceWorker.complete', {
 			activeWorkerCount: this.getActiveWorkerCount(),
 			durationMs: getPerfNow() - startedAt,
@@ -184,6 +206,26 @@ export class StructuredContentEvidenceService extends Disposable implements IStr
 			this.removeWorker(slot);
 			request.reject(error ?? new Error('The DataResource evidence worker failed.'));
 		}
+		this.dispatchPending();
+	}
+
+	private cancelRequest(request: QueuedEvidenceRequest): void {
+		const pendingIndex = this.pendingRequests.indexOf(request);
+		if (pendingIndex >= 0) {
+			this.pendingRequests.splice(pendingIndex, 1);
+			request.cancellationListener.dispose();
+			request.reject(new CancellationError());
+			return;
+		}
+
+		const slot = this.slots.find(candidate => candidate.activeRequest === request);
+		if (!slot) {
+			return;
+		}
+		slot.activeRequest = null;
+		request.cancellationListener.dispose();
+		request.reject(new CancellationError());
+		this.removeWorker(slot);
 		this.dispatchPending();
 	}
 

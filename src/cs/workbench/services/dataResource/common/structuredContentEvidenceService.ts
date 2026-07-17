@@ -2,6 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { TemplateSemanticPatches } from "src/cs/workbench/services/settings/common/settings";
@@ -19,5 +20,6 @@ export interface IStructuredContentEvidenceService extends IDisposable {
 	create(
 		content: TableModelContentSnapshot,
 		patches: TemplateSemanticPatches,
+		token?: CancellationToken,
 	): Promise<StructuredContentEvidence>;
 }

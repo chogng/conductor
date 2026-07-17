@@ -2,6 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import type { Event } from "src/cs/base/common/event";
 import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
@@ -97,7 +98,10 @@ export interface IReviewService {
   getLatestReviewSummary(target: ReviewSummaryTarget): ReviewSummary;
   getLatestResourceReviewExecution(target: ReviewSummaryTarget): ResourceReviewExecution | null;
   confirmReviewedTemplate(input: ReviewedTemplateConfirmationRequest): Promise<SchemaProfile | null>;
-  reevaluate(target: ReviewSummaryTarget): Promise<ReviewReevaluationResult | null>;
+  reevaluate(
+    target: ReviewSummaryTarget,
+    token?: CancellationToken,
+  ): Promise<ReviewReevaluationResult | null>;
   resolveReviewSummary(target: ReviewSummaryTarget): Promise<ReviewSummary | null>;
   reviewResourceForExecution(target: ReviewSummaryTarget): Promise<ResourceReviewExecution | null>;
   reviewResourceManualTemplate(input: ResourceManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;

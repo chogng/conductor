@@ -1,5 +1,6 @@
 import assert from "assert";
 
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { URI } from "src/cs/base/common/uri";
 import { CommandsRegistry } from "../../../../../platform/commands/common/commands.ts";
@@ -302,6 +303,61 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       uniqueTargetCount: 12,
     });
   });
+
+  test("a newer reevaluate-all run cancels and immediately supersedes the active run", async () => {
+    const resource = URI.file("/workspace/file.csv");
+    const explorerService = createExplorerServiceStub({
+      files: [{
+        fileId: "file",
+        fileName: "file.csv",
+        resource,
+      }],
+      onSelect: () => undefined,
+      onSetEditable: () => undefined,
+    });
+    const tokens: CancellationToken[] = [];
+    const reviewService = {
+      _serviceBrand: undefined,
+      reevaluate: (
+        target: Parameters<IReviewService["reevaluate"]>[0],
+        token: CancellationToken,
+      ): Promise<ReviewReevaluationResult | null> => {
+        tokens.push(token);
+        if (tokens.length === 1) {
+          return new Promise(resolve => {
+            const listener = token.onCancellationRequested(() => {
+              listener.dispose();
+              resolve(null);
+            });
+          });
+        }
+        return Promise.resolve({
+          persistence: "stored",
+          summary: {
+            resource: target.resource,
+            state: "missing",
+            findingCodes: [],
+          },
+        });
+      },
+    } as unknown as IReviewService;
+    const notifications: Array<NotificationMessage | NotificationMessage[]> = [];
+    const accessor = createAccessor([
+      [IExplorerService, explorerService],
+      [INotificationService, createNotificationServiceStub(notifications)],
+      [IReviewService, reviewService],
+    ]);
+
+    const first = reevaluateAllFileReviewsHandler(accessor);
+    await waitUntil(() => tokens.length === 1);
+    const second = reevaluateAllFileReviewsHandler(accessor);
+    await waitUntil(() => tokens.length === 2);
+
+    assert.equal(tokens[0]?.isCancellationRequested, true);
+    assert.equal(tokens[1]?.isCancellationRequested, false);
+    await Promise.all([first, second]);
+    assert.equal(notifications.length, 3);
+  });
 });
 
 function createAccessor(
@@ -395,4 +451,17 @@ const flushPromises = async (): Promise<void> => {
   await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
+};
+
+const waitUntil = async (
+  condition: () => boolean,
+  attempts = 20,
+): Promise<void> => {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (condition()) {
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  assert.fail("Timed out waiting for condition.");
 };

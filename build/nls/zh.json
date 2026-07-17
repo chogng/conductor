@@ -204,7 +204,6 @@
   "files.reviewReevaluation.single.cleared": "评审已重新评估，并已清除之前保存的结果。",
   "files.reviewReevaluation.single.description": "重新评估并持久化已导入文件的评审结果。",
   "files.reviewReevaluation.single.failed": "重新评估失败：{message}",
-  "files.reviewReevaluation.single.progress": "正在重新评估...",
   "files.reviewReevaluation.single.stored": "评审已重新评估并保存。",
   "files.reviewReevaluation.single.superseded": "资源已发生变化，评审重新评估未完成。",
   "files.reviewReevaluation.single.unavailable": "评审已重新评估，但结果无法保存到工作区存储。",

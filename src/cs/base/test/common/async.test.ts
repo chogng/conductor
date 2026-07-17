@@ -7,6 +7,7 @@ import {
   Delayer,
   disposableTimeout,
   isThenable,
+  raceCancellation,
   raceTimeout,
   RunOnceScheduler,
   TaskSequentializer,
@@ -52,6 +53,21 @@ suite("base/test/common/async", () => {
 
     await assert.rejects(pending, error => error instanceof CancellationError);
     await assert.rejects(timeout(1, CancellationToken.Cancelled), error => error instanceof CancellationError);
+  });
+
+  test("raceCancellation returns immediately without cancelling the original promise", async () => {
+    const source = store.add(new CancellationTokenSource());
+    let resolveOriginal!: (value: string) => void;
+    const original = new Promise<string>(resolve => {
+      resolveOriginal = resolve;
+    });
+    const raced = raceCancellation(original, source.token, "cancelled");
+
+    source.cancel();
+    assert.equal(await raced, "cancelled");
+
+    resolveOriginal("late");
+    assert.equal(await original, "late");
   });
 
   test("disposableTimeout can cancel scheduled work", async () => {

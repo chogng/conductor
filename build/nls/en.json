@@ -204,7 +204,6 @@
   "files.reviewReevaluation.single.cleared": "Review was reevaluated and the previous saved result was cleared.",
   "files.reviewReevaluation.single.description": "Reevaluate and persist Review for an imported file.",
   "files.reviewReevaluation.single.failed": "Failed to reevaluate Review: {message}",
-  "files.reviewReevaluation.single.progress": "Reevaluating Review...",
   "files.reviewReevaluation.single.stored": "Review was reevaluated and saved.",
   "files.reviewReevaluation.single.superseded": "Review reevaluation did not complete because the resource changed.",
   "files.reviewReevaluation.single.unavailable": "Review was reevaluated, but the result could not be saved to workspace storage.",

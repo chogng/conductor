@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { CancellationTokenSource } from "src/cs/base/common/cancellation";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
@@ -246,6 +247,56 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			persistedKeys: [],
 			persistence: "cleared",
 			state: "invalid",
+		});
+	});
+
+	test("starts a newer reevaluation immediately and ignores the cancelled result when it arrives late", async () => {
+		const resource = URI.file("/workspace/Transfer.csv");
+		const target = { resource, sheetId: "table-a" };
+		const dataResourceService = store.add(new ControlledDataResourceService());
+		const storageService = store.add(new TestStorageService());
+		const service = createReviewServiceForTest(
+			createUserTemplateServiceForTest(),
+			dataResourceService,
+			undefined,
+			storageService,
+			createWorkspaceContextServiceStub(resource),
+			createReviewFileServiceStub(100, 2048),
+		);
+		const readyReference = store.add(
+			await createDataResourceServiceForTest(resource).resolveStructuredEvidence(target),
+		);
+		const firstSource = store.add(new CancellationTokenSource());
+		const secondSource = store.add(new CancellationTokenSource());
+
+		const first = service.reevaluate(target, firstSource.token);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
+		firstSource.cancel();
+		assert.equal(await first, null);
+
+		const second = service.reevaluate(target, secondSource.token);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 2);
+		dataResourceService.resolveAt(1, { kind: "missingContent" });
+		const secondResult = await second;
+
+		assert.deepStrictEqual({
+			persistence: secondResult?.persistence,
+			state: secondResult?.summary.state,
+		}, {
+			persistence: "cleared",
+			state: "invalid",
+		});
+
+		dataResourceService.resolveNext(readyReference.object);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		await flushReviewPersistence(service);
+		assert.deepStrictEqual({
+			latestState: service.getLatestReviewSummary(target).state,
+			persistedKeys: storageService.keys(StorageScope.WORKSPACE)
+				.filter(key => key.startsWith("review.result.v1:")),
+		}, {
+			latestState: "invalid",
+			persistedKeys: [],
 		});
 	});
 
@@ -1862,7 +1913,11 @@ class ControlledDataResourceService extends Disposable implements IDataResourceS
 	}
 
 	public resolveNext(resolution: DataResourceStructuredEvidenceResolution): void {
-		const resolve = this.pendingResolvers.shift();
+		this.resolveAt(0, resolution);
+	}
+
+	public resolveAt(index: number, resolution: DataResourceStructuredEvidenceResolution): void {
+		const [resolve] = this.pendingResolvers.splice(index, 1);
 		assert.ok(resolve, "Expected a pending structured-content resolution.");
 		resolve({
 			object: resolution,

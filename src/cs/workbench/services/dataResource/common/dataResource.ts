@@ -2,6 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import type { Event } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
@@ -115,6 +116,7 @@ export interface IDataResourceService extends IDisposable {
 	 */
 	resolveStructuredEvidence(
 		target: DataResourceStructuredContentTarget,
+		token?: CancellationToken,
 	): Promise<IDataResourceStructuredEvidenceReference>;
 
 	/**

@@ -47,6 +47,30 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
     return promise;
 }
 
+/**
+ * Returns a promise that resolves with `undefined` as soon as the passed token is cancelled.
+ */
+export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken): Promise<T | undefined>;
+
+/**
+ * Returns a promise that resolves with `defaultValue` as soon as the passed token is cancelled.
+ */
+export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue: T): Promise<T>;
+
+export function raceCancellation<T>(
+    promise: Promise<T>,
+    token: CancellationToken,
+    defaultValue?: T,
+): Promise<T | undefined> {
+    return new Promise((resolve, reject) => {
+        const ref = token.onCancellationRequested(() => {
+            ref.dispose();
+            resolve(defaultValue);
+        });
+        promise.then(resolve, reject).finally(() => ref.dispose());
+    });
+}
+
 export function asPromise<T>(callback: () => T | PromiseLike<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         try {
