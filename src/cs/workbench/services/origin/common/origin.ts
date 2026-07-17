@@ -10,11 +10,7 @@ export const OriginContributionId = "workbench.contrib.origin";
 export const OriginExportSettingsViewContainerId = "workbench.viewContainer.originSettings";
 export const OriginExportSettingsViewId = "workbench.origin.exportSettings";
 
-export const OriginCommandId = {
-	showExportSettings: "workbench.action.showOriginSettings",
-} as const;
-
-export type OriginCommandId = typeof OriginCommandId[keyof typeof OriginCommandId];
+export const SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID = "workbench.action.showOriginSettings";
 
 export type OriginHealthResult = {
   logPath?: string;

@@ -8,7 +8,7 @@ import { createCalculatedMetricRecords } from "src/cs/workbench/services/calcula
 import type {
 	CalculationRecordsInput,
 } from "src/cs/workbench/services/calculation/common/calculationRecords";
-import type { MetricKey } from "src/cs/workbench/services/session/common/sessionModel";
+import type { MetricKey } from "src/cs/workbench/services/calculation/common/calculationRecords";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/common/calculationMetricRecordBuilder", () => {

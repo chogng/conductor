@@ -7,7 +7,7 @@ import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
-import { OriginCommandId } from "src/cs/workbench/services/origin/common/origin";
+import { SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID } from "src/cs/workbench/services/origin/common/origin";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 
@@ -19,7 +19,7 @@ export const registerOriginCommands = (): IDisposable => {
 			super({
 				category: localize("origin.commands.category", "Origin"),
 				f1: true,
-				id: OriginCommandId.showExportSettings,
+				id: SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID,
 				title: localize("origin.commands.showExportSettings", "Show Origin Settings"),
 				metadata: {
 					description: localize("origin.commands.showExportSettings", "Show Origin Settings"),

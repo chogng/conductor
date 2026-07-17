@@ -14,7 +14,7 @@ import {
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
-import { ParametersCommandId } from "src/cs/workbench/services/parameters/common/parameters";
+import { SHOW_PARAMETERS_COMMAND_ID } from "src/cs/workbench/services/parameters/common/parameters";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 await import("src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions");
@@ -48,7 +48,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
     }).actions;
 
     assert.ok(actions.some(action =>
-      action.id === ParametersCommandId.showParameters && action.checked === true
+      action.id === SHOW_PARAMETERS_COMMAND_ID && action.checked === true
     ));
   });
 
@@ -68,7 +68,7 @@ suite("workbench/browser/parts/auxiliarybar/test/browser/auxiliaryBarActions", (
       activePanelViewContainerId: ChartViewContainerId,
     }).actions;
 
-    assert.ok(!actions.some(action => action.id === ParametersCommandId.showParameters));
+    assert.ok(!actions.some(action => action.id === SHOW_PARAMETERS_COMMAND_ID));
     assert.deepEqual(actions.map(action => action.id), []);
   });
 

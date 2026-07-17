@@ -14,11 +14,7 @@ export const ParametersContributionId = "workbench.contrib.parameters";
 export const ParametersViewContainerId = "workbench.viewContainer.parameters";
 export const ParametersViewId = "workbench.parameters";
 
-export const ParametersCommandId = {
-	showParameters: "workbench.action.showParameters",
-} as const;
-
-export type ParametersCommandId = typeof ParametersCommandId[keyof typeof ParametersCommandId];
+export const SHOW_PARAMETERS_COMMAND_ID = "workbench.action.showParameters";
 
 export type ParametersViewStateInput = {
   readonly fileId?: string | null;

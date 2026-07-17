@@ -25,13 +25,9 @@ export const ExportContributionId = "workbench.contrib.export";
 export const ExportViewContainerId = "workbench.viewContainer.export";
 export const ExportViewId = "workbench.export";
 
-export const ExportCommandId = {
-  exportOriginZip: "workbench.action.exportOriginZip",
-  openInOrigin: "workbench.action.openInOrigin",
-  showExport: "workbench.action.showExport",
-} as const;
-
-export type ExportCommandId = typeof ExportCommandId[keyof typeof ExportCommandId];
+export const EXPORT_ORIGIN_ZIP_COMMAND_ID = "workbench.action.exportOriginZip";
+export const OPEN_IN_ORIGIN_COMMAND_ID = "workbench.action.openInOrigin";
+export const SHOW_EXPORT_COMMAND_ID = "workbench.action.showExport";
 
 export type OriginCanvasExportScope =
   | "current"

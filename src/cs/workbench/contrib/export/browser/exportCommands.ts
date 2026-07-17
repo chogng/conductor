@@ -6,7 +6,12 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { ExportCommandId, IExportService } from "src/cs/workbench/services/export/common/export";
+import {
+  EXPORT_ORIGIN_ZIP_COMMAND_ID,
+  IExportService,
+  OPEN_IN_ORIGIN_COMMAND_ID,
+  SHOW_EXPORT_COMMAND_ID,
+} from "src/cs/workbench/services/export/common/export";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
@@ -19,7 +24,7 @@ export const registerExportCommands = (): IDisposable => {
 			super({
 				category: localize("export.commands.category", "Export"),
 				f1: true,
-				id: ExportCommandId.showExport,
+				id: SHOW_EXPORT_COMMAND_ID,
 				title: localize("export.commands.showExport", "Show Export"),
 				metadata: {
 					description: localize("export.commands.showExport", "Show Export"),
@@ -37,7 +42,7 @@ export const registerExportCommands = (): IDisposable => {
 			super({
 				category: localize("export.commands.category", "Export"),
 				f1: true,
-				id: ExportCommandId.openInOrigin,
+				id: OPEN_IN_ORIGIN_COMMAND_ID,
 				title: localize("export.commands.openInOrigin", "Open in Origin"),
 				metadata: {
 					description: localize("export.commands.openInOrigin", "Open in Origin"),
@@ -55,7 +60,7 @@ export const registerExportCommands = (): IDisposable => {
 			super({
 				category: localize("export.commands.category", "Export"),
 				f1: true,
-				id: ExportCommandId.exportOriginZip,
+				id: EXPORT_ORIGIN_ZIP_COMMAND_ID,
 				title: localize("export.commands.exportOriginZip", "Export Origin ZIP"),
 				metadata: {
 					description: localize("export.commands.exportOriginZip", "Export Origin ZIP"),

@@ -14,7 +14,12 @@ import type {
 import { UpdateTitleBarEntry } from "src/cs/workbench/contrib/update/browser/updateTitleBarEntry";
 import { getUpdateTooltipText } from "src/cs/workbench/contrib/update/browser/updateTooltip";
 import {
-  UpdateCommandId,
+  CHECK_FOR_UPDATES_COMMAND_ID,
+  DOWNLOAD_UPDATE_COMMAND_ID,
+  INSTALL_UPDATE_COMMAND_ID,
+  UPDATE_CHECKING_COMMAND_ID,
+  UPDATE_DOWNLOADING_COMMAND_ID,
+  UPDATE_INSTALLING_COMMAND_ID,
 } from "src/cs/workbench/contrib/update/common/update";
 import type {
   ITitleService,
@@ -42,7 +47,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
         installUpdateCommandId: "update.install",
         isUpdateReadyToInstall: true,
         isUpdateVisible: true,
-        updateCommandId: UpdateCommandId.install,
+        updateCommandId: INSTALL_UPDATE_COMMAND_ID,
         updateLabel: "update.titlebar.install",
         updateProgressPercent: null,
         updateTooltip: getUpdateTooltipText(status, true),
@@ -73,7 +78,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
         installUpdateCommandId: "update.install",
         isUpdateReadyToInstall: false,
         isUpdateVisible: true,
-        updateCommandId: UpdateCommandId.downloadNow,
+        updateCommandId: DOWNLOAD_UPDATE_COMMAND_ID,
         updateLabel: "update.titlebar.download",
         updateProgressPercent: null,
         updateTooltip: getUpdateTooltipText(status, true),
@@ -143,7 +148,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
         installUpdateCommandId: "update.install",
         isUpdateReadyToInstall: false,
         isUpdateVisible: true,
-        updateCommandId: UpdateCommandId.downloading,
+        updateCommandId: UPDATE_DOWNLOADING_COMMAND_ID,
         updateLabel: 'update.titlebar.downloadingProgress:{"percent":42}',
         updateProgressPercent: 42,
         updateTooltip: getUpdateTooltipText(status, true),
@@ -165,7 +170,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
       readonly status: DesktopUpdateStatus;
     }> = [
       {
-        expectedCommandId: UpdateCommandId.checking,
+        expectedCommandId: UPDATE_CHECKING_COMMAND_ID,
         expectedLabel: "update.titlebar.checking",
         expectedVersion: null,
         status: {
@@ -178,7 +183,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
         },
       },
       {
-        expectedCommandId: UpdateCommandId.updating,
+        expectedCommandId: UPDATE_INSTALLING_COMMAND_ID,
         expectedLabel: "update.titlebar.installing",
         expectedVersion: "1.2.5",
         status: {
@@ -191,7 +196,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
         },
       },
       {
-        expectedCommandId: UpdateCommandId.check,
+        expectedCommandId: CHECK_FOR_UPDATES_COMMAND_ID,
         expectedLabel: "update.titlebar.error",
         expectedVersion: null,
         status: {

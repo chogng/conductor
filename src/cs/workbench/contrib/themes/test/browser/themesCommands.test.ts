@@ -19,7 +19,14 @@ import {
 } from "src/cs/workbench/services/settings/common/settings";
 import {
 	DEFAULT_WORKBENCH_BACKGROUND_COLOR,
-	ThemeCommandId,
+	RESET_WORKBENCH_BACKGROUND_COMMAND_ID,
+	SET_DARK_THEME_COMMAND_ID,
+	SET_LIGHT_THEME_COMMAND_ID,
+	SET_SYSTEM_THEME_COMMAND_ID,
+	SET_THEME_COMMAND_ID,
+	SET_TRANSPARENT_CHROME_COMMAND_ID,
+	SET_WORKBENCH_BACKGROUND_COMMAND_ID,
+	TOGGLE_TRANSPARENT_CHROME_COMMAND_ID,
 } from "src/cs/workbench/services/themes/common/themeService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -38,9 +45,9 @@ suite("workbench/contrib/themes/test/browser/themesCommands", () => {
 		]);
 
 		try {
-			await CommandsRegistry.getCommand(ThemeCommandId.setLightTheme)?.handler(accessor);
-			await CommandsRegistry.getCommand(ThemeCommandId.setDarkTheme)?.handler(accessor);
-			await CommandsRegistry.getCommand(ThemeCommandId.setSystemTheme)?.handler(accessor);
+			await CommandsRegistry.getCommand(SET_LIGHT_THEME_COMMAND_ID)?.handler(accessor);
+			await CommandsRegistry.getCommand(SET_DARK_THEME_COMMAND_ID)?.handler(accessor);
+			await CommandsRegistry.getCommand(SET_SYSTEM_THEME_COMMAND_ID)?.handler(accessor);
 			const commandPaletteIds = getCommandPaletteIds();
 
 			assert.deepStrictEqual(calls, [
@@ -48,9 +55,9 @@ suite("workbench/contrib/themes/test/browser/themesCommands", () => {
 				["update", { theme: "dark" }],
 				["update", { theme: "system" }],
 			]);
-			assert.ok(commandPaletteIds.has(ThemeCommandId.setLightTheme));
-			assert.ok(commandPaletteIds.has(ThemeCommandId.setDarkTheme));
-			assert.ok(commandPaletteIds.has(ThemeCommandId.setSystemTheme));
+			assert.ok(commandPaletteIds.has(SET_LIGHT_THEME_COMMAND_ID));
+			assert.ok(commandPaletteIds.has(SET_DARK_THEME_COMMAND_ID));
+			assert.ok(commandPaletteIds.has(SET_SYSTEM_THEME_COMMAND_ID));
 		} finally {
 			registration.dispose();
 		}
@@ -69,10 +76,10 @@ suite("workbench/contrib/themes/test/browser/themesCommands", () => {
 		]);
 
 		try {
-			await CommandsRegistry.getCommand(ThemeCommandId.setTheme)?.handler(accessor, "dark");
-			await CommandsRegistry.getCommand(ThemeCommandId.setTheme)?.handler(accessor, "invalid");
-			await CommandsRegistry.getCommand(ThemeCommandId.setWorkbenchBackground)?.handler(accessor, " #ABCDEF ");
-			await CommandsRegistry.getCommand(ThemeCommandId.setTransparentChrome)?.handler(accessor, true);
+			await CommandsRegistry.getCommand(SET_THEME_COMMAND_ID)?.handler(accessor, "dark");
+			await CommandsRegistry.getCommand(SET_THEME_COMMAND_ID)?.handler(accessor, "invalid");
+			await CommandsRegistry.getCommand(SET_WORKBENCH_BACKGROUND_COMMAND_ID)?.handler(accessor, " #ABCDEF ");
+			await CommandsRegistry.getCommand(SET_TRANSPARENT_CHROME_COMMAND_ID)?.handler(accessor, true);
 
 			assert.deepStrictEqual(updates, [
 				{ theme: "dark" },
@@ -98,16 +105,16 @@ suite("workbench/contrib/themes/test/browser/themesCommands", () => {
 		]);
 
 		try {
-			await CommandsRegistry.getCommand(ThemeCommandId.resetWorkbenchBackground)?.handler(accessor);
-			await CommandsRegistry.getCommand(ThemeCommandId.toggleTransparentChrome)?.handler(accessor);
+			await CommandsRegistry.getCommand(RESET_WORKBENCH_BACKGROUND_COMMAND_ID)?.handler(accessor);
+			await CommandsRegistry.getCommand(TOGGLE_TRANSPARENT_CHROME_COMMAND_ID)?.handler(accessor);
 			const commandPaletteIds = getCommandPaletteIds();
 
 			assert.deepStrictEqual(updates, [
 				{ backgroundColor: DEFAULT_WORKBENCH_BACKGROUND_COLOR },
 				{ transparentChrome: false },
 			]);
-			assert.ok(commandPaletteIds.has(ThemeCommandId.resetWorkbenchBackground));
-			assert.ok(commandPaletteIds.has(ThemeCommandId.toggleTransparentChrome));
+			assert.ok(commandPaletteIds.has(RESET_WORKBENCH_BACKGROUND_COMMAND_ID));
+			assert.ok(commandPaletteIds.has(TOGGLE_TRANSPARENT_CHROME_COMMAND_ID));
 		} finally {
 			registration.dispose();
 		}

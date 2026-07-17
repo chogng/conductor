@@ -25,7 +25,14 @@ import type { NotificationToastType } from "src/cs/workbench/common/notification
 import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/slice/common/templateSelection";
-import { TemplateCommandId } from "src/cs/workbench/contrib/template/common/template";
+import {
+  CREATE_TEMPLATE_COMMAND_ID,
+  DELETE_TEMPLATE_COMMAND_ID,
+  EDIT_TEMPLATE_COMMAND_ID,
+  EXPORT_TEMPLATE_COMMAND_ID,
+  IMPORT_TEMPLATE_COMMAND_ID,
+  SELECT_TEMPLATE_COMMAND_ID,
+} from "src/cs/workbench/contrib/template/common/template";
 import type {
   TemplateEditorRecord,
 } from "src/cs/workbench/services/template/common/template";
@@ -562,7 +569,7 @@ export class TemplateView {
         left: createMenuItemLabel(localize("template.import.button", "Import templates")),
         right: createTemplateMenuIcon(LxIcon.download),
         run: () => {
-          void this.props.commandService.executeCommand(TemplateCommandId.importTemplate);
+          void this.props.commandService.executeCommand(IMPORT_TEMPLATE_COMMAND_ID);
         },
         tabIndex: 0,
       }),
@@ -574,7 +581,7 @@ export class TemplateView {
   private createTemplateDraft(): void {
     const config = this.getEffectiveTemplateFormState();
     this.stopOnErrorDraft = config.stopOnError;
-    void this.props.commandService.executeCommand(TemplateCommandId.createTemplate, {
+    void this.props.commandService.executeCommand(CREATE_TEMPLATE_COMMAND_ID, {
       stopOnError: config.stopOnError,
     });
   }
@@ -583,19 +590,19 @@ export class TemplateView {
     const templateId = String(template.id ?? "");
     return [
       {
-        id: `${TemplateCommandId.editTemplate}.${templateId || "template"}`,
+        id: `${EDIT_TEMPLATE_COMMAND_ID}.${templateId || "template"}`,
         icon: LxIcon.edit,
         label: localize("template.edit", "Edit template"),
         onClick: () => this.editTemplate(template),
       },
       {
-        id: `${TemplateCommandId.exportTemplate}.${templateId || "template"}`,
+        id: `${EXPORT_TEMPLATE_COMMAND_ID}.${templateId || "template"}`,
         icon: LxIcon.exportTray,
         label: localize("template.export.button", "Export templates"),
         onClick: () => this.exportTemplate(template),
       },
       {
-        id: `${TemplateCommandId.deleteTemplate}.${templateId || "template"}`,
+        id: `${DELETE_TEMPLATE_COMMAND_ID}.${templateId || "template"}`,
         icon: LxIcon.trashFlat,
         label: localize("template.delete.label", "Delete template"),
         onClick: () => this.deleteTemplate(template),
@@ -605,27 +612,27 @@ export class TemplateView {
 
   private editTemplate(template: TemplateEditorRecord): void {
     this.stopOnErrorDraft = Boolean(template.stopOnError);
-    void this.props.commandService.executeCommand(TemplateCommandId.editTemplate, template);
+    void this.props.commandService.executeCommand(EDIT_TEMPLATE_COMMAND_ID, template);
   }
 
   private exportTemplate(template: TemplateEditorRecord | TemplateEditorConfig): void {
-    void this.props.commandService.executeCommand(TemplateCommandId.exportTemplate, template);
+    void this.props.commandService.executeCommand(EXPORT_TEMPLATE_COMMAND_ID, template);
   }
 
   private deleteTemplate(template: TemplateEditorRecord): void {
-    void this.props.commandService.executeCommand(TemplateCommandId.deleteTemplate, template);
+    void this.props.commandService.executeCommand(DELETE_TEMPLATE_COMMAND_ID, template);
   }
 
   private selectTemplate(template: TemplateEditorRecord | null): void {
     const config = this.getEffectiveTemplateFormState();
     if (!template) {
       this.stopOnErrorDraft = config.stopOnError;
-      void this.props.commandService.executeCommand(TemplateCommandId.selectTemplate, {
+      void this.props.commandService.executeCommand(SELECT_TEMPLATE_COMMAND_ID, {
         stopOnError: config.stopOnError,
       });
     } else {
       this.stopOnErrorDraft = Boolean(template.stopOnError);
-      void this.props.commandService.executeCommand(TemplateCommandId.selectTemplate, template);
+      void this.props.commandService.executeCommand(SELECT_TEMPLATE_COMMAND_ID, template);
     }
   }
 

@@ -16,8 +16,8 @@ import {
   type IViewsService as IViewsServiceType,
 } from "src/cs/workbench/services/views/common/viewsService";
 
-const CONFIGURE_PREFERRED_PASTE_ACTION_ID = "workbench.action.configurePreferredPasteAction";
-const CONFIGURE_PREFERRED_DROP_ACTION_ID = "workbench.action.configurePreferredDropAction";
+export const CONFIGURE_PREFERRED_PASTE_COMMAND_ID = "workbench.action.configurePreferredPasteAction";
+export const CONFIGURE_PREFERRED_DROP_COMMAND_ID = "workbench.action.configurePreferredDropAction";
 
 export class DropOrPasteIntoCommands extends Disposable implements IWorkbenchContribution {
   public static readonly ID = "workbench.contrib.dropOrPasteInto";
@@ -26,7 +26,7 @@ export class DropOrPasteIntoCommands extends Disposable implements IWorkbenchCon
     super();
 
     this._register(CommandsRegistry.registerCommand({
-      id: CONFIGURE_PREFERRED_PASTE_ACTION_ID,
+      id: CONFIGURE_PREFERRED_PASTE_COMMAND_ID,
       metadata: {
         description: localize(
           "configureDefaultPaste.description",
@@ -42,7 +42,7 @@ export class DropOrPasteIntoCommands extends Disposable implements IWorkbenchCon
     }));
 
     this._register(CommandsRegistry.registerCommand({
-      id: CONFIGURE_PREFERRED_DROP_ACTION_ID,
+      id: CONFIGURE_PREFERRED_DROP_COMMAND_ID,
       metadata: {
         description: localize(
           "configureDefaultDrop.description",

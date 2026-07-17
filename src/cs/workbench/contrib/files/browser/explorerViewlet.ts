@@ -29,12 +29,11 @@ import {
   ExplorerView,
   type ExplorerViewProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerView";
+import type { FilesViewLayout } from "src/cs/workbench/contrib/files/common/files";
 import {
-  ADD_FOLDER_ACTION_ID,
-  CLOSE_FOLDER_ACTION_ID,
-  MORE_ACTIONS_ACTION_ID,
-  type FilesViewLayout,
-} from "src/cs/workbench/contrib/files/common/files";
+  ADD_FOLDER_COMMAND_ID,
+  CLOSE_FOLDER_COMMAND_ID,
+} from "src/cs/workbench/contrib/files/common/fileCommands";
 import {
   ExplorerViewId,
   IExplorerService,
@@ -52,7 +51,7 @@ import {
   type ExplorerFileEntry,
   type ExplorerResourceIdentity,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
-import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
+import { TOGGLE_THUMBNAIL_VIEW_COMMAND_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import { createTemplateEditorRecordFromUserTemplate } from "src/cs/workbench/contrib/template/browser/templateUserTemplateAdapter";
 import {
   IThumbnailPreviewService,
@@ -71,6 +70,7 @@ import {
   IUserTemplateService,
   type IUserTemplateService as IUserTemplateServiceType,
 } from "src/cs/workbench/services/userTemplate/common/userTemplate";
+
 import {
   IReviewService,
   type IReviewService as IReviewServiceType,
@@ -81,6 +81,8 @@ import {
 } from "src/cs/workbench/services/slice/common/slice";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
+
+const MORE_ACTIONS_ACTION_ID = "files.moreActions";
 
 export type ExplorerViewPaneSurfaceOptions = {
   readonly className: string;
@@ -475,27 +477,27 @@ export abstract class BaseExplorerViewPane extends ViewPane {
         createMenuAction({
           checked: isThumbnailView,
           enabled: isChartMode,
-          id: TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
+          id: TOGGLE_THUMBNAIL_VIEW_COMMAND_ID,
           label: localize("files.thumbnailView", "Thumbnail"),
           run: () => {
-            void this.commandService.executeCommand(TOGGLE_THUMBNAIL_VIEW_ACTION_ID);
+            void this.commandService.executeCommand(TOGGLE_THUMBNAIL_VIEW_COMMAND_ID);
           },
         }),
         createMenuAction({
           icon: LxIcon.add,
-          id: ADD_FOLDER_ACTION_ID,
+          id: ADD_FOLDER_COMMAND_ID,
           label: localize("files.addFolder", "Add Folder"),
           run: () => {
-            void this.commandService.executeCommand(ADD_FOLDER_ACTION_ID);
+            void this.commandService.executeCommand(ADD_FOLDER_COMMAND_ID);
           },
         }),
         createMenuAction({
           enabled: canCloseFolder,
           icon: LxIcon.remove,
-          id: CLOSE_FOLDER_ACTION_ID,
+          id: CLOSE_FOLDER_COMMAND_ID,
           label: localize("files.closeFolder", "Close Folder"),
           run: () => {
-            void this.commandService.executeCommand(CLOSE_FOLDER_ACTION_ID);
+            void this.commandService.executeCommand(CLOSE_FOLDER_COMMAND_ID);
           },
         }),
       ],

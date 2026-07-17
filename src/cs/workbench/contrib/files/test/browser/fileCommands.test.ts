@@ -10,13 +10,13 @@ import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateSelection } from "src/cs/workbench/services/slice/common/templateSelection";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
-  ADD_FOLDER_ACTION_ID,
+  ADD_FOLDER_COMMAND_ID,
   CLOSE_FILE_ITEM_COMMAND_ID,
-  CLOSE_FOLDER_ACTION_ID,
+  CLOSE_FOLDER_COMMAND_ID,
   DELETE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
-} from "src/cs/workbench/contrib/files/common/files";
+} from "src/cs/workbench/contrib/files/common/fileCommands";
 import "../../browser/fileActions.contribution.ts";
 import {
   addFolderHandler,
@@ -184,8 +184,8 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       [ISliceService, sliceService],
     ]);
 
-    CommandsRegistry.getCommand(ADD_FOLDER_ACTION_ID)?.handler(accessor);
-    CommandsRegistry.getCommand(CLOSE_FOLDER_ACTION_ID)?.handler(accessor);
+    CommandsRegistry.getCommand(ADD_FOLDER_COMMAND_ID)?.handler(accessor);
+    CommandsRegistry.getCommand(CLOSE_FOLDER_COMMAND_ID)?.handler(accessor);
     CommandsRegistry.getCommand(CLOSE_FILE_ITEM_COMMAND_ID)?.handler(accessor, { resource: resource1 });
     CommandsRegistry.getCommand(DELETE_FILE_ITEM_COMMAND_ID)?.handler(accessor, { resource: resource2 });
     await flushPromises();
@@ -214,8 +214,8 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       sheetId: null,
       selection: { kind: "auto" },
     });
-    assert.ok(CommandsRegistry.getCommand(ADD_FOLDER_ACTION_ID));
-    assert.ok(CommandsRegistry.getCommand(CLOSE_FOLDER_ACTION_ID));
+    assert.ok(CommandsRegistry.getCommand(ADD_FOLDER_COMMAND_ID));
+    assert.ok(CommandsRegistry.getCommand(CLOSE_FOLDER_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(CLOSE_FILE_ITEM_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(DELETE_FILE_ITEM_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID));

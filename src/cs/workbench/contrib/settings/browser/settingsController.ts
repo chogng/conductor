@@ -51,13 +51,22 @@ import {
   toSemanticTermKey,
 } from "src/cs/workbench/services/dataResource/common/semanticRules";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
-import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
-import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
-import { UpdateCommandId } from "src/cs/workbench/contrib/update/common/update";
+import { SET_LANGUAGE_COMMAND_ID } from "src/cs/workbench/browser/actions/workbenchCommands";
+import {
+  NAVIGATE_BACK_COMMAND_ID,
+  RESET_LAYOUT_STATE_COMMAND_ID,
+} from "src/cs/workbench/browser/actions/layoutCommands";
+import {
+  CHECK_FOR_UPDATES_COMMAND_ID,
+  SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID,
+} from "src/cs/workbench/contrib/update/common/update";
 import {
   DEFAULT_WORKBENCH_BACKGROUND_COLOR,
   normalizeWorkbenchAppearance,
-  ThemeCommandId,
+  RESET_WORKBENCH_BACKGROUND_COMMAND_ID,
+  SET_THEME_COMMAND_ID,
+  SET_TRANSPARENT_CHROME_COMMAND_ID,
+  SET_WORKBENCH_BACKGROUND_COMMAND_ID,
 } from "src/cs/workbench/services/themes/common/themeService";
 import {
   Severity,
@@ -352,7 +361,7 @@ export class SettingsController {
       handleCheckForUpdates: () => void this.checkForUpdates(),
       handleShowReleaseNotes: () => {
         void this.commandService.executeCommand(
-          UpdateCommandId.showCurrentReleaseNotes,
+          SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID,
           this.options.appUpdateSettings.currentVersion,
         );
       },
@@ -363,16 +372,16 @@ export class SettingsController {
       templateSettings: this.templateSettings,
       originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,
       onLanguageChange: language => {
-        void this.commandService.executeCommand(WorkbenchCommandId.setLanguage, language);
+        void this.commandService.executeCommand(SET_LANGUAGE_COMMAND_ID, language);
       },
       onNavigateBack: () => {
-        void this.commandService.executeCommand(WorkbenchLayoutCommandId.navigateBack);
+        void this.commandService.executeCommand(NAVIGATE_BACK_COMMAND_ID);
       },
       onResetLayoutState: () => {
-        void this.commandService.executeCommand(WorkbenchLayoutCommandId.resetLayoutState);
+        void this.commandService.executeCommand(RESET_LAYOUT_STATE_COMMAND_ID);
       },
       onThemeChange: theme => {
-        void this.commandService.executeCommand(ThemeCommandId.setTheme, theme);
+        void this.commandService.executeCommand(SET_THEME_COMMAND_ID, theme);
       },
       originSettings: this.originSettings,
       plotCommandDraft: this.drafts.plotCommandDraft,
@@ -1512,11 +1521,11 @@ export class SettingsController {
   }
 
   private async setWorkbenchBackground(backgroundColor: string): Promise<void> {
-    await this.saveAppearance(() => this.commandService.executeCommand(ThemeCommandId.setWorkbenchBackground, backgroundColor));
+    await this.saveAppearance(() => this.commandService.executeCommand(SET_WORKBENCH_BACKGROUND_COMMAND_ID, backgroundColor));
   }
 
   private async resetWorkbenchBackground(): Promise<void> {
-    await this.saveAppearance(() => this.commandService.executeCommand(ThemeCommandId.resetWorkbenchBackground));
+    await this.saveAppearance(() => this.commandService.executeCommand(RESET_WORKBENCH_BACKGROUND_COMMAND_ID));
   }
 
   private async setTransparentChrome(enabled: boolean): Promise<void> {
@@ -1540,7 +1549,7 @@ export class SettingsController {
       while (this.pendingTransparentChrome !== null) {
         const transparentChrome = this.pendingTransparentChrome;
         try {
-          await this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, transparentChrome);
+          await this.commandService.executeCommand(SET_TRANSPARENT_CHROME_COMMAND_ID, transparentChrome);
         }
         catch {
           if (this.pendingTransparentChrome === transparentChrome) {
@@ -1689,7 +1698,7 @@ export class SettingsController {
     this.drafts.appUpdateChecking = true;
     this.render(itemsUpdateTarget("about", "settings-app-update-item"));
     try {
-      await this.commandService.executeCommand(UpdateCommandId.check);
+      await this.commandService.executeCommand(CHECK_FOR_UPDATES_COMMAND_ID);
     }
     catch {
       // Update check result is shown by desktop shell dialogs.

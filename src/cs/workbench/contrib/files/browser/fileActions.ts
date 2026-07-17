@@ -6,13 +6,13 @@ import { localize } from "src/cs/nls";
 import { Action2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
-  ADD_FOLDER_ACTION_ID,
+  ADD_FOLDER_COMMAND_ID,
   CLOSE_FILE_ITEM_COMMAND_ID,
-  CLOSE_FOLDER_ACTION_ID,
+  CLOSE_FOLDER_COMMAND_ID,
   DELETE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
-} from "src/cs/workbench/contrib/files/common/files";
+} from "src/cs/workbench/contrib/files/common/fileCommands";
 import {
   addFolderHandler,
   closeFileItemHandler,
@@ -25,7 +25,7 @@ import {
 export class AddFolderAction extends Action2 {
   public constructor() {
     super({
-      id: ADD_FOLDER_ACTION_ID,
+      id: ADD_FOLDER_COMMAND_ID,
       title: localize("files.addFolder", "Add Folder"),
       metadata: {
         description: localize("files.actions.addFolder", "Open the Explorer folder import workflow."),
@@ -41,7 +41,7 @@ export class AddFolderAction extends Action2 {
 export class CloseFolderAction extends Action2 {
   public constructor() {
     super({
-      id: CLOSE_FOLDER_ACTION_ID,
+      id: CLOSE_FOLDER_COMMAND_ID,
       title: localize("files.closeFolder", "Close Folder"),
       metadata: {
         description: localize("files.actions.closeFolder", "Close the imported folder and stop any pending import work."),

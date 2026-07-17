@@ -17,7 +17,9 @@ import {
   type IUpdateService as IUpdateServiceType,
 } from "src/cs/platform/update/common/update";
 import {
-  UpdateCommandId,
+  CHECK_FOR_UPDATES_COMMAND_ID,
+  DOWNLOAD_UPDATE_COMMAND_ID,
+  INSTALL_UPDATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/update/common/update";
 
 import "src/cs/workbench/contrib/update/browser/media/updateTooltip.css";
@@ -177,7 +179,7 @@ const getUpdateTooltipModel = (
       return {
         action: canCheckForUpdates
           ? {
-              commandId: UpdateCommandId.check,
+              commandId: CHECK_FOR_UPDATES_COMMAND_ID,
               label: localize("update.tooltip.checkButton", "Check for Updates"),
             }
           : undefined,
@@ -194,7 +196,7 @@ const getUpdateTooltipModel = (
     case "available":
       return {
         action: {
-          commandId: UpdateCommandId.downloadNow,
+          commandId: DOWNLOAD_UPDATE_COMMAND_ID,
           label: localize("update.tooltip.downloadButton", "Download Update"),
         },
         message: status.message ?? localize("update.tooltip.availableMessage", "A new update is available to download."),
@@ -210,7 +212,7 @@ const getUpdateTooltipModel = (
     case "downloaded":
       return {
         action: {
-          commandId: UpdateCommandId.install,
+          commandId: INSTALL_UPDATE_COMMAND_ID,
           label: localize("update.tooltip.installButton", "Install Update"),
         },
         message: status.message ?? localize("update.tooltip.downloadedMessage", "The update is ready to install."),
@@ -227,7 +229,7 @@ const getUpdateTooltipModel = (
       return {
         action: canCheckForUpdates
           ? {
-              commandId: UpdateCommandId.check,
+              commandId: CHECK_FOR_UPDATES_COMMAND_ID,
               label: localize("update.tooltip.retryButton", "Check Again"),
             }
           : undefined,

@@ -9,8 +9,11 @@ import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
-import { SliceCommandId } from "src/cs/workbench/contrib/slice/common/slice";
-import { TemplateCommandId } from "src/cs/workbench/contrib/template/common/template";
+import {
+  RUN_SLICE_WITH_TEMPLATE_COMMAND_ID,
+  RUN_SLICE_WITH_TEMPLATE_INCREMENTAL_COMMAND_ID,
+} from "src/cs/workbench/contrib/slice/common/slice";
+import { SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID } from "src/cs/workbench/contrib/template/common/template";
 
 export type TemplateManagementViewOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;
@@ -108,7 +111,7 @@ export class TemplateManagementView {
     });
     applyAllButton.className = `${applyAllButton.className} template_button`;
     applyAllButton.addEventListener("click", () => {
-      void this.options.commandService.executeCommand(SliceCommandId.runWithTemplate);
+      void this.options.commandService.executeCommand(RUN_SLICE_WITH_TEMPLATE_COMMAND_ID);
     });
 
     const applyNewButton = createButton({
@@ -118,7 +121,7 @@ export class TemplateManagementView {
     });
     applyNewButton.className = `${applyNewButton.className} template_button`;
     applyNewButton.addEventListener("click", () => {
-      void this.options.commandService.executeCommand(SliceCommandId.runWithTemplateIncremental);
+      void this.options.commandService.executeCommand(RUN_SLICE_WITH_TEMPLATE_INCREMENTAL_COMMAND_ID);
     });
 
     applyActions.append(applyAllButton, applyNewButton);
@@ -135,7 +138,7 @@ export class TemplateManagementView {
       togglesRow,
       localize("template.stopOnError", "Stop at first invalid item"),
       (checked) => {
-        void this.options.commandService.executeCommand(TemplateCommandId.setStopOnError, checked);
+        void this.options.commandService.executeCommand(SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID, checked);
       },
     );
 

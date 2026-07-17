@@ -13,7 +13,7 @@ import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
 import { registerSearchCommands } from "src/cs/workbench/contrib/search/browser/searchCommands";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
-import { SearchCommandId } from "src/cs/workbench/services/search/common/search";
+import { SHOW_SEARCH_COMMAND_ID } from "src/cs/workbench/services/search/common/search";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -36,14 +36,14 @@ suite("workbench/contrib/search/test/browser/searchCommands", () => {
 		]);
 
 		try {
-			CommandsRegistry.getCommand(SearchCommandId.showSearch)?.handler(accessor);
+			CommandsRegistry.getCommand(SHOW_SEARCH_COMMAND_ID)?.handler(accessor);
 			const commandPaletteIds = getCommandPaletteIds();
 
 			assert.deepEqual(calls, [
 				`container:${ChartViewContainerId}`,
 				"aux:search",
 			]);
-			assert.ok(commandPaletteIds.has(SearchCommandId.showSearch));
+			assert.ok(commandPaletteIds.has(SHOW_SEARCH_COMMAND_ID));
 		} finally {
 			registration.dispose();
 		}

@@ -5,7 +5,7 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { Workbench } from "src/cs/workbench/browser/workbench";
-import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
+import { RESET_LAYOUT_STATE_COMMAND_ID } from "src/cs/workbench/browser/actions/layoutCommands";
 import "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import { hideWorkbenchSplash } from "src/cs/workbench/browser/parts/splash/partsSplash";
@@ -47,7 +47,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       onDidRenderInitialWorkbench: () => markBootUiReady("workbench"),
     }));
     this._register(CommandsRegistry.registerCommand({
-      id: WorkbenchLayoutCommandId.resetLayoutState,
+      id: RESET_LAYOUT_STATE_COMMAND_ID,
       handler: () => this.workbench.resetLayoutState(),
       metadata: {
         description: localize("workbench.commands.resetLayoutState", "Reset workbench layout state"),

@@ -146,6 +146,7 @@ status badges.
 | `contrib/files/browser/explorerService.ts` | Explorer state/model, committed file rows, selection/reveal, layout, expansion, pane input events. |
 | `contrib/files/common/explorerModel.ts` | Explorer resources/items/tree helpers. |
 | `contrib/files/common/explorerFileNestingTrie.ts` | Explorer display-only file nesting pattern matching. |
+| `contrib/files/common/fileCommands.ts` | Files/Explorer command id contract shared by actions, views, desktop contributions, and tests. |
 | `contrib/files/browser/explorerViewlet.ts` | Explorer `ViewPane` host, sidebar actions, and files-owned shared sidebar surface behavior reused by the thumbnail surface. |
 | `contrib/files/browser/views/explorerView.ts` | Explorer DOM shell/drag-drop host. |
 | `contrib/files/browser/views/explorerViewer.ts` | Tree/thumbnail renderer, row templates, context menus, Explorer-owned hover containers. |

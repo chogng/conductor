@@ -13,11 +13,7 @@ export const SearchContributionId = "workbench.contrib.search";
 export const SearchViewContainerId = "workbench.viewContainer.search";
 export const SearchViewId = "workbench.search";
 
-export const SearchCommandId = {
-	showSearch: "workbench.action.showSearch",
-} as const;
-
-export type SearchCommandId = typeof SearchCommandId[keyof typeof SearchCommandId];
+export const SHOW_SEARCH_COMMAND_ID = "workbench.action.showSearch";
 
 export type SearchScope =
 	| "all"

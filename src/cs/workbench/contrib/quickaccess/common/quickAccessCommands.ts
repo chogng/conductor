@@ -1,4 +1,2 @@
-export const QuickAccessCommandId = {
-  quickOpen: "workbench.action.quickOpen",
-  showCommands: "workbench.action.showCommands",
-} as const;
+export const QUICK_OPEN_COMMAND_ID = "workbench.action.quickOpen";
+export const SHOW_COMMANDS_COMMAND_ID = "workbench.action.showCommands";

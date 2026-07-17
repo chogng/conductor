@@ -8,6 +8,7 @@ import {
   registerAction2,
 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import { CLOSE_AUXILIARY_BAR_COMMAND_ID } from "src/cs/workbench/browser/actions/layoutCommands";
 import {
   ActivePanelViewContainerContext,
   AuxiliaryBarVisibleContext,
@@ -16,21 +17,11 @@ import {
   IWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
-import {
-  ExportCommandId,
-} from "src/cs/workbench/services/export/common/export";
-import {
-  OriginCommandId,
-} from "src/cs/workbench/services/origin/common/origin";
-import {
-  ParametersCommandId,
-} from "src/cs/workbench/services/parameters/common/parameters";
-import {
-  SearchCommandId,
-} from "src/cs/workbench/services/search/common/search";
+import { SHOW_EXPORT_COMMAND_ID } from "src/cs/workbench/services/export/common/export";
+import { SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID } from "src/cs/workbench/services/origin/common/origin";
+import { SHOW_PARAMETERS_COMMAND_ID } from "src/cs/workbench/services/parameters/common/parameters";
+import { SHOW_SEARCH_COMMAND_ID } from "src/cs/workbench/services/search/common/search";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
-
-const CloseAuxiliaryBarCommandId = "workbench.action.closeAuxiliaryBar";
 
 type AuxiliaryBarTitleMenuItem = {
   readonly commandId: string;
@@ -42,28 +33,28 @@ type AuxiliaryBarTitleMenuItem = {
 
 const AuxiliaryBarTitleMenuItems: readonly AuxiliaryBarTitleMenuItem[] = [
   {
-    commandId: SearchCommandId.showSearch,
+    commandId: SHOW_SEARCH_COMMAND_ID,
     icon: LxIcon.search,
     order: 0,
     labelKey: "chart.views.search",
     label: "Search",
   },
   {
-    commandId: ExportCommandId.showExport,
+    commandId: SHOW_EXPORT_COMMAND_ID,
     icon: LxIcon.origin,
     order: 10,
     labelKey: "chart.views.export",
     label: "Export",
   },
   {
-    commandId: ParametersCommandId.showParameters,
+    commandId: SHOW_PARAMETERS_COMMAND_ID,
     icon: LxIcon.parameters,
     order: 20,
     labelKey: "chart.views.parameters",
     label: "Parameters",
   },
   {
-    commandId: OriginCommandId.showExportSettings,
+    commandId: SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID,
     icon: LxIcon.settings,
     order: 30,
     labelKey: "origin.curveSettings.title",
@@ -74,7 +65,7 @@ const AuxiliaryBarTitleMenuItems: readonly AuxiliaryBarTitleMenuItem[] = [
 registerAction2(class extends Action2 {
   public constructor() {
     super({
-      id: CloseAuxiliaryBarCommandId,
+      id: CLOSE_AUXILIARY_BAR_COMMAND_ID,
       title: localize("auxiliarybar.close", "Close Secondary Side Bar"),
       category: Categories.View,
       f1: true,

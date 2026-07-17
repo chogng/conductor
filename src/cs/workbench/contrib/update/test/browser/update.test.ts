@@ -34,7 +34,16 @@ import {
   registerUpdateCommands,
 } from "src/cs/workbench/contrib/update/browser/update";
 import {
-  UpdateCommandId,
+  APPLY_UPDATE_COMMAND_ID,
+  CHECK_FOR_UPDATES_COMMAND_ID,
+  DOWNLOAD_UPDATE_COMMAND_ID,
+  GET_UPDATE_STATE_COMMAND_ID,
+  INSTALL_UPDATE_COMMAND_ID,
+  RESTART_TO_UPDATE_COMMAND_ID,
+  SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID,
+  UPDATE_CHECKING_COMMAND_ID,
+  UPDATE_DOWNLOADING_COMMAND_ID,
+  UPDATE_INSTALLING_COMMAND_ID,
 } from "src/cs/workbench/contrib/update/common/update";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 
@@ -98,18 +107,18 @@ suite("workbench/contrib/update/test/browser/update", () => {
     ]);
 
     try {
-      await CommandsRegistry.getCommand(UpdateCommandId.check)?.handler(accessor);
-      await CommandsRegistry.getCommand(UpdateCommandId.downloadNow)?.handler(accessor);
-      await CommandsRegistry.getCommand(UpdateCommandId.install)?.handler(accessor);
-      await CommandsRegistry.getCommand(UpdateCommandId.restart)?.handler(accessor);
-      await CommandsRegistry.getCommand(UpdateCommandId.showCurrentReleaseNotes)?.handler(accessor, "1.2.3");
-      const commandState = await CommandsRegistry.getCommand(UpdateCommandId.state)?.handler(accessor);
+      await CommandsRegistry.getCommand(CHECK_FOR_UPDATES_COMMAND_ID)?.handler(accessor);
+      await CommandsRegistry.getCommand(DOWNLOAD_UPDATE_COMMAND_ID)?.handler(accessor);
+      await CommandsRegistry.getCommand(INSTALL_UPDATE_COMMAND_ID)?.handler(accessor);
+      await CommandsRegistry.getCommand(RESTART_TO_UPDATE_COMMAND_ID)?.handler(accessor);
+      await CommandsRegistry.getCommand(SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID)?.handler(accessor, "1.2.3");
+      const commandState = await CommandsRegistry.getCommand(GET_UPDATE_STATE_COMMAND_ID)?.handler(accessor);
 
       assert.deepStrictEqual({
         calls,
-        commandPaletteHasApplyUpdate: getCommandPaletteIds().has(UpdateCommandId.applyUpdate),
-        commandPaletteHasUpdateCheck: getCommandPaletteIds().has(UpdateCommandId.check),
-        commandPaletteHasReleaseNotes: getCommandPaletteIds().has(UpdateCommandId.showCurrentReleaseNotes),
+        commandPaletteHasApplyUpdate: getCommandPaletteIds().has(APPLY_UPDATE_COMMAND_ID),
+        commandPaletteHasUpdateCheck: getCommandPaletteIds().has(CHECK_FOR_UPDATES_COMMAND_ID),
+        commandPaletteHasReleaseNotes: getCommandPaletteIds().has(SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID),
         commandState,
         dialogOptions,
         releaseNotesVersions,
@@ -139,12 +148,12 @@ suite("workbench/contrib/update/test/browser/update", () => {
     try {
       const items = MenuRegistry.getMenuItems(menuId).filter(isIMenuItem);
       assert.deepStrictEqual(items.map(item => item.command.id), [
-        UpdateCommandId.check,
-        UpdateCommandId.checking,
-        UpdateCommandId.downloadNow,
-        UpdateCommandId.downloading,
-        UpdateCommandId.install,
-        UpdateCommandId.updating,
+        CHECK_FOR_UPDATES_COMMAND_ID,
+        UPDATE_CHECKING_COMMAND_ID,
+        DOWNLOAD_UPDATE_COMMAND_ID,
+        UPDATE_DOWNLOADING_COMMAND_ID,
+        INSTALL_UPDATE_COMMAND_ID,
+        UPDATE_INSTALLING_COMMAND_ID,
       ]);
       assert.deepStrictEqual(items.map(item => item.group), [
         "test_update",
@@ -185,9 +194,9 @@ suite("workbench/contrib/update/test/browser/update", () => {
     ]);
 
     try {
-      assert.equal(getCommandPaletteIds().has(UpdateCommandId.applyUpdate), true);
+      assert.equal(getCommandPaletteIds().has(APPLY_UPDATE_COMMAND_ID), true);
 
-      await CommandsRegistry.getCommand(UpdateCommandId.applyUpdate)?.handler(accessor);
+      await CommandsRegistry.getCommand(APPLY_UPDATE_COMMAND_ID)?.handler(accessor);
 
       assert.deepStrictEqual({
         calls,
@@ -213,7 +222,7 @@ suite("workbench/contrib/update/test/browser/update", () => {
     }));
 
     try {
-      assert.equal(getCommandPaletteIds().has(UpdateCommandId.applyUpdate), false);
+      assert.equal(getCommandPaletteIds().has(APPLY_UPDATE_COMMAND_ID), false);
     } finally {
       registration.dispose();
     }

@@ -3,7 +3,14 @@ import { localize } from "src/cs/nls";
 import { Categories } from "src/cs/platform/action/common/actionCommonCategories";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
+import {
+  NAVIGATE_BACK_COMMAND_ID,
+  NAVIGATE_FORWARD_COMMAND_ID,
+  SHOW_CHART_COMMAND_ID,
+  SHOW_TABLE_COMMAND_ID,
+  TOGGLE_AUXILIARY_BAR_COMMAND_ID,
+  TOGGLE_SIDEBAR_COMMAND_ID,
+} from "src/cs/workbench/browser/actions/layoutCommands";
 import {
   AuxiliaryBarVisibleContext,
   SideBarVisibleContext,
@@ -33,7 +40,7 @@ export type WorkbenchLayoutToggleButton = {
 export const createWorkbenchLayoutSidebarToggleButton = (
   isVisible: boolean,
 ): WorkbenchLayoutToggleButton => ({
-  commandId: WorkbenchLayoutCommandId.toggleSidebar,
+  commandId: TOGGLE_SIDEBAR_COMMAND_ID,
   icon: isVisible
     ? LxIcon.layoutSidebarLeftEmpty
     : LxIcon.layoutSidebarLeftOffEmpty,
@@ -47,7 +54,7 @@ export const createWorkbenchLayoutSidebarToggleButton = (
 export const createWorkbenchLayoutAuxiliaryBarToggleButton = (
   isVisible: boolean,
 ): WorkbenchLayoutToggleButton => ({
-  commandId: WorkbenchLayoutCommandId.toggleAuxiliaryBar,
+  commandId: TOGGLE_AUXILIARY_BAR_COMMAND_ID,
   icon: isVisible
     ? LxIcon.layoutSidebarRightEmpty
     : LxIcon.layoutSidebarRightOffEmpty,
@@ -61,7 +68,7 @@ export const createWorkbenchLayoutAuxiliaryBarToggleButton = (
 class NavigateBackAction extends Action2 {
   public constructor() {
     super({
-      id: WorkbenchLayoutCommandId.navigateBack,
+      id: NAVIGATE_BACK_COMMAND_ID,
       title: localize("workbench.navigateBack", "Back"),
       f1: true,
       metadata: {
@@ -78,7 +85,7 @@ class NavigateBackAction extends Action2 {
 class NavigateForwardAction extends Action2 {
   public constructor() {
     super({
-      id: WorkbenchLayoutCommandId.navigateForward,
+      id: NAVIGATE_FORWARD_COMMAND_ID,
       title: localize("workbench.navigateForward", "Forward"),
       f1: true,
       metadata: {
@@ -95,7 +102,7 @@ class NavigateForwardAction extends Action2 {
 class ShowTableAction extends Action2 {
   public constructor() {
     super({
-      id: WorkbenchLayoutCommandId.showTable,
+      id: SHOW_TABLE_COMMAND_ID,
       title: localize("workbench.mode.table", "Table"),
       f1: true,
       metadata: {
@@ -114,7 +121,7 @@ class ShowTableAction extends Action2 {
 class ShowChartAction extends Action2 {
   public constructor() {
     super({
-      id: WorkbenchLayoutCommandId.showChart,
+      id: SHOW_CHART_COMMAND_ID,
       title: localize("workbench.mode.chart", "Chart"),
       f1: true,
       metadata: {
@@ -133,7 +140,7 @@ class ShowChartAction extends Action2 {
 class ToggleSidebarAction extends Action2 {
   public constructor() {
     super({
-      id: WorkbenchLayoutCommandId.toggleSidebar,
+      id: TOGGLE_SIDEBAR_COMMAND_ID,
       title: localize("workbench.toggleSidebar", "Toggle Sidebar"),
       category: Categories.View,
       f1: true,
@@ -156,7 +163,7 @@ class ToggleSidebarAction extends Action2 {
 class ToggleAuxiliaryBarAction extends Action2 {
   public constructor() {
     super({
-      id: WorkbenchLayoutCommandId.toggleAuxiliaryBar,
+      id: TOGGLE_AUXILIARY_BAR_COMMAND_ID,
       title: localize("workbench.toggleAuxiliaryBar", "Toggle Secondary Side Bar"),
       category: Categories.View,
       f1: true,

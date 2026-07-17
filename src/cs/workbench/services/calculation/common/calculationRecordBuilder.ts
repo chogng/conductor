@@ -19,8 +19,8 @@ import type {
 	CalculationRecordsInput,
 } from "src/cs/workbench/services/calculation/common/calculationRecords";
 import type {
-	SeriesId,
-} from "src/cs/workbench/services/session/common/sessionModel";
+  SeriesId,
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 
 export type CalculatedRecords = {
 	readonly curves: readonly CalculatedCurveRecord[];

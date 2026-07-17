@@ -1,7 +1,14 @@
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { CommandsRegistry, type ICommandService } from "src/cs/platform/commands/common/commands";
-import { WorkbenchNotificationCommandIds } from "src/cs/workbench/common/notifications";
+import {
+  FOCUS_FIRST_NOTIFICATION_TOAST_COMMAND_ID,
+  FOCUS_LAST_NOTIFICATION_TOAST_COMMAND_ID,
+  FOCUS_NEXT_NOTIFICATION_TOAST_COMMAND_ID,
+  FOCUS_NOTIFICATION_TOAST_COMMAND_ID,
+  FOCUS_PREVIOUS_NOTIFICATION_TOAST_COMMAND_ID,
+  HIDE_NOTIFICATION_TOAST_COMMAND_ID,
+} from "src/cs/workbench/common/notifications";
 
 export interface INotificationsToastController {
   readonly isFocused: boolean;
@@ -21,22 +28,22 @@ export function registerNotificationCommands(
 ): IDisposable {
   const disposables = new DisposableStore();
 
-  disposables.add(CommandsRegistry.registerCommand(WorkbenchNotificationCommandIds.hideToast, () => {
+  disposables.add(CommandsRegistry.registerCommand(HIDE_NOTIFICATION_TOAST_COMMAND_ID, () => {
     toasts.hide();
   }));
-  disposables.add(CommandsRegistry.registerCommand(WorkbenchNotificationCommandIds.focusToast, () => {
+  disposables.add(CommandsRegistry.registerCommand(FOCUS_NOTIFICATION_TOAST_COMMAND_ID, () => {
     toasts.focus();
   }));
-  disposables.add(CommandsRegistry.registerCommand(WorkbenchNotificationCommandIds.focusNextToast, () => {
+  disposables.add(CommandsRegistry.registerCommand(FOCUS_NEXT_NOTIFICATION_TOAST_COMMAND_ID, () => {
     toasts.focusNext();
   }));
-  disposables.add(CommandsRegistry.registerCommand(WorkbenchNotificationCommandIds.focusPreviousToast, () => {
+  disposables.add(CommandsRegistry.registerCommand(FOCUS_PREVIOUS_NOTIFICATION_TOAST_COMMAND_ID, () => {
     toasts.focusPrevious();
   }));
-  disposables.add(CommandsRegistry.registerCommand(WorkbenchNotificationCommandIds.focusFirstToast, () => {
+  disposables.add(CommandsRegistry.registerCommand(FOCUS_FIRST_NOTIFICATION_TOAST_COMMAND_ID, () => {
     toasts.focusFirst();
   }));
-  disposables.add(CommandsRegistry.registerCommand(WorkbenchNotificationCommandIds.focusLastToast, () => {
+  disposables.add(CommandsRegistry.registerCommand(FOCUS_LAST_NOTIFICATION_TOAST_COMMAND_ID, () => {
     toasts.focusLast();
   }));
 
@@ -47,23 +54,23 @@ export function registerNotificationCommands(
 
     switch (event.key) {
       case "Escape":
-        void commandService.executeCommand(WorkbenchNotificationCommandIds.hideToast);
+        void commandService.executeCommand(HIDE_NOTIFICATION_TOAST_COMMAND_ID);
         break;
       case "ArrowDown":
         if (!toasts.isFocused) return;
-        void commandService.executeCommand(WorkbenchNotificationCommandIds.focusNextToast);
+        void commandService.executeCommand(FOCUS_NEXT_NOTIFICATION_TOAST_COMMAND_ID);
         break;
       case "ArrowUp":
         if (!toasts.isFocused) return;
-        void commandService.executeCommand(WorkbenchNotificationCommandIds.focusPreviousToast);
+        void commandService.executeCommand(FOCUS_PREVIOUS_NOTIFICATION_TOAST_COMMAND_ID);
         break;
       case "Home":
         if (!toasts.isFocused) return;
-        void commandService.executeCommand(WorkbenchNotificationCommandIds.focusFirstToast);
+        void commandService.executeCommand(FOCUS_FIRST_NOTIFICATION_TOAST_COMMAND_ID);
         break;
       case "End":
         if (!toasts.isFocused) return;
-        void commandService.executeCommand(WorkbenchNotificationCommandIds.focusLastToast);
+        void commandService.executeCommand(FOCUS_LAST_NOTIFICATION_TOAST_COMMAND_ID);
         break;
       default:
         return;

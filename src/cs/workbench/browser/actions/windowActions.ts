@@ -6,6 +6,8 @@ import {
   type INativeHostService as INativeHostServiceType,
 } from "src/cs/platform/native/common/native";
 
+export const CLOSE_WINDOW_COMMAND_ID = "workbench.action.closeWindow";
+
 const getNativeHostService = (
   accessor: ServicesAccessor,
 ): INativeHostServiceType | undefined =>
@@ -31,11 +33,9 @@ export const installWindowDeveloperKeybindings = (
 };
 
 class CloseWindowAction extends Action2 {
-  public static readonly ID = "workbench.action.closeWindow";
-
   public constructor() {
     super({
-      id: CloseWindowAction.ID,
+      id: CLOSE_WINDOW_COMMAND_ID,
       title: localize("menu.window.close", "Close Window"),
       f1: true,
       metadata: {

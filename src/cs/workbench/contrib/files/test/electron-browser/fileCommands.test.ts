@@ -7,7 +7,7 @@ import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platfor
 import { INativeHostService } from "../../../../../platform/native/common/native.ts";
 import { ExplorerService } from "../../browser/explorerService.ts";
 import { IExplorerService } from "../../browser/files.ts";
-import { RENAME_FILE_ITEM_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID } from "../../common/files.ts";
+import { RENAME_FILE_ITEM_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID } from "../../common/fileCommands.ts";
 import "../../browser/fileActions.contribution.ts";
 import "../../electron-browser/fileActions.contribution.ts";
 import { resolveRevealResources } from "../../electron-browser/fileCommands.ts";

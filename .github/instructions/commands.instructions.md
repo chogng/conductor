@@ -39,6 +39,17 @@ operation is owned by workbench navigation, put the id with workbench layout
 commands; if it is owned by a feature/domain, put the id with that feature's
 command contract and let the `Action2` use it.
 
+Export each reusable command id as its own named constant:
+
+```ts
+export const OPEN_THING_COMMAND_ID = "thing.open";
+```
+
+Do not hide workbench command ids in `ThingCommandId`/`ThingCommandIds` object
+bags, `Action2` static fields, or constants named `*_ACTION_ID`. Keep
+`*_ACTION_ID` only for runtime `IAction` values that are not registered as
+commands. Local runtime action ids stay private to the rendering component.
+
 Command Palette visibility comes from `MenuId.CommandPalette` menu actions.
 Use `registerAction2({ f1: true, ... })` or explicit menu registration. Do not
 make quick access scan bare `CommandsRegistry` to compensate for missing action

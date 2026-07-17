@@ -15,14 +15,21 @@ import {
 import {
 	DEFAULT_WORKBENCH_BACKGROUND_COLOR,
 	normalizeWorkbenchBackgroundColor,
-	ThemeCommandId,
+	RESET_WORKBENCH_BACKGROUND_COMMAND_ID,
+	SET_DARK_THEME_COMMAND_ID,
+	SET_LIGHT_THEME_COMMAND_ID,
+	SET_SYSTEM_THEME_COMMAND_ID,
+	SET_THEME_COMMAND_ID,
+	SET_TRANSPARENT_CHROME_COMMAND_ID,
+	SET_WORKBENCH_BACKGROUND_COMMAND_ID,
+	TOGGLE_TRANSPARENT_CHROME_COMMAND_ID,
 } from "src/cs/workbench/services/themes/common/themeService";
 
 export const registerThemesCommands = (): IDisposable => {
 	const disposables = new DisposableStore();
 
 	disposables.add(CommandsRegistry.registerCommand({
-		id: ThemeCommandId.setTheme,
+		id: SET_THEME_COMMAND_ID,
 		metadata: {
 			description: localize("themes.commands.setTheme.description", "Set the workbench theme mode."),
 			args: [{
@@ -34,7 +41,7 @@ export const registerThemesCommands = (): IDisposable => {
 			setTheme(accessor, theme),
 	}));
 	disposables.add(CommandsRegistry.registerCommand({
-		id: ThemeCommandId.setWorkbenchBackground,
+		id: SET_WORKBENCH_BACKGROUND_COMMAND_ID,
 		metadata: {
 			description: localize("themes.commands.setWorkbenchBackground.description", "Set the workbench page background color."),
 			args: [{
@@ -46,7 +53,7 @@ export const registerThemesCommands = (): IDisposable => {
 			setWorkbenchBackground(accessor, backgroundColor),
 	}));
 	disposables.add(CommandsRegistry.registerCommand({
-		id: ThemeCommandId.setTransparentChrome,
+		id: SET_TRANSPARENT_CHROME_COMMAND_ID,
 		metadata: {
 			description: localize("themes.commands.setTransparentChrome.description", "Set whether the translucent sidebar is enabled."),
 			args: [{
@@ -63,7 +70,7 @@ export const registerThemesCommands = (): IDisposable => {
 			super({
 				category: localize("themes.commands.category", "Themes"),
 				f1: true,
-				id: ThemeCommandId.setLightTheme,
+				id: SET_LIGHT_THEME_COMMAND_ID,
 				title: localize("themes.commands.setLightTheme", "Set Light Theme"),
 				metadata: {
 					description: localize("themes.commands.setLightTheme.description", "Set the workbench theme mode to light."),
@@ -80,7 +87,7 @@ export const registerThemesCommands = (): IDisposable => {
 			super({
 				category: localize("themes.commands.category", "Themes"),
 				f1: true,
-				id: ThemeCommandId.setDarkTheme,
+				id: SET_DARK_THEME_COMMAND_ID,
 				title: localize("themes.commands.setDarkTheme", "Set Dark Theme"),
 				metadata: {
 					description: localize("themes.commands.setDarkTheme.description", "Set the workbench theme mode to dark."),
@@ -97,7 +104,7 @@ export const registerThemesCommands = (): IDisposable => {
 			super({
 				category: localize("themes.commands.category", "Themes"),
 				f1: true,
-				id: ThemeCommandId.setSystemTheme,
+				id: SET_SYSTEM_THEME_COMMAND_ID,
 				title: localize("themes.commands.setSystemTheme", "Set System Theme"),
 				metadata: {
 					description: localize("themes.commands.setSystemTheme.description", "Set the workbench theme mode to follow the system."),
@@ -114,7 +121,7 @@ export const registerThemesCommands = (): IDisposable => {
 			super({
 				category: localize("themes.commands.category", "Themes"),
 				f1: true,
-				id: ThemeCommandId.resetWorkbenchBackground,
+				id: RESET_WORKBENCH_BACKGROUND_COMMAND_ID,
 				title: localize("themes.commands.resetWorkbenchBackground", "Reset Workbench Background"),
 				metadata: {
 					description: localize("themes.commands.resetWorkbenchBackground.description", "Reset the workbench page background color."),
@@ -131,7 +138,7 @@ export const registerThemesCommands = (): IDisposable => {
 			super({
 				category: localize("themes.commands.category", "Themes"),
 				f1: true,
-				id: ThemeCommandId.toggleTransparentChrome,
+				id: TOGGLE_TRANSPARENT_CHROME_COMMAND_ID,
 				title: localize("themes.commands.toggleTransparentChrome", "Toggle Translucent Sidebar"),
 				metadata: {
 					description: localize("themes.commands.toggleTransparentChrome.description", "Toggle translucent sidebar chrome."),

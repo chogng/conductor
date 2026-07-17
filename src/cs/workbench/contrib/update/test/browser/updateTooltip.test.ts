@@ -20,7 +20,9 @@ import {
   UpdateTooltip,
 } from "src/cs/workbench/contrib/update/browser/updateTooltip";
 import {
-  UpdateCommandId,
+  CHECK_FOR_UPDATES_COMMAND_ID,
+  DOWNLOAD_UPDATE_COMMAND_ID,
+  INSTALL_UPDATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/update/common/update";
 
 suite("workbench/contrib/update/test/browser/updateTooltip", () => {
@@ -92,7 +94,7 @@ suite("workbench/contrib/update/test/browser/updateTooltip", () => {
 
       tooltip.domNode.querySelector<HTMLButtonElement>(".update-tooltip__action")?.click();
 
-      assert.deepStrictEqual(commands, [UpdateCommandId.install]);
+      assert.deepStrictEqual(commands, [INSTALL_UPDATE_COMMAND_ID]);
 
       updateService.setStatus({
         status: "checking",
@@ -127,7 +129,7 @@ suite("workbench/contrib/update/test/browser/updateTooltip", () => {
       readonly status: DesktopUpdateStatus;
     }> = [
       {
-        expectedActionCommandId: UpdateCommandId.check,
+        expectedActionCommandId: CHECK_FOR_UPDATES_COMMAND_ID,
         expectedActionLabel: "update.tooltip.checkButton",
         expectedStatusLabel: "update.tooltip.state.idle",
         expectedTitle: "update.tooltip.idleTitle",
@@ -153,7 +155,7 @@ suite("workbench/contrib/update/test/browser/updateTooltip", () => {
         },
       },
       {
-        expectedActionCommandId: UpdateCommandId.downloadNow,
+        expectedActionCommandId: DOWNLOAD_UPDATE_COMMAND_ID,
         expectedActionLabel: "update.tooltip.downloadButton",
         expectedStatusLabel: "update.tooltip.state.available",
         expectedTitle: "update.tooltip.availableTitle",
@@ -179,7 +181,7 @@ suite("workbench/contrib/update/test/browser/updateTooltip", () => {
         },
       },
       {
-        expectedActionCommandId: UpdateCommandId.install,
+        expectedActionCommandId: INSTALL_UPDATE_COMMAND_ID,
         expectedActionLabel: "update.tooltip.installButton",
         expectedStatusLabel: "update.tooltip.state.downloaded",
         expectedTitle: "update.tooltip.downloadedTitle",
@@ -205,7 +207,7 @@ suite("workbench/contrib/update/test/browser/updateTooltip", () => {
         },
       },
       {
-        expectedActionCommandId: UpdateCommandId.check,
+        expectedActionCommandId: CHECK_FOR_UPDATES_COMMAND_ID,
         expectedActionLabel: "update.tooltip.retryButton",
         expectedStatusLabel: "update.tooltip.state.error",
         expectedTitle: "update.tooltip.errorTitle",

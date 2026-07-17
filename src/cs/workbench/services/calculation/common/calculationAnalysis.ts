@@ -6,7 +6,7 @@ import type { BaseCurrentMetrics } from "src/cs/workbench/services/calculation/c
 import type {
 	CurvePoint,
 	SeriesId,
-} from "src/cs/workbench/services/session/common/sessionModel";
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 
 export const CalculationAnalysisVersion = 2;
 

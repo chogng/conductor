@@ -21,7 +21,15 @@ import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/slice/common/templateSelection";
 import {
-  TemplateCommandId,
+  APPLY_TEMPLATE_COMMAND_ID,
+  APPLY_TEMPLATE_INCREMENTAL_COMMAND_ID,
+  CREATE_TEMPLATE_COMMAND_ID,
+  DELETE_TEMPLATE_COMMAND_ID,
+  EDIT_TEMPLATE_COMMAND_ID,
+  EXPORT_TEMPLATE_COMMAND_ID,
+  IMPORT_TEMPLATE_COMMAND_ID,
+  SELECT_TEMPLATE_COMMAND_ID,
+  SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID,
 } from "src/cs/workbench/contrib/template/common/template";
 import type { TemplateEditorRecord } from "src/cs/workbench/services/template/common/template";
 import {
@@ -58,7 +66,7 @@ export function registerTemplateCommands(): IDisposable {
 export class SelectTemplateAction extends Action2 {
   public constructor() {
     super({
-      id: TemplateCommandId.selectTemplate,
+      id: SELECT_TEMPLATE_COMMAND_ID,
       title: localize("template.commands.selectTemplate", "Select Template"),
       metadata: {
         description: localize("template.commands.selectTemplate.description", "Select a template for extraction."),
@@ -76,7 +84,7 @@ export class CreateTemplateAction extends Action2 {
     super({
       category: localize("template.commands.category", "Template"),
       f1: true,
-      id: TemplateCommandId.createTemplate,
+      id: CREATE_TEMPLATE_COMMAND_ID,
       title: localize("template.commands.createTemplate", "Create Template"),
       metadata: {
         description: localize("template.commands.createTemplate.description", "Create a new template draft."),
@@ -94,7 +102,7 @@ export class DeleteTemplateAction extends Action2 {
     super({
       category: localize("template.commands.category", "Template"),
       f1: true,
-      id: TemplateCommandId.deleteTemplate,
+      id: DELETE_TEMPLATE_COMMAND_ID,
       title: localize("template.commands.deleteTemplate", "Delete Template"),
       metadata: {
         description: localize("template.commands.deleteTemplate.description", "Delete the selected template."),
@@ -112,7 +120,7 @@ export class ImportTemplateAction extends Action2 {
     super({
       category: localize("template.commands.category", "Template"),
       f1: true,
-      id: TemplateCommandId.importTemplate,
+      id: IMPORT_TEMPLATE_COMMAND_ID,
       title: localize("template.commands.importTemplate", "Import Template"),
       metadata: {
         description: localize("template.commands.importTemplate.description", "Import a template from a JSON bundle."),
@@ -130,7 +138,7 @@ export class EditTemplateAction extends Action2 {
     super({
       category: localize("template.commands.category", "Template"),
       f1: true,
-      id: TemplateCommandId.editTemplate,
+      id: EDIT_TEMPLATE_COMMAND_ID,
       title: localize("template.commands.editTemplate", "Edit Template"),
       metadata: {
         description: localize("template.commands.editTemplate.description", "Open a saved template in the template editor."),
@@ -155,7 +163,7 @@ export class ExportTemplateAction extends Action2 {
     super({
       category: localize("template.commands.category", "Template"),
       f1: true,
-      id: TemplateCommandId.exportTemplate,
+      id: EXPORT_TEMPLATE_COMMAND_ID,
       title: localize("template.commands.exportTemplate", "Export Template"),
       metadata: {
         description: localize("template.commands.exportTemplate.description", "Export a template as a JSON bundle."),
@@ -171,7 +179,7 @@ export class ExportTemplateAction extends Action2 {
 export class ApplyTemplateAction extends Action2 {
   public constructor() {
     super({
-      id: TemplateCommandId.applyTemplate,
+      id: APPLY_TEMPLATE_COMMAND_ID,
       title: localize("template.commands.applyTemplate", "Apply Template to All"),
       metadata: {
         description: localize("template.commands.applyTemplate.description", "Apply the selected template to all files."),
@@ -187,7 +195,7 @@ export class ApplyTemplateAction extends Action2 {
 export class ApplyTemplateIncrementalAction extends Action2 {
   public constructor() {
     super({
-      id: TemplateCommandId.applyTemplateIncremental,
+      id: APPLY_TEMPLATE_INCREMENTAL_COMMAND_ID,
       title: localize("template.commands.applyTemplateIncremental", "Apply Template to New Files"),
       metadata: {
         description: localize("template.commands.applyTemplateIncremental.description", "Apply the selected template to new files."),
@@ -203,7 +211,7 @@ export class ApplyTemplateIncrementalAction extends Action2 {
 export class SetTemplateStopOnErrorAction extends Action2 {
   public constructor() {
     super({
-      id: TemplateCommandId.setStopOnError,
+      id: SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID,
       title: localize("template.commands.setStopOnError", "Set Template Stop on Error"),
       metadata: {
         description: localize("template.commands.setStopOnError.description", "Set whether template application stops at the first invalid item."),

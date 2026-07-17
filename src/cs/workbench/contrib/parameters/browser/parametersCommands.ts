@@ -7,7 +7,7 @@ import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
-import { ParametersCommandId } from "src/cs/workbench/services/parameters/common/parameters";
+import { SHOW_PARAMETERS_COMMAND_ID } from "src/cs/workbench/services/parameters/common/parameters";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 
@@ -19,7 +19,7 @@ export const registerParametersCommands = (): IDisposable => {
 			super({
 				category: localize("parameters.commands.category", "Parameters"),
 				f1: true,
-				id: ParametersCommandId.showParameters,
+				id: SHOW_PARAMETERS_COMMAND_ID,
 				title: localize("parameters.commands.showParameters", "Show Parameters"),
 				metadata: {
 					description: localize("parameters.commands.showParameters", "Show Parameters"),

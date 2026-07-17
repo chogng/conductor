@@ -12,7 +12,12 @@ import {
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
 import { registerExportCommands } from "src/cs/workbench/contrib/export/browser/exportCommands";
-import { ExportCommandId, IExportService } from "src/cs/workbench/services/export/common/export";
+import {
+	EXPORT_ORIGIN_ZIP_COMMAND_ID,
+	IExportService,
+	OPEN_IN_ORIGIN_COMMAND_ID,
+	SHOW_EXPORT_COMMAND_ID,
+} from "src/cs/workbench/services/export/common/export";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
@@ -36,14 +41,14 @@ suite("workbench/contrib/export/test/browser/exportCommands", () => {
 		]);
 
 		try {
-			CommandsRegistry.getCommand(ExportCommandId.showExport)?.handler(accessor);
+			CommandsRegistry.getCommand(SHOW_EXPORT_COMMAND_ID)?.handler(accessor);
 			const commandPaletteIds = getCommandPaletteIds();
 
 			assert.deepEqual(calls, [
 				`container:${ChartViewContainerId}`,
 				"aux:export",
 			]);
-			assert.ok(commandPaletteIds.has(ExportCommandId.showExport));
+			assert.ok(commandPaletteIds.has(SHOW_EXPORT_COMMAND_ID));
 		} finally {
 			registration.dispose();
 		}
@@ -64,13 +69,13 @@ suite("workbench/contrib/export/test/browser/exportCommands", () => {
 		]);
 
 		try {
-			await CommandsRegistry.getCommand(ExportCommandId.openInOrigin)?.handler(accessor);
-			await CommandsRegistry.getCommand(ExportCommandId.exportOriginZip)?.handler(accessor);
+			await CommandsRegistry.getCommand(OPEN_IN_ORIGIN_COMMAND_ID)?.handler(accessor);
+			await CommandsRegistry.getCommand(EXPORT_ORIGIN_ZIP_COMMAND_ID)?.handler(accessor);
 			const commandPaletteIds = getCommandPaletteIds();
 
 			assert.deepEqual(calls, ["openInOrigin", "exportOriginZip"]);
-			assert.ok(commandPaletteIds.has(ExportCommandId.openInOrigin));
-			assert.ok(commandPaletteIds.has(ExportCommandId.exportOriginZip));
+			assert.ok(commandPaletteIds.has(OPEN_IN_ORIGIN_COMMAND_ID));
+			assert.ok(commandPaletteIds.has(EXPORT_ORIGIN_ZIP_COMMAND_ID));
 		} finally {
 			registration.dispose();
 		}

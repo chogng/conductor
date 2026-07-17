@@ -21,7 +21,10 @@ import {
   FILES_QUICK_ACCESS_PREFIX,
   FilesQuickAccessProvider,
 } from "src/cs/workbench/contrib/quickaccess/browser/quickAccessProviders";
-import { QuickAccessCommandId } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
+import {
+  QUICK_OPEN_COMMAND_ID,
+  SHOW_COMMANDS_COMMAND_ID,
+} from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
 import {
   registerWorkbenchContribution2,
   WorkbenchPhase,
@@ -35,7 +38,7 @@ registerAction2(class QuickOpenAction extends Action2 {
     super({
       category: localize("quickAccess.commands.category", "Quick Access"),
       f1: true,
-      id: QuickAccessCommandId.quickOpen,
+      id: QUICK_OPEN_COMMAND_ID,
       title: localize("workbench.commands.quickOpen", "Show quick access"),
       metadata: {
         description: localize("workbench.commands.quickOpen", "Show quick access"),
@@ -58,7 +61,7 @@ registerAction2(class ShowCommandsAction extends Action2 {
     super({
       category: localize("quickAccess.commands.category", "Quick Access"),
       f1: true,
-      id: QuickAccessCommandId.showCommands,
+      id: SHOW_COMMANDS_COMMAND_ID,
       title: localize("workbench.commands.showCommands", "Show available commands"),
       metadata: {
         description: localize("workbench.commands.showCommands", "Show available commands"),

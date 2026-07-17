@@ -9,7 +9,8 @@ import {
 	runSliceWithTemplateHandler,
 } from "src/cs/workbench/contrib/slice/browser/sliceCommands";
 import {
-	SliceCommandId,
+	RUN_SLICE_WITH_TEMPLATE_COMMAND_ID,
+	RUN_SLICE_WITH_TEMPLATE_INCREMENTAL_COMMAND_ID,
 } from "src/cs/workbench/contrib/slice/common/slice";
 
 export class RunSliceWithTemplateAction extends Action2 {
@@ -17,7 +18,7 @@ export class RunSliceWithTemplateAction extends Action2 {
 		super({
 			category: localize("slice.commands.category", "Slice"),
 			f1: true,
-			id: SliceCommandId.runWithTemplate,
+			id: RUN_SLICE_WITH_TEMPLATE_COMMAND_ID,
 			title: localize("slice.commands.runWithTemplate", "Run Slice with Template"),
 			metadata: {
 				description: localize("slice.commands.runWithTemplate.description", "Slice all files with the selected template."),
@@ -35,7 +36,7 @@ export class RunSliceWithTemplateIncrementalAction extends Action2 {
 		super({
 			category: localize("slice.commands.category", "Slice"),
 			f1: true,
-			id: SliceCommandId.runWithTemplateIncremental,
+			id: RUN_SLICE_WITH_TEMPLATE_INCREMENTAL_COMMAND_ID,
 			title: localize("slice.commands.runWithTemplateIncremental", "Run Slice with Template for New Files"),
 			metadata: {
 				description: localize("slice.commands.runWithTemplateIncremental.description", "Slice files that do not already have slice output."),

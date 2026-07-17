@@ -16,8 +16,17 @@ import { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { IUpdateService } from "src/cs/platform/update/common/update";
 import {
+  APPLY_UPDATE_COMMAND_ID,
+  CHECK_FOR_UPDATES_COMMAND_ID,
   CONTEXT_UPDATE_STATE,
-  UpdateCommandId,
+  DOWNLOAD_UPDATE_COMMAND_ID,
+  GET_UPDATE_STATE_COMMAND_ID,
+  INSTALL_UPDATE_COMMAND_ID,
+  RESTART_TO_UPDATE_COMMAND_ID,
+  SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID,
+  UPDATE_CHECKING_COMMAND_ID,
+  UPDATE_DOWNLOADING_COMMAND_ID,
+  UPDATE_INSTALLING_COMMAND_ID,
 } from "src/cs/workbench/contrib/update/common/update";
 import type { ReleaseNotesEditor } from "src/cs/workbench/contrib/update/browser/releaseNotesEditor";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
@@ -30,7 +39,7 @@ export const appendUpdateMenuItems = (menuId: MenuId, group: string): IDisposabl
   disposables.add(MenuRegistry.appendMenuItem(menuId, {
     group,
     command: {
-      id: UpdateCommandId.check,
+      id: CHECK_FOR_UPDATES_COMMAND_ID,
       title: localize("update.menu.checkForUpdates", "Check for Updates..."),
     },
     when: CONTEXT_UPDATE_STATE.isEqualTo("idle"),
@@ -38,7 +47,7 @@ export const appendUpdateMenuItems = (menuId: MenuId, group: string): IDisposabl
   disposables.add(MenuRegistry.appendMenuItem(menuId, {
     group,
     command: {
-      id: UpdateCommandId.checking,
+      id: UPDATE_CHECKING_COMMAND_ID,
       title: localize("update.menu.checkingForUpdates", "Checking for Updates..."),
       precondition: ContextKeyExpr.false(),
     },
@@ -47,7 +56,7 @@ export const appendUpdateMenuItems = (menuId: MenuId, group: string): IDisposabl
   disposables.add(MenuRegistry.appendMenuItem(menuId, {
     group,
     command: {
-      id: UpdateCommandId.downloadNow,
+      id: DOWNLOAD_UPDATE_COMMAND_ID,
       title: localize("update.menu.downloadNow", "Download Update"),
     },
     when: CONTEXT_UPDATE_STATE.isEqualTo("available"),
@@ -55,7 +64,7 @@ export const appendUpdateMenuItems = (menuId: MenuId, group: string): IDisposabl
   disposables.add(MenuRegistry.appendMenuItem(menuId, {
     group,
     command: {
-      id: UpdateCommandId.downloading,
+      id: UPDATE_DOWNLOADING_COMMAND_ID,
       title: localize("update.menu.downloading", "Downloading Update..."),
       precondition: ContextKeyExpr.false(),
     },
@@ -64,7 +73,7 @@ export const appendUpdateMenuItems = (menuId: MenuId, group: string): IDisposabl
   disposables.add(MenuRegistry.appendMenuItem(menuId, {
     group,
     command: {
-      id: UpdateCommandId.install,
+      id: INSTALL_UPDATE_COMMAND_ID,
       title: localize("update.menu.install", "Install Update..."),
     },
     when: CONTEXT_UPDATE_STATE.isEqualTo("downloaded"),
@@ -72,7 +81,7 @@ export const appendUpdateMenuItems = (menuId: MenuId, group: string): IDisposabl
   disposables.add(MenuRegistry.appendMenuItem(menuId, {
     group,
     command: {
-      id: UpdateCommandId.updating,
+      id: UPDATE_INSTALLING_COMMAND_ID,
       title: localize("update.menu.installing", "Installing Update..."),
       precondition: ContextKeyExpr.false(),
     },
@@ -90,7 +99,7 @@ export const registerUpdateCommands = (releaseNotesEditor?: UpdateReleaseNotesEd
       super({
         category: localize("update.commands.category", "Update"),
         f1: true,
-        id: UpdateCommandId.check,
+        id: CHECK_FOR_UPDATES_COMMAND_ID,
         title: localize("update.commands.checkForUpdates", "Check for Updates..."),
         metadata: {
           description: localize("update.commands.checkForUpdates.description", "Check for app updates."),
@@ -108,7 +117,7 @@ export const registerUpdateCommands = (releaseNotesEditor?: UpdateReleaseNotesEd
       super({
         category: localize("update.commands.category", "Update"),
         f1: true,
-        id: UpdateCommandId.showCurrentReleaseNotes,
+        id: SHOW_CURRENT_RELEASE_NOTES_COMMAND_ID,
         title: localize("update.commands.showCurrentReleaseNotes", "Show Current Release Notes"),
         metadata: {
           description: localize("update.commands.showCurrentReleaseNotes.description", "Show bundled release notes for the current app version."),
@@ -122,49 +131,49 @@ export const registerUpdateCommands = (releaseNotesEditor?: UpdateReleaseNotesEd
   }));
 
   disposables.add(CommandsRegistry.registerCommand({
-    id: UpdateCommandId.downloadNow,
+    id: DOWNLOAD_UPDATE_COMMAND_ID,
     handler: accessor => accessor.get(IUpdateService).checkForUpdates({ manual: true }),
     metadata: {
       description: localize("update.commands.downloadNow.description", "Download the available app update."),
     },
   }));
   disposables.add(CommandsRegistry.registerCommand({
-    id: UpdateCommandId.install,
+    id: INSTALL_UPDATE_COMMAND_ID,
     handler: accessor => accessor.get(IUpdateService).installDownloadedUpdate(),
     metadata: {
       description: localize("update.commands.install.description", "Install the downloaded app update."),
     },
   }));
   disposables.add(CommandsRegistry.registerCommand({
-    id: UpdateCommandId.restart,
+    id: RESTART_TO_UPDATE_COMMAND_ID,
     handler: accessor => accessor.get(IUpdateService).installDownloadedUpdate(),
     metadata: {
       description: localize("update.commands.restart.description", "Restart to install the downloaded app update."),
     },
   }));
   disposables.add(CommandsRegistry.registerCommand({
-    id: UpdateCommandId.state,
+    id: GET_UPDATE_STATE_COMMAND_ID,
     handler: accessor => accessor.get(IUpdateService).getStatus(),
     metadata: {
       description: localize("update.commands.state.description", "Get the current app update state."),
     },
   }));
   disposables.add(CommandsRegistry.registerCommand({
-    id: UpdateCommandId.checking,
+    id: UPDATE_CHECKING_COMMAND_ID,
     handler: () => undefined,
     metadata: {
       description: localize("update.commands.checking.description", "No-op command for the checking update state."),
     },
   }));
   disposables.add(CommandsRegistry.registerCommand({
-    id: UpdateCommandId.downloading,
+    id: UPDATE_DOWNLOADING_COMMAND_ID,
     handler: () => undefined,
     metadata: {
       description: localize("update.commands.downloading.description", "No-op command for the downloading update state."),
     },
   }));
   disposables.add(CommandsRegistry.registerCommand({
-    id: UpdateCommandId.updating,
+    id: UPDATE_INSTALLING_COMMAND_ID,
     handler: () => undefined,
     metadata: {
       description: localize("update.commands.updating.description", "No-op command for the installing update state."),
@@ -186,7 +195,7 @@ export const registerDeveloperUpdateCommand = (
       super({
         category: localize("update.commands.developerCategory", "Developer"),
         f1: true,
-        id: UpdateCommandId.applyUpdate,
+        id: APPLY_UPDATE_COMMAND_ID,
         title: localize("update.commands.applyUpdate", "Apply Update..."),
         metadata: {
           description: localize("update.commands.applyUpdate.description", "Apply a local Windows setup package for update debugging."),

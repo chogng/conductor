@@ -25,7 +25,11 @@ import {
   type TableWidgetSelectionTarget,
   type TableWidgetState,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
-import { TableCommandId } from "src/cs/workbench/contrib/table/common/table";
+import {
+  DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+  INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+  RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+} from "src/cs/workbench/contrib/table/common/table";
 import {
   getCanAdjustColumnScale,
   getTableColumnHeaderSelection,
@@ -916,10 +920,10 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.equal(getVisibleScaleText(widget.element), "×10⁻⁶");
       assert.equal(getVisibleCellText(widget.element, 0, 0), "1");
       assert.deepEqual(commandCalls, [
-        `${TableCommandId.increaseColumnDisplayScale}:0`,
-        `${TableCommandId.decreaseColumnDisplayScale}:0`,
-        `${TableCommandId.decreaseColumnDisplayScale}:0`,
-        `${TableCommandId.resetColumnDisplayScale}:0`,
+        `${INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID}:0`,
+        `${DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID}:0`,
+        `${DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID}:0`,
+        `${RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID}:0`,
       ]);
     } finally {
       widget.dispose();
@@ -1512,11 +1516,11 @@ function createColumnScaleCommandService(
     ): Promise<R | undefined> => {
       const columnIndex = Math.floor(Number(args[0]));
       calls.push(`${commandId}:${columnIndex}`);
-      const result = commandId === TableCommandId.decreaseColumnDisplayScale
+      const result = commandId === DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID
         ? dynamicModel.adjustColumnDisplayScale(columnIndex, -1)
-        : commandId === TableCommandId.increaseColumnDisplayScale
+        : commandId === INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID
           ? dynamicModel.adjustColumnDisplayScale(columnIndex, 1)
-          : commandId === TableCommandId.resetColumnDisplayScale
+          : commandId === RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID
             ? dynamicModel.resetColumnDisplayScale(columnIndex)
             : false;
       return result as R;

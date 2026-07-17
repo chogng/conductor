@@ -1,7 +1,12 @@
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
-import { QuickAccessCommandId } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
+import {
+  NAVIGATE_BACK_COMMAND_ID,
+  NAVIGATE_FORWARD_COMMAND_ID,
+  SHOW_CHART_COMMAND_ID,
+  SHOW_TABLE_COMMAND_ID,
+} from "src/cs/workbench/browser/actions/layoutCommands";
+import { QUICK_OPEN_COMMAND_ID } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
 import { SHOW_SETTINGS_COMMAND_ID } from "src/cs/workbench/contrib/settings/browser/settingsActions";
 import { SettingsViewContainerId } from "src/cs/workbench/contrib/settings/common/settings";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
@@ -59,13 +64,13 @@ export const createWorkbenchTitlebarNavButtons = (
   canNavigateForward: boolean,
 ): WorkbenchTitlebarNavButton[] => [
   {
-    commandId: WorkbenchLayoutCommandId.navigateBack,
+    commandId: NAVIGATE_BACK_COMMAND_ID,
     id: WorkbenchTitlebarNavButtonIds.back,
     title: localize("menu.page.back", "Back"),
     isDisabled: !canNavigateBack,
   },
   {
-    commandId: WorkbenchLayoutCommandId.navigateForward,
+    commandId: NAVIGATE_FORWARD_COMMAND_ID,
     id: WorkbenchTitlebarNavButtonIds.forward,
     title: localize("menu.page.forward", "Forward"),
     isDisabled: !canNavigateForward,
@@ -76,13 +81,13 @@ export const createWorkbenchTitlebarPageButtons = (
   activePage: WorkbenchTitlebarActivePage,
 ): WorkbenchTitlebarPageButton[] => [
   {
-    commandId: WorkbenchLayoutCommandId.showTable,
+    commandId: SHOW_TABLE_COMMAND_ID,
     id: "table",
     title: localize("titlebar.mode.table", "Table"),
     isActive: activePage === TableViewContainerId,
   },
   {
-    commandId: WorkbenchLayoutCommandId.showChart,
+    commandId: SHOW_CHART_COMMAND_ID,
     id: "chart",
     title: localize("titlebar.mode.chart", "Chart"),
     isActive: activePage === ChartViewContainerId,
@@ -97,7 +102,7 @@ export const createWorkbenchTitlebarPageButtons = (
 
 export const createWorkbenchTitlebarQuickAccessButton =
 (): WorkbenchTitlebarQuickAccessButton => ({
-  commandId: QuickAccessCommandId.quickOpen,
+  commandId: QUICK_OPEN_COMMAND_ID,
   icon: LxIcon.search,
   id: WORKBENCH_TITLEBAR_QUICK_ACCESS_BUTTON_ID,
   title: localize("titlebar.quickAccess", "Search commands/files"),

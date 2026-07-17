@@ -29,7 +29,13 @@ import {
   type TableStepperActions,
 } from "src/cs/workbench/contrib/table/browser/tableStepper";
 import { ITableWidgetService } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
-import { TableCommandId, TableViewId } from "src/cs/workbench/contrib/table/common/table";
+import {
+  COPY_TABLE_SELECTION_COMMAND_ID,
+  RESET_TABLE_ZOOM_COMMAND_ID,
+  TableViewId,
+  ZOOM_IN_TABLE_COMMAND_ID,
+  ZOOM_OUT_TABLE_COMMAND_ID,
+} from "src/cs/workbench/contrib/table/common/table";
 import type { ITableSize } from "src/cs/base/browser/ui/table/table";
 import {
   type TableWidgetColumnHeaderSelection,
@@ -90,26 +96,26 @@ export class TableViewPane extends ViewPane {
       bodyClassName: "workbench-part-view-pane__body",
     });
     this.zoomOutAction = this.store.add(new Action(
-      TableCommandId.zoomOut,
+      ZOOM_OUT_TABLE_COMMAND_ID,
       localize("table.zoomOut", "Zoom out"),
       "",
       true,
-      () => this.commandService.executeCommand(TableCommandId.zoomOut),
+      () => this.commandService.executeCommand(ZOOM_OUT_TABLE_COMMAND_ID),
     ));
     this.zoomOutAction.icon = LxIcon.remove;
     this.resetZoomAction = this.store.add(new Action(
-      TableCommandId.resetZoom,
+      RESET_TABLE_ZOOM_COMMAND_ID,
       localize("table.resetZoom", "Reset table zoom"),
       "",
       true,
-      () => this.commandService.executeCommand(TableCommandId.resetZoom),
+      () => this.commandService.executeCommand(RESET_TABLE_ZOOM_COMMAND_ID),
     ));
     this.zoomInAction = this.store.add(new Action(
-      TableCommandId.zoomIn,
+      ZOOM_IN_TABLE_COMMAND_ID,
       localize("table.zoomIn", "Zoom in"),
       "",
       true,
-      () => this.commandService.executeCommand(TableCommandId.zoomIn),
+      () => this.commandService.executeCommand(ZOOM_IN_TABLE_COMMAND_ID),
     ));
     this.zoomInAction.icon = LxIcon.add;
     this.zoomStepperActions = {
@@ -448,7 +454,7 @@ const toControllerProps = (
   commandService,
   getColumnWidths: source => tableService.getColumnWidths(source),
   onCopySelection: () => {
-    void commandService.executeCommand(TableCommandId.copySelection);
+    void commandService.executeCommand(COPY_TABLE_SELECTION_COMMAND_ID);
   },
   onSelect: (target, reveal) => tableService.select(target, reveal),
   storeColumnWidths: (source, widths) => tableService.storeColumnWidths(source, widths),

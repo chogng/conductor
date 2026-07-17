@@ -21,7 +21,7 @@ import type {
 	DomainRecord,
 	SecondDerivedCurveKey,
 	SeriesId,
-} from "src/cs/workbench/services/session/common/sessionModel";
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 import {
 	type CalculationBaseCurveRecord,
 	type CalculationCurveRecord,

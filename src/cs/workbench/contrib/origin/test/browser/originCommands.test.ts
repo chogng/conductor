@@ -13,7 +13,7 @@ import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
 import { registerOriginCommands } from "src/cs/workbench/contrib/origin/browser/originCommands";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
-import { OriginCommandId } from "src/cs/workbench/services/origin/common/origin";
+import { SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID } from "src/cs/workbench/services/origin/common/origin";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -36,14 +36,14 @@ suite("workbench/contrib/origin/test/browser/originCommands", () => {
 		]);
 
 		try {
-			CommandsRegistry.getCommand(OriginCommandId.showExportSettings)?.handler(accessor);
+			CommandsRegistry.getCommand(SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID)?.handler(accessor);
 			const commandPaletteIds = getCommandPaletteIds();
 
 			assert.deepEqual(calls, [
 				`container:${ChartViewContainerId}`,
 				"aux:settings",
 			]);
-			assert.ok(commandPaletteIds.has(OriginCommandId.showExportSettings));
+			assert.ok(commandPaletteIds.has(SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID));
 		} finally {
 			registration.dispose();
 		}

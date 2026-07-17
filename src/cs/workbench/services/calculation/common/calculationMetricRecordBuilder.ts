@@ -18,12 +18,12 @@ import {
 import type {
   BaseCurveFamily,
   CurrentWindowRecord,
-  CurveKey as SessionCurveKey,
+  CurveKey,
   ItCurveMode,
   IvCurveMode,
   MetricKey,
   SeriesId,
-} from "src/cs/workbench/services/session/common/sessionModel";
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 import {
   type CalculationBaseCurveRecord,
   type CalculationCurrentMetricRecord,
@@ -450,13 +450,13 @@ const createBaseCurveKey = (
   ivMode: IvCurveMode | null,
   itMode: ItCurveMode | null,
   seriesId: string,
-): SessionCurveKey => {
+): CurveKey => {
   const mode = family === "iv"
     ? ivMode ?? "default"
     : family === "it"
       ? itMode ?? "default"
       : "default";
-  return `base:${family}:${mode}:${seriesId}` as SessionCurveKey;
+  return `base:${family}:${mode}:${seriesId}` as CurveKey;
 };
 
 const resolveMetricSeriesId = (

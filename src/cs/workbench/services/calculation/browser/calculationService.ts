@@ -35,7 +35,7 @@ import type { TemplateBlock } from "src/cs/workbench/services/template/common/te
 import type {
 	BaseCurveKey,
 	CurveKey,
-} from "src/cs/workbench/services/session/common/sessionModel";
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 
 type PendingCalculation = CalculationResourceIdentity & {
 	readonly cacheKey: string;

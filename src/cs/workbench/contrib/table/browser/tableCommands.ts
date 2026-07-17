@@ -7,7 +7,15 @@ import {
   resolveTableColumnDisplayScaleTarget,
 } from "src/cs/workbench/services/table/common/table";
 import {
-  TableCommandId,
+  CLEAR_TABLE_SELECTION_COMMAND_ID,
+  COPY_TABLE_SELECTION_COMMAND_ID,
+  DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+  INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+  RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+  RESET_TABLE_ZOOM_COMMAND_ID,
+  SELECT_ALL_TABLE_COLUMNS_COMMAND_ID,
+  ZOOM_IN_TABLE_COMMAND_ID,
+  ZOOM_OUT_TABLE_COMMAND_ID,
   type TableCommandId as TableCommandIdValue,
 } from "src/cs/workbench/contrib/table/common/table";
 import { localize } from "src/cs/nls";
@@ -26,12 +34,12 @@ export type TableCommandRegistration = {
 
 const tableCommandRegistrations: readonly TableCommandRegistration[] = [
   {
-    id: TableCommandId.clearSelection,
+    id: CLEAR_TABLE_SELECTION_COMMAND_ID,
     run: accessor => accessor.get(ITableService).clearSelection(),
     title: localize("table.commands.clearSelection", "Clear table selection"),
   },
   {
-    id: TableCommandId.copySelection,
+    id: COPY_TABLE_SELECTION_COMMAND_ID,
     run: accessor => copyTableSelection(
       accessor.get(ITableService),
       accessor.get(INotificationService),
@@ -39,37 +47,37 @@ const tableCommandRegistrations: readonly TableCommandRegistration[] = [
     title: localize("table.commands.copySelection", "Copy table selection"),
   },
   {
-    id: TableCommandId.decreaseColumnDisplayScale,
+    id: DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
     run: (accessor, colIndex) => adjustColumnDisplayScale(accessor, colIndex, -1),
     title: localize("table.commands.decreaseColumnDisplayScale", "Decrease Column Display Scale"),
   },
   {
-    id: TableCommandId.increaseColumnDisplayScale,
+    id: INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
     run: (accessor, colIndex) => adjustColumnDisplayScale(accessor, colIndex, 1),
     title: localize("table.commands.increaseColumnDisplayScale", "Increase Column Display Scale"),
   },
   {
-    id: TableCommandId.resetColumnDisplayScale,
+    id: RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
     run: (accessor, colIndex) => resetColumnDisplayScale(accessor, colIndex),
     title: localize("table.commands.resetColumnDisplayScale", "Reset Column Display Scale"),
   },
   {
-    id: TableCommandId.resetZoom,
+    id: RESET_TABLE_ZOOM_COMMAND_ID,
     run: accessor => accessor.get(ITableWidgetService).activeController?.resetZoom() ?? false,
     title: localize("table.commands.resetZoom", "Reset table zoom"),
   },
   {
-    id: TableCommandId.selectAllColumns,
+    id: SELECT_ALL_TABLE_COLUMNS_COMMAND_ID,
     run: accessor => accessor.get(ITableService).selectAllColumns(),
     title: localize("table.commands.selectAllColumns", "Select all table columns"),
   },
   {
-    id: TableCommandId.zoomIn,
+    id: ZOOM_IN_TABLE_COMMAND_ID,
     run: accessor => accessor.get(ITableWidgetService).activeController?.zoomIn() ?? false,
     title: localize("table.commands.zoomIn", "Zoom in table"),
   },
   {
-    id: TableCommandId.zoomOut,
+    id: ZOOM_OUT_TABLE_COMMAND_ID,
     run: accessor => accessor.get(ITableWidgetService).activeController?.zoomOut() ?? false,
     title: localize("table.commands.zoomOut", "Zoom out table"),
   },

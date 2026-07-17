@@ -11,7 +11,7 @@ import type {
 	BaseCurveKey,
 	DerivedCurveKey,
 	SecondDerivedCurveKey,
-} from "src/cs/workbench/services/session/common/sessionModel";
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/common/calculationCurveRecordBuilder", () => {

@@ -27,7 +27,7 @@ import type {
 } from "src/cs/workbench/services/calculation/common/ionIoff";
 import type {
 	CurvePoint,
-} from "src/cs/workbench/services/session/common/sessionModel";
+} from "src/cs/workbench/services/calculation/common/calculationRecords";
 
 type RustHostResponse =
 	| {

@@ -17,20 +17,20 @@ import type { IContextKeyService } from "src/cs/platform/contextkey/common/conte
 import type { TemplateMode } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import { TemplateViewContainerId } from "src/cs/workbench/contrib/template/common/template";
 import {
-  ExportCommandId,
   ExportViewContainerId,
+  SHOW_EXPORT_COMMAND_ID,
 } from "src/cs/workbench/services/export/common/export";
 import {
-  OriginCommandId,
   OriginExportSettingsViewContainerId,
+  SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID,
 } from "src/cs/workbench/services/origin/common/origin";
 import {
-  ParametersCommandId,
   ParametersViewContainerId,
+  SHOW_PARAMETERS_COMMAND_ID,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import {
-  SearchCommandId,
   SearchViewContainerId,
+  SHOW_SEARCH_COMMAND_ID,
 } from "src/cs/workbench/services/search/common/search";
 import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
@@ -71,25 +71,25 @@ const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
   {
     containerId: SearchViewContainerId,
     id: "search",
-    commandId: SearchCommandId.showSearch,
+    commandId: SHOW_SEARCH_COMMAND_ID,
     panelViewContainerId: ChartViewContainerId,
   },
   {
     containerId: ExportViewContainerId,
     id: "export",
-    commandId: ExportCommandId.showExport,
+    commandId: SHOW_EXPORT_COMMAND_ID,
     panelViewContainerId: ChartViewContainerId,
   },
   {
     containerId: ParametersViewContainerId,
     id: "parameters",
-    commandId: ParametersCommandId.showParameters,
+    commandId: SHOW_PARAMETERS_COMMAND_ID,
     panelViewContainerId: ChartViewContainerId,
   },
   {
     containerId: OriginExportSettingsViewContainerId,
     id: "settings",
-    commandId: OriginCommandId.showExportSettings,
+    commandId: SHOW_ORIGIN_EXPORT_SETTINGS_COMMAND_ID,
     panelViewContainerId: ChartViewContainerId,
   },
 ];

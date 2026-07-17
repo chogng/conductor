@@ -8,16 +8,14 @@ import type { ServicesAccessor } from "src/cs/platform/instantiation/common/inst
 import { IKeybindingService } from "src/cs/platform/keybinding/common/keybinding";
 import { IQuickInputService, type QuickPickItem } from "src/cs/platform/quickinput/common/quickInput";
 
-export const KeybindingsCommandId = {
-  showConflicts: "workbench.action.showKeybindingConflicts",
-} as const;
+export const SHOW_KEYBINDING_CONFLICTS_COMMAND_ID = "workbench.action.showKeybindingConflicts";
 
 registerAction2(class ShowKeybindingConflictsAction extends Action2 {
   public constructor() {
     super({
       category: localize("keybindings.commands.category", "Keyboard Shortcuts"),
       f1: true,
-      id: KeybindingsCommandId.showConflicts,
+      id: SHOW_KEYBINDING_CONFLICTS_COMMAND_ID,
       title: localize("keybindings.commands.showConflicts", "Show Keybinding Conflicts"),
       metadata: {
         description: localize("keybindings.commands.showConflicts", "Show Keybinding Conflicts"),

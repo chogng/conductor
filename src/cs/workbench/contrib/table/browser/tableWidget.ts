@@ -36,7 +36,11 @@ import {
   isTableColumnScaleBadgeVisible,
   syncTableColumnScaleStepper,
 } from "src/cs/workbench/contrib/table/browser/tableStepper";
-import { TableCommandId } from "src/cs/workbench/contrib/table/common/table";
+import {
+  DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+  INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+  RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+} from "src/cs/workbench/contrib/table/common/table";
 import {
   createPerformanceStageRecorder,
   type PerformanceStageContext,
@@ -296,25 +300,25 @@ export class TableWidget {
     this.element.setAttribute("role", "region");
     this.element.setAttribute("aria-label", localize("table.view.ariaLabel", "Table"));
     this.columnScaleDecreaseAction = this.store.add(new Action(
-      TableCommandId.decreaseColumnDisplayScale,
+      DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
       localize("table.preview.decreaseColumnScale", "Decrease column scale exponent"),
       "",
       true,
-      () => this.runColumnScaleCommand(TableCommandId.decreaseColumnDisplayScale),
+      () => this.runColumnScaleCommand(DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID),
     ));
     this.columnScaleIncreaseAction = this.store.add(new Action(
-      TableCommandId.increaseColumnDisplayScale,
+      INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
       localize("table.preview.increaseColumnScale", "Increase column scale exponent"),
       "",
       true,
-      () => this.runColumnScaleCommand(TableCommandId.increaseColumnDisplayScale),
+      () => this.runColumnScaleCommand(INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID),
     ));
     this.columnScaleResetAction = this.store.add(new Action(
-      TableCommandId.resetColumnDisplayScale,
+      RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
       localize("table.preview.resetColumnScale", "Reset column scale to automatic"),
       "",
       true,
-      () => this.runColumnScaleCommand(TableCommandId.resetColumnDisplayScale),
+      () => this.runColumnScaleCommand(RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID),
     ));
     this.columnScaleControl = this.store.add(createTableColumnScaleStepper({
       decrease: this.columnScaleDecreaseAction,
@@ -1322,9 +1326,9 @@ export class TableWidget {
 
   private async runColumnScaleCommand(
     commandId:
-      | typeof TableCommandId.decreaseColumnDisplayScale
-      | typeof TableCommandId.increaseColumnDisplayScale
-      | typeof TableCommandId.resetColumnDisplayScale,
+      | typeof DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID
+      | typeof INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID
+      | typeof RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
   ): Promise<void> {
     if (!this.canAdjustColumnScale()) {
       return;

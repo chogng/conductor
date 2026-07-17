@@ -18,7 +18,17 @@ import {
 	TableWidgetService,
 	type ITableWidgetController,
 } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
-import { TableCommandId } from "src/cs/workbench/contrib/table/common/table";
+import {
+	CLEAR_TABLE_SELECTION_COMMAND_ID,
+	COPY_TABLE_SELECTION_COMMAND_ID,
+	DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+	INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+	RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+	RESET_TABLE_ZOOM_COMMAND_ID,
+	SELECT_ALL_TABLE_COLUMNS_COMMAND_ID,
+	ZOOM_IN_TABLE_COMMAND_ID,
+	ZOOM_OUT_TABLE_COMMAND_ID,
+} from "src/cs/workbench/contrib/table/common/table";
 import {
 	ITableService,
 	type TableSelection,
@@ -32,7 +42,17 @@ suite("workbench/contrib/table/test/browser/tableCommands", () => {
 
 		try {
 			const commandPaletteIds = getCommandPaletteIds();
-			for (const commandId of Object.values(TableCommandId)) {
+			for (const commandId of [
+				CLEAR_TABLE_SELECTION_COMMAND_ID,
+				COPY_TABLE_SELECTION_COMMAND_ID,
+				DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+				INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+				RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID,
+				RESET_TABLE_ZOOM_COMMAND_ID,
+				SELECT_ALL_TABLE_COLUMNS_COMMAND_ID,
+				ZOOM_IN_TABLE_COMMAND_ID,
+				ZOOM_OUT_TABLE_COMMAND_ID,
+			]) {
 				assert.ok(CommandsRegistry.getCommand(commandId), commandId);
 				assert.ok(commandPaletteIds.has(commandId), commandId);
 			}
@@ -56,9 +76,9 @@ suite("workbench/contrib/table/test/browser/tableCommands", () => {
 		} as unknown as ServicesAccessor;
 
 		try {
-			assert.equal(await CommandsRegistry.getCommand(TableCommandId.zoomIn)?.handler(accessor), true);
-			assert.equal(await CommandsRegistry.getCommand(TableCommandId.zoomOut)?.handler(accessor), true);
-			assert.equal(await CommandsRegistry.getCommand(TableCommandId.resetZoom)?.handler(accessor), true);
+			assert.equal(await CommandsRegistry.getCommand(ZOOM_IN_TABLE_COMMAND_ID)?.handler(accessor), true);
+			assert.equal(await CommandsRegistry.getCommand(ZOOM_OUT_TABLE_COMMAND_ID)?.handler(accessor), true);
+			assert.equal(await CommandsRegistry.getCommand(RESET_TABLE_ZOOM_COMMAND_ID)?.handler(accessor), true);
 			assert.deepEqual(calls, ["zoomIn", "zoomOut", "resetZoom"]);
 		} finally {
 			zoomControllerRegistration.dispose();
@@ -95,11 +115,11 @@ suite("workbench/contrib/table/test/browser/tableCommands", () => {
 
 		try {
 			assert.equal(
-				await CommandsRegistry.getCommand(TableCommandId.increaseColumnDisplayScale)?.handler(accessor, 2),
+				await CommandsRegistry.getCommand(INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID)?.handler(accessor, 2),
 				true,
 			);
 			assert.equal(
-				await CommandsRegistry.getCommand(TableCommandId.decreaseColumnDisplayScale)?.handler(accessor),
+				await CommandsRegistry.getCommand(DECREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID)?.handler(accessor),
 				true,
 			);
 			selection = {
@@ -107,14 +127,14 @@ suite("workbench/contrib/table/test/browser/tableCommands", () => {
 				selectedColumns: [1],
 			};
 			assert.equal(
-				await CommandsRegistry.getCommand(TableCommandId.resetColumnDisplayScale)?.handler(accessor),
+				await CommandsRegistry.getCommand(RESET_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID)?.handler(accessor),
 				true,
 			);
 			selection = {
 				selectedColumns: [1, 2],
 			};
 			assert.equal(
-				await CommandsRegistry.getCommand(TableCommandId.increaseColumnDisplayScale)?.handler(accessor),
+				await CommandsRegistry.getCommand(INCREASE_TABLE_COLUMN_DISPLAY_SCALE_COMMAND_ID)?.handler(accessor),
 				false,
 			);
 			assert.deepEqual(calls, [

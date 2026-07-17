@@ -37,7 +37,17 @@ import {
   ITemplateViewStateService,
   TemplateViewStateService,
 } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
-import { TemplateCommandId } from "src/cs/workbench/contrib/template/common/template";
+import {
+  APPLY_TEMPLATE_COMMAND_ID,
+  APPLY_TEMPLATE_INCREMENTAL_COMMAND_ID,
+  CREATE_TEMPLATE_COMMAND_ID,
+  DELETE_TEMPLATE_COMMAND_ID,
+  EDIT_TEMPLATE_COMMAND_ID,
+  EXPORT_TEMPLATE_COMMAND_ID,
+  IMPORT_TEMPLATE_COMMAND_ID,
+  SELECT_TEMPLATE_COMMAND_ID,
+  SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID,
+} from "src/cs/workbench/contrib/template/common/template";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
   INotificationService,
@@ -71,7 +81,17 @@ suite("workbench/contrib/template/test/browser/templateCommands", () => {
     const registration = registerTemplateCommands();
 
     try {
-      for (const commandId of Object.values(TemplateCommandId)) {
+      for (const commandId of [
+        SELECT_TEMPLATE_COMMAND_ID,
+        CREATE_TEMPLATE_COMMAND_ID,
+        DELETE_TEMPLATE_COMMAND_ID,
+        IMPORT_TEMPLATE_COMMAND_ID,
+        EDIT_TEMPLATE_COMMAND_ID,
+        EXPORT_TEMPLATE_COMMAND_ID,
+        APPLY_TEMPLATE_COMMAND_ID,
+        APPLY_TEMPLATE_INCREMENTAL_COMMAND_ID,
+        SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID,
+      ]) {
         assert.ok(CommandsRegistry.getCommand(commandId), commandId);
       }
     } finally {
@@ -84,11 +104,11 @@ suite("workbench/contrib/template/test/browser/templateCommands", () => {
 
     try {
       const commandPaletteIds = getCommandPaletteIds();
-      assert.ok(commandPaletteIds.has(TemplateCommandId.createTemplate));
-      assert.ok(commandPaletteIds.has(TemplateCommandId.deleteTemplate));
-      assert.ok(commandPaletteIds.has(TemplateCommandId.importTemplate));
-      assert.ok(commandPaletteIds.has(TemplateCommandId.editTemplate));
-      assert.ok(commandPaletteIds.has(TemplateCommandId.exportTemplate));
+      assert.ok(commandPaletteIds.has(CREATE_TEMPLATE_COMMAND_ID));
+      assert.ok(commandPaletteIds.has(DELETE_TEMPLATE_COMMAND_ID));
+      assert.ok(commandPaletteIds.has(IMPORT_TEMPLATE_COMMAND_ID));
+      assert.ok(commandPaletteIds.has(EDIT_TEMPLATE_COMMAND_ID));
+      assert.ok(commandPaletteIds.has(EXPORT_TEMPLATE_COMMAND_ID));
     } finally {
       registration.dispose();
     }
@@ -128,7 +148,7 @@ suite("workbench/contrib/template/test/browser/templateCommands", () => {
     ]);
 
     try {
-      CommandsRegistry.getCommand(TemplateCommandId.importTemplate)?.handler(accessor);
+      CommandsRegistry.getCommand(IMPORT_TEMPLATE_COMMAND_ID)?.handler(accessor);
       await waitFor(() => Boolean(importState.input));
       const importInput = importState.input;
       assert.ok(importInput);
@@ -179,7 +199,7 @@ suite("workbench/contrib/template/test/browser/templateCommands", () => {
     ]);
 
     try {
-      CommandsRegistry.getCommand(TemplateCommandId.importTemplate)?.handler(accessor);
+      CommandsRegistry.getCommand(IMPORT_TEMPLATE_COMMAND_ID)?.handler(accessor);
       await waitFor(() => notifications.length > 0);
 
       assert.deepStrictEqual({

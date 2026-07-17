@@ -10,8 +10,13 @@ import {
   type IUpdateService as IUpdateServiceType,
 } from "src/cs/platform/update/common/update";
 import {
+  CHECK_FOR_UPDATES_COMMAND_ID,
+  DOWNLOAD_UPDATE_COMMAND_ID,
+  INSTALL_UPDATE_COMMAND_ID,
   isDesktopUpdateReadyToInstall,
-  UpdateCommandId,
+  UPDATE_CHECKING_COMMAND_ID,
+  UPDATE_DOWNLOADING_COMMAND_ID,
+  UPDATE_INSTALLING_COMMAND_ID,
 } from "src/cs/workbench/contrib/update/common/update";
 import { getUpdateTooltipText } from "src/cs/workbench/contrib/update/browser/updateTooltip";
 import {
@@ -40,7 +45,7 @@ export class UpdateTitleBarEntry extends Disposable {
     const isVisible = isDesktopUpdateVisibleInTitlebar(status);
     const isReadyToInstall = isDesktopUpdateReadyToInstall(status);
     this.titleService.patchTitlebarState({
-      installUpdateCommandId: UpdateCommandId.install,
+      installUpdateCommandId: INSTALL_UPDATE_COMMAND_ID,
       updateCommandId: isVisible
         ? getDesktopUpdateTitlebarCommandId(status, canCheckForUpdates)
         : null,
@@ -67,17 +72,17 @@ const getDesktopUpdateTitlebarCommandId = (
 ): string | null => {
   switch (status.status) {
     case "available":
-      return UpdateCommandId.downloadNow;
+      return DOWNLOAD_UPDATE_COMMAND_ID;
     case "checking":
-      return UpdateCommandId.checking;
+      return UPDATE_CHECKING_COMMAND_ID;
     case "downloading":
-      return UpdateCommandId.downloading;
+      return UPDATE_DOWNLOADING_COMMAND_ID;
     case "downloaded":
-      return UpdateCommandId.install;
+      return INSTALL_UPDATE_COMMAND_ID;
     case "updating":
-      return UpdateCommandId.updating;
+      return UPDATE_INSTALLING_COMMAND_ID;
     case "error":
-      return canCheckForUpdates ? UpdateCommandId.check : null;
+      return canCheckForUpdates ? CHECK_FOR_UPDATES_COMMAND_ID : null;
     case "idle":
     case "disabled":
     case "unsupported":
