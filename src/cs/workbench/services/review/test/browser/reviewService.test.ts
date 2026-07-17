@@ -250,7 +250,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		});
 	});
 
-	test("starts a newer reevaluation immediately and ignores the cancelled result when it arrives late", async () => {
+	test("keeps a shared reevaluation alive when one caller cancels", async () => {
 		const resource = URI.file("/workspace/Transfer.csv");
 		const target = { resource, sheetId: "table-a" };
 		const dataResourceService = store.add(new ControlledDataResourceService());
@@ -267,37 +267,42 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			await createDataResourceServiceForTest(resource).resolveStructuredEvidence(target),
 		);
 		const firstSource = store.add(new CancellationTokenSource());
-		const secondSource = store.add(new CancellationTokenSource());
 
 		const first = service.reevaluate(target, firstSource.token);
 		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
 		firstSource.cancel();
 		assert.equal(await first, null);
 
-		const second = service.reevaluate(target, secondSource.token);
-		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 2);
-		dataResourceService.resolveAt(1, { kind: "missingContent" });
-		const secondResult = await second;
-
-		assert.deepStrictEqual({
-			persistence: secondResult?.persistence,
-			state: secondResult?.summary.state,
-		}, {
-			persistence: "cleared",
-			state: "invalid",
-		});
-
-		dataResourceService.resolveNext(readyReference.object);
+		const execution = service.reviewResourceForExecution(target);
 		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 1);
+		dataResourceService.resolveNext(readyReference.object);
+		assert.ok(await execution);
 		await flushReviewPersistence(service);
-		assert.deepStrictEqual({
-			latestState: service.getLatestReviewSummary(target).state,
-			persistedKeys: storageService.keys(StorageScope.WORKSPACE)
-				.filter(key => key.startsWith("review.result.v1:")),
-		}, {
-			latestState: "invalid",
-			persistedKeys: [],
-		});
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
+		assert.equal(
+			storageService.keys(StorageScope.WORKSPACE)
+				.filter(key => key.startsWith("review.result.v1:")).length,
+			1,
+		);
+	});
+
+	test("retries transient URI review failures without caching them", async () => {
+		const resource = URI.file("/workspace/Transfer.csv");
+		const target = { resource, sheetId: "table-a" };
+		const dataResourceService = store.add(new FailsOnceDataResourceService(
+			createDataResourceServiceForTest(resource),
+		));
+		const service = createReviewServiceForTest(
+			createUserTemplateServiceForTest(),
+			dataResourceService,
+		);
+
+		const execution = await service.reviewResourceForExecution(target);
+
+		assert.ok(execution);
+		assert.equal(dataResourceService.resolveStructuredEvidenceCalls, 2);
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
 
 	test("derives DataResource review candidates into a system-recommended review decision", () => {
@@ -1264,7 +1269,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(summaries.length, reviewCount);
 	});
 
-	test("does not commit a superseded active Review through a later waiter", async () => {
+	test("resolves a later waiter from the current Review generation", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const dataResourceService = store.add(new ControlledDataResourceService());
@@ -1286,11 +1291,10 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		const laterWaiter = service.reviewResourceForExecution(target);
 		dataResourceService.resolveNext({ kind: "missingContent" });
 
-		assert.equal(await laterWaiter, null);
-		assert.equal(service.getLatestReviewSummary(target).state, "stale");
 		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 3, 40, 5);
 		dataResourceService.resolveNext(readyReference.object);
-		await waitUntil(() => service.getLatestReviewSummary(target).state === "ready", 40, 5);
+		assert.ok(await laterWaiter);
+		assert.equal(service.getLatestReviewSummary(target).state, "ready");
 	});
 
 	test("does not commit an active Review after the workspace changes", async () => {
@@ -1390,7 +1394,7 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		await review;
 	});
 
-	test("keeps uncached active URI review isolated from resource-change reruns", async () => {
+	test("refreshes an uncached active URI review after its resource changes", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
 		const dataResourceService = store.add(new ControlledDataResourceService());
@@ -1411,9 +1415,12 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 			kind: "missingContent",
 		});
 
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 2);
+		dataResourceService.resolveNext({
+			kind: "missingContent",
+		});
 		assert.equal(await reviewExecution, null);
-		await new Promise(resolve => setTimeout(resolve, 0));
-		assert.equal(dataResourceService.resolveStructuredContentCalls, 1);
+		assert.equal(dataResourceService.resolveStructuredContentCalls, 2);
 		assert.equal(service.getLatestReviewSummary(target).state, "invalid");
 	});
 
@@ -1841,6 +1848,48 @@ class ResolvingDataResourceService extends Disposable implements IDataResourceSe
 	}
 
 	public resolve(): void {}
+}
+
+class FailsOnceDataResourceService extends Disposable implements IDataResourceService {
+	public declare readonly _serviceBrand: undefined;
+
+	public readonly onDidChangeResource: IDataResourceService["onDidChangeResource"];
+	public resolveStructuredEvidenceCalls = 0;
+
+	public constructor(
+		private readonly delegate: IDataResourceService,
+	) {
+		super();
+		this.onDidChangeResource = delegate.onDidChangeResource;
+	}
+
+	public canHandleResource(
+		resource: Parameters<IDataResourceService["canHandleResource"]>[0],
+	): ReturnType<IDataResourceService["canHandleResource"]> {
+		return this.delegate.canHandleResource(resource);
+	}
+
+	public resolveStructuredContent(
+		target: Parameters<IDataResourceService["resolveStructuredContent"]>[0],
+	): ReturnType<IDataResourceService["resolveStructuredContent"]> {
+		return this.delegate.resolveStructuredContent(target);
+	}
+
+	public resolveStructuredEvidence(
+		target: Parameters<IDataResourceService["resolveStructuredEvidence"]>[0],
+	): ReturnType<IDataResourceService["resolveStructuredEvidence"]> {
+		this.resolveStructuredEvidenceCalls += 1;
+		if (this.resolveStructuredEvidenceCalls === 1) {
+			return Promise.reject(new Error("temporary failure"));
+		}
+		return this.delegate.resolveStructuredEvidence(target);
+	}
+
+	public resolve(
+		target: Parameters<IDataResourceService["resolve"]>[0],
+	): ReturnType<IDataResourceService["resolve"]> {
+		return this.delegate.resolve(target);
+	}
 }
 
 function createWorkspaceContextServiceStub(

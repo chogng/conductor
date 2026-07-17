@@ -58,10 +58,22 @@ export type CancelStructuredContentRequest = {
   requestId: string;
 };
 
+export type RustHostRequestOwner = {
+  id: string;
+  scope: string;
+};
+
 export interface IRustHostService {
   analyzeCalculation(request: AnalyzeCalculationRequest): Promise<RustHostResponse>;
   calculateRc(request: CalculateRcRequest): Promise<RustHostResponse>;
-  cancelStructuredContent(request: CancelStructuredContentRequest): Promise<boolean>;
+  cancelStructuredContent(
+    request: CancelStructuredContentRequest,
+    owner: RustHostRequestOwner,
+  ): Promise<boolean>;
+  cancelStructuredContentOwner(ownerScope: string): void;
   exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustHostResponse>;
-  resolveStructuredContent(request: ResolveStructuredContentRequest): Promise<RustHostResponse>;
+  resolveStructuredContent(
+    request: ResolveStructuredContentRequest,
+    owner: RustHostRequestOwner,
+  ): Promise<RustHostResponse>;
 }

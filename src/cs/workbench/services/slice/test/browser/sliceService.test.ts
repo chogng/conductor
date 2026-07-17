@@ -490,6 +490,131 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(sliceService.getResourceState(target.resource, target.sheetId)?.state, "failed");
 		assert.equal(sliceService.getResourceResult(target.resource, target.sheetId), null);
 	});
+
+	test("commits only the latest request for a resource", async () => {
+		const resource = URI.file("/workspace/source.csv");
+		const target = { resource, sheetId: "sheet-a" };
+		const content: TableModelContentSnapshot = {
+			columnCount: 2,
+			maxCellLengths: [2, 2],
+			rowCount: 3,
+			rows: [
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			],
+		};
+		const tableModelService = store.add(new DeferredTableModelService());
+		const sliceService = store.add(new SliceService(
+			createDataResourceServiceForTest(tableModelService),
+		));
+		const firstRequest = {
+			...createResourceSliceRequest(target),
+			requestSignature: "request:first",
+		};
+		const latestRequest = {
+			...createResourceSliceRequest(target),
+			requestSignature: "request:latest",
+		};
+
+		sliceService.submitResource([firstRequest]);
+		await waitUntil(() => sliceService.getResourceState(resource, "sheet-a")?.state === "processing");
+		sliceService.submitResource([latestRequest]);
+		tableModelService.resolveNextReference(createTableSnapshot(resource, content));
+		await waitUntil(() => tableModelService.pendingReferenceCount === 1);
+		tableModelService.resolveNextReference(createTableSnapshot(resource, content));
+		await waitUntil(() => sliceService.getResourceState(resource, "sheet-a")?.state === "ready");
+
+		assert.equal(sliceService.getResourceResult(resource, "sheet-a")?.requestSignature, "request:latest");
+		assert.equal(sliceService.getState().isRunning, false);
+	});
+
+	test("keeps failed zero-curve executions out of chart results", async () => {
+		const resource = URI.file("/workspace/invalid.csv");
+		const target = { resource, sheetId: "sheet-a" };
+		const content: TableModelContentSnapshot = {
+			columnCount: 2,
+			maxCellLengths: [4, 4],
+			rowCount: 3,
+			rows: [
+				["Vg", "Id"],
+				["bad", "data"],
+				["none", "none"],
+			],
+		};
+		const tableModelService = store.add(new StaticTableModelService(
+			createTableSnapshot(resource, content),
+		));
+		const sliceService = store.add(new SliceService(
+			createDataResourceServiceForTest(tableModelService),
+		));
+
+		sliceService.submitResource([createResourceSliceRequest(target)]);
+		await waitUntil(() => sliceService.getResourceState(resource, "sheet-a")?.state === "failed");
+
+		assert.equal(sliceService.getResourceResult(resource, "sheet-a"), null);
+	});
+
+	test("does not let stale processing overwrite an explicit skipped state", async () => {
+		const resource = URI.file("/workspace/skipped.csv");
+		const target = { resource, sheetId: "sheet-a" };
+		const content: TableModelContentSnapshot = {
+			columnCount: 2,
+			maxCellLengths: [2, 2],
+			rowCount: 3,
+			rows: [
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			],
+		};
+		const tableModelService = store.add(new DeferredTableModelService());
+		const sliceService = store.add(new SliceService(
+			createDataResourceServiceForTest(tableModelService),
+		));
+
+		sliceService.submitResource([createResourceSliceRequest(target)]);
+		await waitUntil(() => sliceService.getResourceState(resource, "sheet-a")?.state === "processing");
+		sliceService.markResourceSkipped(resource, "sheet-a", "slice.testSkipped", "Skipped.");
+		tableModelService.resolveNextReference(createTableSnapshot(resource, content));
+		await waitUntil(() => !sliceService.getState().isRunning);
+
+		assert.deepEqual(sliceService.getResourceState(resource, "sheet-a"), {
+			state: "skipped",
+			code: "slice.testSkipped",
+			message: "Skipped.",
+		});
+		assert.equal(sliceService.getResourceResult(resource, "sheet-a"), null);
+	});
+
+	test("puts the active explorer resource first in a bulk queue", async () => {
+		const tableModelService = store.add(new BlockingTableModelService());
+		const sliceService = store.add(new SliceService(
+			createDataResourceServiceForTest(tableModelService),
+		));
+		const firstTarget = {
+			resource: URI.file("/workspace/first.csv"),
+			sheetId: "sheet-a",
+		};
+		const activeTarget = {
+			resource: URI.file("/workspace/active.csv"),
+			sheetId: "sheet-a",
+		};
+
+		sliceService.prioritizeResource(activeTarget.resource, activeTarget.sheetId);
+		sliceService.submitResource([
+			createResourceSliceRequest(firstTarget),
+			createResourceSliceRequest(activeTarget),
+		]);
+		await waitUntil(() =>
+			sliceService.getResourceState(activeTarget.resource, activeTarget.sheetId)?.state === "processing"
+		);
+
+		assert.deepEqual(
+			sliceService.getResourceState(firstTarget.resource, firstTarget.sheetId),
+			{ state: "queued" },
+		);
+	});
 });
 
 class TestSliceStorageService extends AbstractStorageService {
@@ -744,6 +869,9 @@ class DeferredTableModelService implements ITableModelService {
 	public readonly onDidChangeModel = Event.None as ITableModelService["onDidChangeModel"];
 	private readonly pendingModelReferenceResolvers:
 		Array<(reference: ITableModelReference) => void> = [];
+	public get pendingReferenceCount(): number {
+		return this.pendingModelReferenceResolvers.length;
+	}
 
 	public canHandleResource(): boolean {
 		return true;
@@ -777,6 +905,26 @@ class DeferredTableModelService implements ITableModelService {
 		this.pendingModelReferenceResolvers.length = 0;
 	}
 }
+
+const createTableSnapshot = (
+	resource: URI,
+	content: TableModelContentSnapshot,
+): TableModelSnapshot => ({
+	content,
+	defaultSheetId: "sheet-a",
+	diagnostics: [],
+	format: "csv",
+	loadState: { state: "ready", message: "" },
+	resource,
+	sheets: [{
+		content,
+		diagnostics: [],
+		sheetId: "sheet-a",
+		sheetName: "Sheet A",
+	}],
+	sourceVersion: 1,
+	version: 1,
+});
 
 class StaticTableModelService implements ITableModelService {
 	public declare readonly _serviceBrand: undefined;

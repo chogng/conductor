@@ -1400,6 +1400,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       chartViewInputs,
       explorerService,
+      processingResource: { resource: resourceB },
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
     }));
@@ -1409,7 +1410,10 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
 
       assert.deepEqual(chartViewInputs.at(-1), {
         activeFileId: "file-b",
+        activeResource: resourceB.toString(),
+        activeSheetId: null,
         hasChartData: false,
+        processingState: "processing",
       });
     } finally {
       bridge.dispose();
@@ -1527,9 +1531,11 @@ const createPlotService = (): Pick<
 });
 
 const createSliceStateForTest = ({
+  isRunning = false,
   queueLength = 0,
   templateSelections = [],
 }: Partial<SliceState> = {}): SliceState => ({
+  isRunning,
   queueLength,
   templateSelections,
 });
@@ -1546,6 +1552,7 @@ const createDomainBridgeOptionsForTest = ({
   plotInspectorPrefetches,
   prioritizedCalculationFileIds,
   prioritizedTemplateFileIds,
+  processingResource,
   sliceStateEvent = Event.None,
   sliceTemplateSelections,
   resourceSlice,
@@ -1561,6 +1568,7 @@ const createDomainBridgeOptionsForTest = ({
     readonly activeResource?: string | null;
     readonly activeSheetId?: string | null;
     readonly hasChartData?: boolean;
+    readonly processingState?: string;
   }>;
   readonly cachedPlotDisplayFileIds?: readonly string[];
   readonly explorerService: ExplorerService;
@@ -1574,6 +1582,7 @@ const createDomainBridgeOptionsForTest = ({
   readonly plotInspectorPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
+  readonly processingResource?: ResourceSheetIdentity;
   readonly sliceStateEvent?: Event<unknown>;
   readonly sliceTemplateSelections?: SliceState["templateSelections"];
   readonly resourceSlice?: ResourceSheetIdentity;
@@ -1605,6 +1614,9 @@ const createDomainBridgeOptionsForTest = ({
           activeSheetId: input.activeSheetId ?? null,
         } : {}),
         hasChartData: input.hasChartData,
+        ...(input.processingStatus?.state ? {
+          processingState: input.processingStatus.state,
+        } : {}),
       });
     },
   } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["chartService"],
@@ -1665,7 +1677,11 @@ const createDomainBridgeOptionsForTest = ({
         sheetId: resourceSlice.sheetId ?? null,
       } as ReturnType<ConstructorParameters<typeof WorkbenchDomainBridge>[0]["sliceService"]["getResourceResult"]>
       : null,
-    getResourceState: () => undefined,
+    getResourceState: (resource, sheetId) =>
+      processingResource && isSameResourceSheetForTest({ resource, sheetId }, processingResource)
+        ? { state: "processing" }
+        : undefined,
+    markResourceSkipped: () => undefined,
     onDidChangeSliceState: sliceStateEvent as Event<void>,
     onDidChangeTemplateSelection: Event.None,
     onDidChangeResourceSliceResult: Event.None,

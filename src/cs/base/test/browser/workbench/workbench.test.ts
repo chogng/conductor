@@ -937,10 +937,12 @@ const createSliceService = (): WorkbenchService<"sliceService"> => ({
   getResourceResult: () => null,
   getResourceState: () => undefined,
   getState: () => ({
+    isRunning: false,
     queueLength: 0,
     templateSelections: [],
   }),
   getTemplateSelection: () => ({ kind: "auto" }),
+  markResourceSkipped: () => undefined,
   onDidChangeResourceSliceResult: Event.None,
   onDidChangeSliceState: Event.None,
   onDidChangeTemplateSelection: Event.None,

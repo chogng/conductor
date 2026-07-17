@@ -335,21 +335,37 @@ export class WorkbenchDomainBridge extends Disposable {
     }
 
     const activePlotType = this.options.plotService.getState().activePlotType;
+    const resourceSliceResult = this.options.sliceService.getResourceResult(
+      resourceIdentity.resource,
+      resourceIdentity.sheetId,
+    );
+    const resourceSliceState = this.options.sliceService.getResourceState(
+      resourceIdentity.resource,
+      resourceIdentity.sheetId,
+    );
+    const hasChartData = Boolean(resourceSliceResult);
     const chartViewInput = createChartViewInput({
       activeFileId: selectedChartFileId,
       activePlotType,
       activeResource: resourceIdentity.resource,
       activeSheetId: resourceIdentity.sheetId ?? null,
       chartFileOptions: createExplorerChartFileOptions(selectedChartFileId, explorerFiles),
-      hasChartData: true,
+      hasChartData,
+      processingStatus:
+        resourceSliceState?.state === "queued" ||
+        resourceSliceState?.state === "processing"
+          ? { state: "processing" }
+          : undefined,
       showFileSelect: false,
       shouldMountCharts: false,
     });
-    this.options.plotService.prefetchPlotDisplayModel({
-      plotType: activePlotType,
-      resource: resourceIdentity.resource,
-      sheetId: resourceIdentity.sheetId ?? null,
-    }, "active");
+    if (hasChartData) {
+      this.options.plotService.prefetchPlotDisplayModel({
+        plotType: activePlotType,
+        resource: resourceIdentity.resource,
+        sheetId: resourceIdentity.sheetId ?? null,
+      }, "active");
+    }
     this.options.chartService.updateViewInput(chartViewInput);
     return true;
   }
@@ -489,8 +505,17 @@ export class WorkbenchDomainBridge extends Disposable {
       explorerFiles,
       chartActiveFileId,
     );
+    const activeResourceState = getSliceResourceState(
+      this.options.sliceService,
+      activeResource,
+    );
     const hasActiveChartData = Boolean(
-      chartActiveFileId && activeResource,
+      chartActiveFileId &&
+      activeResource &&
+      this.options.sliceService.getResourceResult(
+        activeResource.resource,
+        activeResource.sheetId,
+      ),
     );
     const chartFileOptions = createActiveChartFileOptions(
       chartActiveFileId,
@@ -503,6 +528,11 @@ export class WorkbenchDomainBridge extends Disposable {
       activePlotType: this.options.plotService.getState().activePlotType,
       chartFileOptions,
       hasChartData: hasActiveChartData,
+      processingStatus:
+        activeResourceState?.state === "queued" ||
+        activeResourceState?.state === "processing"
+          ? { state: "processing" }
+          : undefined,
       showFileSelect: false,
       shouldMountCharts: false,
     });
@@ -1231,7 +1261,7 @@ const getSliceResourceState = (
 };
 
 const getSliceResourceForChartFileId = (
-  sliceService: Pick<ISliceService, "getResourceResult">,
+  sliceService: Pick<ISliceService, "getResourceResult" | "getResourceState">,
   explorerFiles: readonly ExplorerFileEntry[],
   chartFileId: string | null,
 ): ResourceSheetIdentity | null => {
@@ -1245,7 +1275,12 @@ const getSliceResourceForChartFileId = (
       continue;
     }
     const resource = getExplorerFileResourceSheet(file);
-    if (sliceService.getResourceResult(resource.resource, resource.sheetId)) {
+    if (
+      sliceService.getResourceResult(resource.resource, resource.sheetId) ||
+      isSliceChartTargetState(
+        sliceService.getResourceState(resource.resource, resource.sheetId),
+      )
+    ) {
       return resource;
     }
   }

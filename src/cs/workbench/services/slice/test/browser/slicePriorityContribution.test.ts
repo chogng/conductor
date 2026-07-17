@@ -88,6 +88,7 @@ class TestSliceService implements ISliceService {
 
 	public getState(): SliceState {
 		return {
+			isRunning: false,
 			queueLength: 0,
 			templateSelections: [],
 		};
@@ -106,6 +107,7 @@ class TestSliceService implements ISliceService {
 	}
 
 	public submitResource(_requests: readonly SliceResourceRequest[]): void {}
+	public markResourceSkipped(_resource: URI, _sheetId: string | null | undefined, _code: string, _message: string): void {}
 
 	public prioritizeResource(resource: URI, sheetId?: string | null): void {
 		this.prioritizedResources.push({ resource, sheetId });

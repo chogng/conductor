@@ -12,6 +12,7 @@ import type {
   IRustHostService,
   ResolveStructuredContentRequest,
   RustHostResponse,
+  RustHostRequestOwner,
   RustProcessConfig,
 } from "../../platform/rust/common/rustHostProtocol.js";
 
@@ -24,6 +25,11 @@ type ServiceHelpers = {
 
 type ServiceOptions = ServiceHelpers & {
   rustWorkerHost: IRustWorkerHost;
+};
+
+type StructuredContentRequestRecord = {
+  readonly handle: RustWorkerCommandHandle;
+  readonly owner: RustHostRequestOwner;
 };
 
 const ErrorCode = {
@@ -55,7 +61,7 @@ const buildFailure = (
 });
 
 export class RustHostService implements IRustHostService {
-  private readonly structuredContentRequests = new Map<string, RustWorkerCommandHandle>();
+  private readonly structuredContentRequests = new Map<string, StructuredContentRequestRecord>();
 
   constructor(
     private readonly options: ServiceOptions,
@@ -119,17 +125,34 @@ export class RustHostService implements IRustHostService {
 
   public async cancelStructuredContent(
     request: CancelStructuredContentRequest,
+    owner: RustHostRequestOwner,
   ): Promise<boolean> {
     const requestId = request.requestId.trim();
-    const handle = requestId
-      ? this.structuredContentRequests.get(requestId)
+    const requestKey = createStructuredContentRequestKey(owner, requestId);
+    const record = requestKey
+      ? this.structuredContentRequests.get(requestKey)
       : undefined;
-    if (!handle) {
+    if (!record) {
       return false;
     }
-    this.structuredContentRequests.delete(requestId);
-    handle.cancel();
+    this.structuredContentRequests.delete(requestKey);
+    record.handle.cancel();
     return true;
+  }
+
+  public cancelStructuredContentOwner(ownerScope: string): void {
+    const normalizedOwnerScope = ownerScope.trim();
+    if (!normalizedOwnerScope) {
+      return;
+    }
+
+    for (const [requestKey, record] of this.structuredContentRequests) {
+      if (record.owner.scope !== normalizedOwnerScope) {
+        continue;
+      }
+      this.structuredContentRequests.delete(requestKey);
+      record.handle.cancel();
+    }
   }
 
   public async exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustHostResponse> {
@@ -201,10 +224,12 @@ export class RustHostService implements IRustHostService {
 
   public async resolveStructuredContent(
     request: ResolveStructuredContentRequest,
+    owner: RustHostRequestOwner,
   ): Promise<RustHostResponse> {
     const requestId = request.requestId.trim();
+    const requestKey = createStructuredContentRequestKey(owner, requestId);
     if (
-      !requestId ||
+      !requestKey ||
       !request.inputPath ||
       !this.options.isSupportedStructuredContentPath(request.inputPath)
     ) {
@@ -212,7 +237,7 @@ export class RustHostService implements IRustHostService {
     }
 
     const startedAt = Date.now();
-    if (this.structuredContentRequests.has(requestId)) {
+    if (this.structuredContentRequests.has(requestKey)) {
       return buildFailure(
         "RUST_STRUCTURED_CONTENT_DUPLICATE_REQUEST",
         "Duplicate structured-content request id.",
@@ -227,7 +252,8 @@ export class RustHostService implements IRustHostService {
       },
       { timeoutMs: 120000 },
     );
-    this.structuredContentRequests.set(requestId, handle);
+    const record = { handle, owner };
+    this.structuredContentRequests.set(requestKey, record);
     try {
       const result = await handle.promise;
       return buildSuccess(startedAt, result, "rust-pool");
@@ -238,10 +264,21 @@ export class RustHostService implements IRustHostService {
         startedAt,
       );
     } finally {
-      if (this.structuredContentRequests.get(requestId) === handle) {
-        this.structuredContentRequests.delete(requestId);
+      if (this.structuredContentRequests.get(requestKey) === record) {
+        this.structuredContentRequests.delete(requestKey);
       }
     }
   }
 
 }
+
+const createStructuredContentRequestKey = (
+  owner: RustHostRequestOwner,
+  requestId: string,
+): string => {
+  const ownerId = owner.id.trim();
+  const normalizedRequestId = requestId.trim();
+  return ownerId && normalizedRequestId
+    ? `${ownerId}\u0000${normalizedRequestId}`
+    : "";
+};

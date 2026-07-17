@@ -196,7 +196,12 @@ export class RustDataResourceEvidenceContentService extends Disposable implement
 		let pendingResolve!: PendingRustResolve;
 		const promise = this.resolveStableContent(resource, cancellation.token)
 			.then(snapshot => {
-				this.snapshots.set(key, snapshot);
+				if (
+					this.referenceCounts.has(key) &&
+					this.pendingResolves.get(key) === pendingResolve
+				) {
+					this.snapshots.set(key, snapshot);
+				}
 				return snapshot;
 			})
 			.finally(() => {

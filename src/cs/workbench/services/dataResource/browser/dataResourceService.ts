@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from "src/cs/base/common/cancellation";
+import { raceCancellation } from "src/cs/base/common/async";
 import { CancellationError } from "src/cs/base/common/errors";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
@@ -361,10 +362,24 @@ export class DataResourceService extends Disposable implements IDataResourceServ
 		resource: URI,
 		token: CancellationToken,
 	): Promise<IDataResourceContentReference> {
-		return sourceService === this.contentService
-			? this.contentService.createContentReference(resource)
-			: (sourceService as IDataResourceEvidenceContentService)
+		if (sourceService !== this.contentService) {
+			return (sourceService as IDataResourceEvidenceContentService)
 				.createContentReference(resource, token);
+		}
+		return this.createCancellableContentReference(resource, token);
+	}
+
+	private async createCancellableContentReference(
+		resource: URI,
+		token: CancellationToken,
+	): Promise<IDataResourceContentReference> {
+		const referencePromise = this.contentService.createContentReference(resource);
+		const reference = await raceCancellation(referencePromise, token);
+		if (reference) {
+			return reference;
+		}
+		void referencePromise.then(lateReference => lateReference.dispose(), () => {});
+		throw new CancellationError();
 	}
 
 	public resolve(target: DataResourceStructuredContentTarget): void {

@@ -107,6 +107,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 	private readonly resourceStatesByCacheKey = new Map<string, SliceFileState>();
 	private readonly resourcesByCacheKey = new Map<string, SliceResourceIdentity>();
 	private readonly queue: SliceQueueEntry[] = [];
+	private readonly latestRequestSignaturesByCacheKey = new Map<string, string>();
 	private readonly resourceResultsByCacheKey = new Map<string, SliceResourceResult>();
 	private readonly templateSelectionsByResource = new Map<string, TemplateResourceSelection>();
 	private readonly runningSliceQueueGenerations = new Set<number>();
@@ -150,6 +151,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 
 	public getState(): SliceState {
 		return {
+			isRunning: this.runningSliceQueueGenerations.size > 0 || this.queue.length > 0,
 			queueLength: this.queue.length,
 			templateSelections: [...this.templateSelectionsByResource.values()],
 		};
@@ -176,8 +178,17 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		for (const request of requests) {
 			const cacheKey = createSliceResourceCacheKey(request.resource, request.sheetId);
 			this.resourcesByCacheKey.set(cacheKey, normalizeSliceResource(request.resource, request.sheetId));
+			const currentState = this.resourceStatesByCacheKey.get(cacheKey);
+			if (
+				this.latestRequestSignaturesByCacheKey.get(cacheKey) === request.requestSignature &&
+				(currentState?.state === "queued" || currentState?.state === "processing")
+			) {
+				continue;
+			}
 			const plan = this.createResourceRequestPlan(request);
 			if (!plan) {
+				this.latestRequestSignaturesByCacheKey.delete(cacheKey);
+				didChange = this.deleteResourceResult(cacheKey) || didChange;
 				didChange = this.setResourceState(cacheKey, {
 					state: "skipped",
 					code: "slice.resourceRequestInvalid",
@@ -187,10 +198,14 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			}
 
 			if (request.trigger.kind === "reviewDecision" && this.isLatestResourceAutoRunCurrent(request, plan)) {
+				this.latestRequestSignaturesByCacheKey.set(cacheKey, request.requestSignature);
 				didChange = this.setResourceState(cacheKey, { state: "ready" }) || didChange;
 				continue;
 			}
 
+			this.latestRequestSignaturesByCacheKey.set(cacheKey, request.requestSignature);
+			didChange = this.deleteResourceResult(cacheKey) || didChange;
+			didChange = this.removeQueuedResourceEntries(cacheKey) || didChange;
 			this.enqueueSliceEntry({
 				kind: "resource",
 				request,
@@ -203,6 +218,31 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			this.fireSliceStateChange();
 		}
 		this.startSliceQueue();
+	}
+
+	public markResourceSkipped(
+		resource: URI,
+		sheetId: string | null | undefined,
+		code: string,
+		message: string,
+	): void {
+		const normalizedResource = normalizeSliceResource(resource, sheetId);
+		const cacheKey = createSliceResourceCacheKey(
+			normalizedResource.resource,
+			normalizedResource.sheetId,
+		);
+		this.resourcesByCacheKey.set(cacheKey, normalizedResource);
+		this.latestRequestSignaturesByCacheKey.delete(cacheKey);
+		let didChange = this.deleteResourceResult(cacheKey);
+		didChange = this.removeQueuedResourceEntries(cacheKey) || didChange;
+		didChange = this.setResourceState(cacheKey, {
+				state: "skipped",
+				code,
+				message,
+			}) || didChange;
+		if (didChange) {
+			this.fireSliceStateChange();
+		}
 	}
 
 	public prioritizeResource(resource: URI, sheetId?: string | null): void {
@@ -246,11 +286,24 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			}
 
 			this.queue.splice(index, 1);
+			this.latestRequestSignaturesByCacheKey.delete(queueKey);
 			if (this.activeQueueKey === queueKey) {
 				this.activeQueueKey = null;
 			}
 			didChange = this.setResourceState(queueKey, { state: "none" }) || didChange;
 			didChange = this.deleteResourceIfUnused(queueKey) || didChange;
+		}
+		for (const cacheKey of cacheKeys) {
+			const currentState = this.resourceStatesByCacheKey.get(cacheKey);
+			if (currentState?.state !== "queued" && currentState?.state !== "processing") {
+				continue;
+			}
+			this.latestRequestSignaturesByCacheKey.delete(cacheKey);
+			didChange = this.setResourceState(cacheKey, { state: "none" }) || didChange;
+			if (this.activeQueueKey === cacheKey) {
+				this.activeQueueKey = null;
+			}
+			didChange = this.deleteResourceIfUnused(cacheKey) || didChange;
 		}
 
 		if (didChange) {
@@ -323,11 +376,31 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		const entryKey = getSliceQueueEntryKey(entry);
 		const index = this.queue.findIndex(candidate => getSliceQueueEntryKey(candidate) === entryKey);
 		if (index === -1) {
-			this.queue.push(entry);
+			if (this.activeQueueKey === getSliceQueueEntryStateKey(entry)) {
+				this.queue.unshift(entry);
+			} else {
+				this.queue.push(entry);
+			}
 			return;
 		}
 
 		this.queue[index] = entry;
+	}
+
+	private removeQueuedResourceEntries(cacheKey: string): boolean {
+		let didChange = false;
+		for (let index = this.queue.length - 1; index >= 0; index -= 1) {
+			const entry = this.queue[index];
+			if (
+				entry?.kind !== "resource" ||
+				getSliceQueueEntryStateKey(entry) !== cacheKey
+			) {
+				continue;
+			}
+			this.queue.splice(index, 1);
+			didChange = true;
+		}
+		return didChange;
 	}
 
 	private async drainSliceQueue(workspaceGeneration: number): Promise<void> {
@@ -359,6 +432,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			}
 		} finally {
 			this.runningSliceQueueGenerations.delete(workspaceGeneration);
+			this.fireSliceStateChange();
 			if (workspaceGeneration === this.workspaceGeneration && this.queue.length) {
 				this.startSliceQueue();
 			}
@@ -384,6 +458,14 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			endPerf({
 				resolveContentMs,
 				result: "staleWorkspace",
+			});
+			return;
+		}
+		if (!this.isLatestResourceRequest(entry.request)) {
+			this.dropStaleSliceEntry(entry);
+			endPerf({
+				resolveContentMs,
+				result: "staleRequest",
 			});
 			return;
 		}
@@ -429,16 +511,20 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			sourceModelVersion: resolved.sourceModelVersion,
 			sourceVersion: resolved.sourceVersion,
 		});
-		this.resourceResultsByCacheKey.set(cacheKey, result);
-		this.resourcesByCacheKey.set(cacheKey, normalizeSliceResource(entry.request.resource, entry.request.sheetId));
-		this.fireResourceSliceResultChange(result.resource, result.sheetId);
-		this.setResourceState(cacheKey, result.run.errors.length
-			? {
+		const failed = result.run.errors.length > 0 || result.curves.length === 0;
+		if (failed) {
+			this.deleteResourceResult(cacheKey);
+			this.setResourceState(cacheKey, {
 				state: "failed",
 				code: result.run.errors[0] ?? "slice.failed",
 				message: "Slice failed.",
-			}
-			: { state: "ready" });
+			});
+		} else {
+			this.resourceResultsByCacheKey.set(cacheKey, result);
+			this.resourcesByCacheKey.set(cacheKey, normalizeSliceResource(entry.request.resource, entry.request.sheetId));
+			this.fireResourceSliceResultChange(result.resource, result.sheetId);
+			this.setResourceState(cacheKey, { state: "ready" });
+		}
 		this.fireSliceStateChange();
 		endPerf({
 			curveCount: execution.curves.length,
@@ -452,7 +538,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			projectedRowCount: countProjectedRows(rows),
 			projectRowsMs,
 			resolveContentMs,
-			result: execution.run.errors.length ? "failed" : "ready",
+			result: failed ? "failed" : "ready",
 			seriesCount: execution.series.length,
 			sparseRows: resolved.content.sparseRows === true,
 			warningCount: execution.run.warnings.length,
@@ -468,12 +554,25 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			entry.request.rowCount === resolved.content.rowCount &&
 			entry.request.columnCount === resolved.content.columnCount &&
 			entry.plan.sourceContentSignature === this.createResourceRequestPlan(entry.request)?.sourceContentSignature &&
-			entry.plan.templateFingerprint === entry.request.reviewedTemplate.templateFingerprint;
+			entry.plan.templateFingerprint === entry.request.reviewedTemplate.templateFingerprint &&
+			this.isLatestResourceRequest(entry.request);
+	}
+
+	private isLatestResourceRequest(request: SliceResourceRequest): boolean {
+		return this.latestRequestSignaturesByCacheKey.get(
+			createSliceResourceCacheKey(request.resource, request.sheetId),
+		) === request.requestSignature;
 	}
 
 	private dropStaleSliceEntry(entry: SliceQueueEntry): void {
 		const stateKey = getSliceQueueEntryStateKey(entry);
 		if (!stateKey) {
+			return;
+		}
+		if (
+			entry.kind === "resource" &&
+			this.latestRequestSignaturesByCacheKey.get(stateKey) !== entry.request.requestSignature
+		) {
 			return;
 		}
 
@@ -564,6 +663,16 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		return this.resourcesByCacheKey.delete(cacheKey);
 	}
 
+	private deleteResourceResult(cacheKey: string): boolean {
+		const result = this.resourceResultsByCacheKey.get(cacheKey);
+		if (!result) {
+			return false;
+		}
+		this.resourceResultsByCacheKey.delete(cacheKey);
+		this.fireResourceSliceResultChange(result.resource, result.sheetId);
+		return true;
+	}
+
 	private removeResourceResultsForResource(resource: URI): void {
 		const cacheKey = normalizeResourceUri(resource);
 		if (!cacheKey) {
@@ -577,6 +686,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				const entryCacheKey = createSliceResourceCacheKey(entry.request.resource, entry.request.sheetId);
 				this.queue.splice(index, 1);
 				this.resourceStatesByCacheKey.delete(entryCacheKey);
+				this.latestRequestSignaturesByCacheKey.delete(entryCacheKey);
 				this.deleteResourceIfUnused(entryCacheKey);
 				if (this.activeQueueKey === entryCacheKey) {
 					this.activeQueueKey = null;
@@ -589,6 +699,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				continue;
 			}
 			this.resourceResultsByCacheKey.delete(resultCacheKey);
+			this.latestRequestSignaturesByCacheKey.delete(resultCacheKey);
 			this.resourceStatesByCacheKey.delete(resultCacheKey);
 			this.resourcesByCacheKey.delete(resultCacheKey);
 			if (this.activeQueueKey === resultCacheKey) {
@@ -596,6 +707,11 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			}
 			this.fireResourceSliceResultChange(result.resource, result.sheetId);
 			didChange = true;
+		}
+		for (const [stateCacheKey, target] of this.resourcesByCacheKey) {
+			if (normalizeResourceUri(target.resource) === cacheKey) {
+				this.latestRequestSignaturesByCacheKey.delete(stateCacheKey);
+			}
 		}
 		if (didChange) {
 			this.fireSliceStateChange();
@@ -612,6 +728,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		this.activeQueueKey = null;
 		this.resourceStatesByCacheKey.clear();
 		this.resourcesByCacheKey.clear();
+		this.latestRequestSignaturesByCacheKey.clear();
 		this.resourceResultsByCacheKey.clear();
 		this.templateSelectionsByResource.clear();
 		for (const target of resultTargets) {
@@ -620,6 +737,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		for (const target of selectionTargets) {
 			this.onDidChangeTemplateSelectionEmitter.fire(target);
 		}
+		this.fireSliceStateChange();
 	}
 
 	private restorePersistedTemplateSelections(): void {

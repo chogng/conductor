@@ -375,6 +375,113 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.deepEqual(sliceService.resourceRequests, []);
 		assert.equal(notifications[0]?.id, "slice.notification");
 	});
+
+	test("records resources skipped during bulk preparation", async () => {
+		const sliceService = new TestSliceService();
+		const firstResource = URI.file("/workspace/ready.csv");
+		const skippedResource = URI.file("/workspace/skipped.csv");
+		const reviewedTemplate = createReviewedTemplate();
+		const notifications: INotification[] = [];
+
+		runSliceWithTemplateHandler(createAccessor({
+			explorerFiles: [
+				{ fileId: "ready", id: "ready", name: "ready.csv", resource: firstResource, sheetId: "sheet-a" },
+				{ fileId: "skipped", id: "skipped", name: "skipped.csv", resource: skippedResource, sheetId: "sheet-b" },
+			],
+			notifications,
+			reviewService: createReviewServiceForTest({
+				reviewResourceForExecution: async target =>
+					target.resource.toString() === firstResource.toString()
+						? createReadyResourceExecution({
+							applicationKind: "systemRecommended",
+							reviewedTemplate,
+							reviewSignature: "review:ready",
+							target,
+						})
+						: null,
+			}),
+			sliceService,
+			templateState: createTemplateState({ selectedTemplateId: null }),
+		}));
+
+		await waitForMicrotasks();
+
+		assert.equal(sliceService.resourceRequests.length, 1);
+		assert.deepEqual(sliceService.skippedResources.map(entry => ({
+			code: entry.code,
+			resource: entry.resource.toString(),
+			sheetId: entry.sheetId,
+		})), [{
+			code: "slice.reviewUnavailable",
+			resource: skippedResource.toString(),
+			sheetId: "sheet-b",
+		}]);
+		assert.ok(notifications.some(notification => notification.id === "slice.notification"));
+	});
+
+	test("honors stop-on-error during bulk preparation", async () => {
+		const sliceService = new TestSliceService();
+		const firstResource = URI.file("/workspace/failed.csv");
+		const secondResource = URI.file("/workspace/not-run.csv");
+		let reviewCalls = 0;
+
+		runSliceWithTemplateHandler(createAccessor({
+			explorerFiles: [
+				{ fileId: "failed", id: "failed", name: "failed.csv", resource: firstResource, sheetId: "sheet-a" },
+				{ fileId: "not-run", id: "not-run", name: "not-run.csv", resource: secondResource, sheetId: "sheet-b" },
+			],
+			reviewService: createReviewServiceForTest({
+				reviewResourceForExecution: async () => {
+					reviewCalls += 1;
+					return null;
+				},
+			}),
+			sliceService,
+			templateState: createTemplateState({
+				formState: createEmptyTemplateEditorConfig({ stopOnError: true }),
+				selectedTemplateId: null,
+			}),
+		}));
+
+		await waitForMicrotasks();
+
+		assert.equal(reviewCalls, 1);
+		assert.deepEqual(sliceService.skippedResources.map(entry => entry.code), [
+			"slice.reviewUnavailable",
+			"slice.stoppedAfterError",
+		]);
+	});
+
+	test("blocks a second bulk run while preparation is active", async () => {
+		const sliceService = new TestSliceService();
+		const resource = URI.file("/workspace/transfer.csv");
+		const notifications: INotification[] = [];
+		let resolveReview!: (execution: ResourceReviewExecution | null) => void;
+		const review = new Promise<ResourceReviewExecution | null>(resolve => {
+			resolveReview = resolve;
+		});
+		const accessor = createAccessor({
+			explorerFiles: [{
+				fileId: "file-a",
+				id: "file-a",
+				name: "transfer.csv",
+				resource,
+				sheetId: "sheet-a",
+			}],
+			notifications,
+			reviewService: createReviewServiceForTest({
+				reviewResourceForExecution: () => review,
+			}),
+			sliceService,
+		});
+
+		runSliceWithTemplateHandler(accessor);
+		runSliceWithTemplateHandler(accessor);
+
+		assert.equal(notifications.length, 1);
+		resolveReview(null);
+		await waitForMicrotasks();
+	});
 });
 
 class TestSliceService implements ISliceService {
@@ -383,10 +490,16 @@ class TestSliceService implements ISliceService {
 	public readonly onDidChangeTemplateSelection = Event.None as Event<ResourceSheetIdentity>;
 	public readonly onDidChangeResourceSliceResult = Event.None as Event<ResourceSheetIdentity>;
 	public readonly resourceRequests: SliceResourceRequest[] = [];
+	public readonly skippedResources: Array<ResourceSheetIdentity & {
+		readonly code: string;
+		readonly message: string;
+	}> = [];
+	public isRunning = false;
 	private readonly templateSelections = new Map<string, TemplateSelection>();
 
 	public getState(): SliceState {
 		return {
+			isRunning: this.isRunning,
 			queueLength: 0,
 			templateSelections: [],
 		};
@@ -406,6 +519,9 @@ class TestSliceService implements ISliceService {
 
 	public submitResource(requests: readonly SliceResourceRequest[]): void {
 		this.resourceRequests.push(...requests);
+	}
+	public markResourceSkipped(resource: URI, sheetId: string | null | undefined, code: string, message: string): void {
+		this.skippedResources.push({ resource, sheetId, code, message });
 	}
 	public prioritizeResource(_resource: URI, _sheetId?: string | null): void {}
 	public cancelResource(_resources: readonly ResourceSheetIdentity[]): void {}

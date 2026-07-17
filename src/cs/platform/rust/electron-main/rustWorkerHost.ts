@@ -34,6 +34,15 @@ type ScheduledRustRequest = {
   slot: RustWorkerSlot | null;
 };
 
+type ScheduledSlotCommand = {
+  readonly command: string;
+  readonly payload: RustWorkerCommandPayload;
+  readonly reject: (error: unknown) => void;
+  readonly resolve: (result: unknown) => void;
+  readonly timeoutMs: number;
+  settled: boolean;
+};
+
 export type RustWorkerExecutableResolverOptions = {
   appRootPath: string;
   env: NodeJS.ProcessEnv;
@@ -157,6 +166,8 @@ export class RustWorkerHost implements IRustWorkerHost {
   public declare readonly _serviceBrand: undefined;
 
   private readonly activeProcessingRequestsBySlot = new Map<RustWorkerSlot, ScheduledRustRequest>();
+  private readonly activeSlotCommandsBySlot = new Map<RustWorkerSlot, ScheduledSlotCommand>();
+  private readonly slotCommandQueues = new Map<RustWorkerSlot, ScheduledSlotCommand[]>();
   private readonly processingQueue: ScheduledRustRequest[] = [];
   private readonly processingSlots: RustWorkerSlot[] = [];
   private processingSlotCursor = 0;
@@ -197,6 +208,7 @@ export class RustWorkerHost implements IRustWorkerHost {
   }
 
   private dispatchProcessingQueue(): void {
+    this.dispatchSlotCommands();
     while (this.processingQueue.length > 0) {
       const slot = this.getIdleProcessingSlot();
       if (!slot) {
@@ -223,6 +235,70 @@ export class RustWorkerHost implements IRustWorkerHost {
         this.finishProcessingRequest(request, error);
       }
     }
+  }
+
+  private dispatchSlotCommands(): void {
+    for (const slot of this.processingSlots) {
+      if (
+        slot.busyCount !== 0 ||
+        this.activeProcessingRequestsBySlot.has(slot) ||
+        this.activeSlotCommandsBySlot.has(slot)
+      ) {
+        continue;
+      }
+
+      const queue = this.slotCommandQueues.get(slot);
+      const request = queue?.find(candidate => !candidate.settled);
+      if (!request) {
+        this.slotCommandQueues.delete(slot);
+        continue;
+      }
+
+      this.activeSlotCommandsBySlot.set(slot, request);
+      try {
+        void this.sendSlotCommand(
+          slot,
+          request.command,
+          request.payload,
+          request.timeoutMs,
+        ).then(
+          result => this.finishSlotCommand(slot, request, null, result),
+          error => this.finishSlotCommand(slot, request, error),
+        );
+      } catch (error) {
+        this.finishSlotCommand(slot, request, error);
+      }
+    }
+  }
+
+  private finishSlotCommand(
+    slot: RustWorkerSlot,
+    request: ScheduledSlotCommand,
+    error: unknown,
+    result?: unknown,
+  ): void {
+    if (request.settled) {
+      return;
+    }
+
+    request.settled = true;
+    if (this.activeSlotCommandsBySlot.get(slot) === request) {
+      this.activeSlotCommandsBySlot.delete(slot);
+    }
+    const queue = this.slotCommandQueues.get(slot);
+    const index = queue?.indexOf(request) ?? -1;
+    if (queue && index >= 0) {
+      queue.splice(index, 1);
+      if (!queue.length) {
+        this.slotCommandQueues.delete(slot);
+      }
+    }
+    if (error) {
+      request.reject(error);
+    } else {
+      request.resolve(result);
+    }
+    this.dispatchProcessingQueue();
   }
 
   private finishProcessingRequest(
@@ -282,7 +358,9 @@ export class RustWorkerHost implements IRustWorkerHost {
       const slot = this.processingSlots[index];
       if (
         slot.busyCount !== 0 ||
-        this.activeProcessingRequestsBySlot.has(slot)
+        this.activeProcessingRequestsBySlot.has(slot) ||
+        this.activeSlotCommandsBySlot.has(slot) ||
+        this.slotCommandQueues.has(slot)
       ) {
         continue;
       }
@@ -297,9 +375,31 @@ export class RustWorkerHost implements IRustWorkerHost {
     const disposals = this.processingSlots
       .filter((slot) => slot.child && !slot.child.killed)
       .map((slot) =>
-        this.sendSlotCommand(slot, "dispose", { fileId }, DISPOSE_TIMEOUT_MS),
+        this.scheduleSlotCommand(slot, "dispose", { fileId }, DISPOSE_TIMEOUT_MS),
       );
     await Promise.allSettled(disposals);
+  }
+
+  private scheduleSlotCommand(
+    slot: RustWorkerSlot,
+    command: string,
+    payload: RustWorkerCommandPayload,
+    timeoutMs: number,
+  ): Promise<unknown> {
+    const promise = new Promise<unknown>((resolve, reject) => {
+      const queue = this.slotCommandQueues.get(slot) ?? [];
+      queue.push({
+        command,
+        payload,
+        reject,
+        resolve,
+        settled: false,
+        timeoutMs,
+      });
+      this.slotCommandQueues.set(slot, queue);
+    });
+    this.dispatchProcessingQueue();
+    return promise;
   }
 
   public stop(): void {
@@ -359,10 +459,18 @@ export class RustWorkerHost implements IRustWorkerHost {
       if (text) console.warn(`[rust:${slot.name}]`, text);
     });
 
+    const handleStreamError = (error: Error) => {
+      if (slot.child !== child) return;
+      this.stopProcessingSlot(slot, error);
+      this.dispatchProcessingQueue();
+    };
+    child.stdin?.on?.("error", handleStreamError);
+    child.stdout?.on?.("error", handleStreamError);
+    child.stderr?.on?.("error", handleStreamError);
+
     child.on("error", (error) => {
       if (slot.child !== child) return;
-      slot.child = null;
-      this.rejectProcessingSlotPending(slot, error);
+      this.stopProcessingSlot(slot, error);
       this.dispatchProcessingQueue();
     });
 
@@ -389,7 +497,7 @@ export class RustWorkerHost implements IRustWorkerHost {
   ): Promise<unknown> {
     const child = this.ensureProcessingSlot(slot);
     const id = (slot.requestId += 1);
-    const message = JSON.stringify({ id, command, ...payload });
+    const message = JSON.stringify({ ...payload, id, command });
     slot.busyCount += 1;
 
     return new Promise((resolve, reject) => {
@@ -493,6 +601,17 @@ export class RustWorkerHost implements IRustWorkerHost {
       request.settled = true;
       request.reject(stoppedError);
     }
+    for (const queue of this.slotCommandQueues.values()) {
+      for (const request of queue) {
+        if (request.settled) {
+          continue;
+        }
+        request.settled = true;
+        request.reject(stoppedError);
+      }
+    }
+    this.slotCommandQueues.clear();
+    this.activeSlotCommandsBySlot.clear();
     for (const slot of this.processingSlots) {
       this.stopProcessingSlot(slot, stoppedError);
     }

@@ -158,6 +158,75 @@ suite("platform/rust/electron-main/rustWorkerHost", () => {
 		assert.deepEqual(await active.promise, { value: 1 });
 		host.stop();
 	});
+
+	test("does not let payload fields replace the worker protocol command", async () => {
+		const process = new TestRustWorkerProcess();
+		const host = new RustWorkerHost({
+			isWindows: false,
+			processingPoolSize: 1,
+			resolveExecutablePath: () => "test-conductor-rs",
+			spawnProcessingWorker: () => process as unknown as ChildProcessWithoutNullStreams,
+		});
+
+		const request = host.startProcessingCommand("actual", {
+			command: "injected",
+			id: 999,
+		});
+
+		assert.equal(process.commands[0]?.command, "actual");
+		assert.notEqual(process.commands[0]?.id, 999);
+		process.respond(0, { value: 1 });
+		assert.deepEqual(await request.promise, { value: 1 });
+		host.stop();
+	});
+
+	test("waits for a busy slot before disposing its file state", async () => {
+		const process = new TestRustWorkerProcess();
+		const host = new RustWorkerHost({
+			isWindows: false,
+			processingPoolSize: 1,
+			resolveExecutablePath: () => "test-conductor-rs",
+			spawnProcessingWorker: () => process as unknown as ChildProcessWithoutNullStreams,
+		});
+		const active = host.startProcessingCommand("active");
+
+		const disposal = host.disposeProcessingFile("file-a");
+		assert.deepEqual(process.commands.map(command => command.command), ["active"]);
+		process.respond(0, { value: 1 });
+		assert.deepEqual(await active.promise, { value: 1 });
+		await waitFor(() => process.commands.length === 2);
+		assert.deepEqual(process.commands.map(command => command.command), ["active", "dispose"]);
+		assert.equal(process.commands[1]?.fileId, "file-a");
+		process.respond(1, {});
+		await disposal;
+		assert.equal(process.killed, false);
+		host.stop();
+	});
+
+	test("replaces a worker after a stdio stream error", async () => {
+		const processes: TestRustWorkerProcess[] = [];
+		const host = new RustWorkerHost({
+			isWindows: false,
+			processingPoolSize: 1,
+			resolveExecutablePath: () => "test-conductor-rs",
+			spawnProcessingWorker: () => {
+				const process = new TestRustWorkerProcess();
+				processes.push(process);
+				return process as unknown as ChildProcessWithoutNullStreams;
+			},
+		});
+		const first = host.startProcessingCommand("first");
+		const firstRejected = assert.rejects(first.promise, /stdout failed/);
+
+		processes[0]?.stdout.emit("error", new Error("stdout failed"));
+		await firstRejected;
+		const second = host.startProcessingCommand("second");
+		await waitFor(() => processes.length === 2 && processes[1]?.commands.length === 1);
+		processes[1]?.respond(0, { value: 2 });
+
+		assert.deepEqual(await second.promise, { value: 2 });
+		host.stop();
+	});
 });
 
 function touch(filePath: string): string {

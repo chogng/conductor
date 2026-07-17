@@ -336,6 +336,7 @@ export type SliceFileState =
   | { readonly state: "failed"; readonly code: string; readonly message: string };
 
 export type SliceState = {
+  readonly isRunning: boolean;
   readonly queueLength: number;
   readonly templateSelections: readonly TemplateResourceSelection[];
 };
@@ -352,6 +353,12 @@ export interface ISliceService {
   getResourceResult(resource: URI, sheetId?: SliceSheetId | null): SliceResourceResult | null;
   getResourceState(resource: URI, sheetId?: SliceSheetId | null): SliceFileState | undefined;
   submitResource(requests: readonly SliceResourceRequest[]): void;
+  markResourceSkipped(
+    resource: URI,
+    sheetId: SliceSheetId | null | undefined,
+    code: string,
+    message: string,
+  ): void;
   prioritizeResource(resource: URI, sheetId?: SliceSheetId | null): void;
   cancelResource(resources: readonly { readonly resource: URI; readonly sheetId?: SliceSheetId | null }[]): void;
   setTemplateSelection(resource: URI, sheetId: SliceSheetId | null | undefined, selection: TemplateSelection): void;

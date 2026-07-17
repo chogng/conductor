@@ -4,6 +4,8 @@
 
 import assert from "assert";
 
+import { CancellationTokenSource } from "src/cs/base/common/cancellation";
+import { isCancellationError } from "src/cs/base/common/errors";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
@@ -1216,6 +1218,26 @@ suite("workbench/services/dataResource/test/browser/dataResourceService", () => 
 		assert.deepEqual(changedResources.map(changedResource => changedResource.toString()), [resource.toString()]);
 	});
 
+	test("settles fallback structured-evidence callers promptly when cancelled", async () => {
+		const resource = URI.file("/workspace/cancelled.csv");
+		const tableModelService = store.add(new BlockingTableModelService(resource));
+		const service = store.add(new DataResourceService(
+			store.add(new TestDataResourceContentService(tableModelService)),
+			{
+				onDidChangeConductorSettings: Event.None,
+				getConductorSettings: () => null,
+			} as unknown as ISettingsService,
+			testStructuredContentEvidenceService,
+		));
+		const cancellation = store.add(new CancellationTokenSource());
+
+		const resolving = service.resolveStructuredEvidence({ resource }, cancellation.token);
+		await Promise.resolve();
+		cancellation.cancel();
+
+		await assert.rejects(resolving, error => isCancellationError(error));
+	});
+
 	test("estimates physical content memory by table format", () => {
 		const mebibyte = 1024 * 1024;
 
@@ -1466,6 +1488,32 @@ class TestTableModelService extends Disposable implements ITableModelService {
 		});
 		this.onDidChangeModelEmitter.fire(this.model);
 	}
+}
+
+class BlockingTableModelService extends Disposable implements ITableModelService {
+	public declare readonly _serviceBrand: undefined;
+
+	public readonly onDidChangeModel = Event.None as ITableModelService["onDidChangeModel"];
+
+	public constructor(
+		private readonly resource: URI,
+	) {
+		super();
+	}
+
+	public canHandleResource(resource: URI): boolean {
+		return resource.toString() === this.resource.toString();
+	}
+
+	public createModelReference(): Promise<ITableModelReference> {
+		return new Promise(() => undefined);
+	}
+
+	public get(): ITableModel | undefined {
+		return undefined;
+	}
+
+	public resolve(): void {}
 }
 
 class ReResolvingTableModelService extends Disposable implements ITableModelService {

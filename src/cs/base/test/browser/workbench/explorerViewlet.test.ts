@@ -473,10 +473,12 @@ const createSliceService = (): ISliceService => ({
   getResourceResult: () => null,
   getResourceState: () => ({ state: "none" }),
   getState: () => ({
+    isRunning: false,
     queueLength: 0,
     templateSelections: [],
   }),
   getTemplateSelection: () => ({ kind: "auto" }),
+  markResourceSkipped: () => undefined,
   prioritizeResource: () => undefined,
   setTemplateSelection: () => undefined,
   submitResource: () => undefined,

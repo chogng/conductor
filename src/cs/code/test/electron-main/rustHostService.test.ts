@@ -12,6 +12,8 @@ import type {
 import { RustHostService } from "src/cs/code/electron-main/rustHostService";
 
 suite("code/test/electron-main/rustHostService", () => {
+	const owner = { id: "renderer-1:frame-1", scope: "renderer-1" };
+
 	test("cancels the structured-content command identified by the renderer request", async () => {
 		const host = new TestRustWorkerHost();
 		const service = new RustHostService({
@@ -25,12 +27,81 @@ suite("code/test/electron-main/rustHostService", () => {
 			fileName: "file.csv",
 			inputPath: "C:\\workspace\\file.csv",
 			requestId: "request-1",
-		});
+		}, owner);
 
-		assert.equal(await service.cancelStructuredContent({ requestId: "request-1" }), true);
+		assert.equal(await service.cancelStructuredContent({ requestId: "request-1" }, owner), true);
 		assert.equal((await response).ok, false);
 		assert.equal(host.cancelCount, 1);
-		assert.equal(await service.cancelStructuredContent({ requestId: "request-1" }), false);
+		assert.equal(await service.cancelStructuredContent({ requestId: "request-1" }, owner), false);
+	});
+
+	test("isolates identical request ids by renderer owner", async () => {
+		const host = new TestRustWorkerHost();
+		const service = new RustHostService({
+			createOriginExportTempPath: () => "",
+			isRustProcessFileConfigSupported: () => true,
+			isSupportedInputPath: () => true,
+			isSupportedStructuredContentPath: () => true,
+			rustWorkerHost: host,
+		});
+		const firstOwner = { id: "renderer-1:frame-1", scope: "renderer-1" };
+		const secondOwner = { id: "renderer-2:frame-1", scope: "renderer-2" };
+		const firstResponse = service.resolveStructuredContent({
+			fileName: "first.csv",
+			inputPath: "C:\\workspace\\first.csv",
+			requestId: "request-1",
+		}, firstOwner);
+		const secondResponse = service.resolveStructuredContent({
+			fileName: "second.csv",
+			inputPath: "C:\\workspace\\second.csv",
+			requestId: "request-1",
+		}, secondOwner);
+
+		assert.equal(await service.cancelStructuredContent({ requestId: "request-1" }, firstOwner), true);
+		assert.equal(await service.cancelStructuredContent({ requestId: "request-1" }, firstOwner), false);
+		assert.equal(await service.cancelStructuredContent({ requestId: "request-1" }, secondOwner), true);
+		assert.equal((await firstResponse).ok, false);
+		assert.equal((await secondResponse).ok, false);
+		assert.equal(host.cancelCount, 2);
+	});
+
+	test("cancels every structured-content request owned by a renderer scope", async () => {
+		const host = new TestRustWorkerHost();
+		const service = new RustHostService({
+			createOriginExportTempPath: () => "",
+			isRustProcessFileConfigSupported: () => true,
+			isSupportedInputPath: () => true,
+			isSupportedStructuredContentPath: () => true,
+			rustWorkerHost: host,
+		});
+		const firstOwner = { id: "renderer-1:frame-1", scope: "renderer-1" };
+		const secondOwner = { id: "renderer-1:frame-2", scope: "renderer-1" };
+		const otherOwner = { id: "renderer-2:frame-1", scope: "renderer-2" };
+		const responses = [
+			service.resolveStructuredContent({
+				fileName: "first.csv",
+				inputPath: "C:\\workspace\\first.csv",
+				requestId: "request-1",
+			}, firstOwner),
+			service.resolveStructuredContent({
+				fileName: "second.csv",
+				inputPath: "C:\\workspace\\second.csv",
+				requestId: "request-2",
+			}, secondOwner),
+			service.resolveStructuredContent({
+				fileName: "other.csv",
+				inputPath: "C:\\workspace\\other.csv",
+				requestId: "request-3",
+			}, otherOwner),
+		];
+
+		service.cancelStructuredContentOwner("renderer-1");
+
+		assert.equal(host.cancelCount, 2);
+		assert.equal(await service.cancelStructuredContent({ requestId: "request-1" }, firstOwner), false);
+		assert.equal(await service.cancelStructuredContent({ requestId: "request-3" }, otherOwner), true);
+		await Promise.all(responses);
+		assert.equal(host.cancelCount, 3);
 	});
 });
 

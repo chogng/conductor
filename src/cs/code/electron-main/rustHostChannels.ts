@@ -1,5 +1,9 @@
 import path from "node:path";
-import type { IpcMain, IpcMainInvokeEvent } from "electron";
+import type {
+  Event as ElectronEvent,
+  IpcMain,
+  IpcMainInvokeEvent,
+} from "electron";
 import type {
   AnalyzeCalculationRequest,
   CalculateRcRequest,
@@ -7,6 +11,7 @@ import type {
   ExportOriginCsvRequest,
   IRustHostService,
   ResolveStructuredContentRequest,
+  RustHostRequestOwner,
   RustProcessConfig,
 } from "../../platform/rust/common/rustHostProtocol.js";
 import type { workbenchIpcChannels } from "../../workbench/common/ipcChannels.js";
@@ -47,6 +52,48 @@ export const registerRustHostChannels = ({
   runForeground = task => task(),
   rustService,
 }: RegisterRustHandlersOptions): { dispose(): void } => {
+  const rendererOwners = new Map<number, {
+    readonly dispose: () => void;
+    readonly scope: string;
+  }>();
+  const getRequestOwner = (event: IpcMainInvokeEvent): RustHostRequestOwner => {
+    const scope = `webContents:${event.sender.id}`;
+    if (!rendererOwners.has(event.sender.id)) {
+      const cancelOwnerRequests = () => rustService.cancelStructuredContentOwner(scope);
+      const handleNavigation = (
+        _navigationEvent: ElectronEvent,
+        _url: string,
+        isInPlace: boolean,
+        isMainFrame: boolean,
+      ) => {
+        if (isMainFrame && !isInPlace) {
+          cancelOwnerRequests();
+        }
+      };
+      const handleDestroyed = () => {
+        cancelOwnerRequests();
+        registration.dispose();
+        rendererOwners.delete(event.sender.id);
+      };
+      const registration = {
+        scope,
+        dispose: () => {
+          event.sender.off("did-start-navigation", handleNavigation);
+          event.sender.off("render-process-gone", cancelOwnerRequests);
+          event.sender.off("destroyed", handleDestroyed);
+        },
+      };
+      event.sender.on("did-start-navigation", handleNavigation);
+      event.sender.on("render-process-gone", cancelOwnerRequests);
+      event.sender.on("destroyed", handleDestroyed);
+      rendererOwners.set(event.sender.id, registration);
+    }
+    return {
+      id: `${scope}:process:${event.processId}:frame:${event.frameId}`,
+      scope,
+    };
+  };
+
   const handleRustEngineAnalyzeRc = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
@@ -99,7 +146,7 @@ export const registerRustHostChannels = ({
   };
 
   const handleRustResolveStructuredContent = async (
-    _event: IpcMainInvokeEvent,
+    event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
     const record = readObject(payload);
@@ -108,18 +155,21 @@ export const registerRustHostChannels = ({
       inputPath: normalizeAbsoluteFilePath(record?.path),
       requestId: readString(record?.requestId),
     };
-    return runForeground(() => rustService.resolveStructuredContent(request));
+    return runForeground(() => rustService.resolveStructuredContent(
+      request,
+      getRequestOwner(event),
+    ));
   };
 
   const handleRustCancelStructuredContent = async (
-    _event: IpcMainInvokeEvent,
+    event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
     const record = readObject(payload);
     const request: CancelStructuredContentRequest = {
       requestId: readString(record?.requestId),
     };
-    return rustService.cancelStructuredContent(request);
+    return rustService.cancelStructuredContent(request, getRequestOwner(event));
   };
 
   ipcMain.handle(
@@ -144,6 +194,11 @@ export const registerRustHostChannels = ({
   );
   return {
     dispose() {
+      for (const registration of rendererOwners.values()) {
+        rustService.cancelStructuredContentOwner(registration.scope);
+        registration.dispose();
+      }
+      rendererOwners.clear();
       ipcMain.removeHandler(ipcChannels.rustHostAnalyzeCalculation);
       ipcMain.removeHandler(ipcChannels.rustHostCalculateRc);
       ipcMain.removeHandler(ipcChannels.rustHostCancelStructuredContent);

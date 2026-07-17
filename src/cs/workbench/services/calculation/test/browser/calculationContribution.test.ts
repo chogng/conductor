@@ -187,7 +187,7 @@ class TestSliceService extends Disposable implements ISliceService {
 	}
 
 	public getState(): ReturnType<ISliceService["getState"]> {
-		return { queueLength: 0, templateSelections: [] };
+		return { isRunning: false, queueLength: 0, templateSelections: [] };
 	}
 
 	public getTemplateSelection(): ReturnType<ISliceService["getTemplateSelection"]> {
@@ -199,6 +199,7 @@ class TestSliceService extends Disposable implements ISliceService {
 	}
 
 	public submitResource(): void {}
+	public markResourceSkipped(): void {}
 	public prioritizeResource(): void {}
 	public cancelResource(): void {}
 	public setTemplateSelection(): void {}

@@ -50,6 +50,13 @@ type SliceCommandResource = {
 	readonly sheetId?: string | null;
 };
 
+type SliceCommandTemplateOptions = {
+	readonly selection: TemplateSelection;
+	readonly stopOnError: boolean;
+};
+
+let sliceCommandRunActive = false;
+
 export const runSliceWithTemplateHandler = (
 	accessor: ServicesAccessor,
 	options: RunSliceWithTemplateCommandOptions = {},
@@ -66,6 +73,15 @@ export const runSliceWithTemplateHandler = (
 	}
 
 	const sliceService = accessor.get(ISliceService);
+	if (sliceCommandRunActive || sliceService.getState().isRunning) {
+		notificationService.notify({
+			id: "slice.notification",
+			message: localize("slice.runWithTemplate.alreadyRunning", "Template application is already running."),
+			severity: Severity.Warning,
+		});
+		return;
+	}
+
 	const reviewService = accessor.get(IReviewService);
 	const viewsService = accessor.get(IViewsService);
 	const resources = getSliceCommandResources(
@@ -74,8 +90,8 @@ export const runSliceWithTemplateHandler = (
 		Boolean(options.incremental),
 	);
 
-	const selection = createSliceCommandTemplateSelection(accessor);
-	if (!selection) {
+	const templateOptions = createSliceCommandTemplateOptions(accessor);
+	if (!templateOptions) {
 		return;
 	}
 
@@ -90,25 +106,38 @@ export const runSliceWithTemplateHandler = (
 		return;
 	}
 
+	sliceCommandRunActive = true;
 	void runResourcesWithTemplate({
 		notificationService,
 		reviewService,
-		selection,
+		selection: templateOptions.selection,
 		sliceService,
+		stopOnError: templateOptions.stopOnError,
 		viewsService,
 		resources,
+	}).catch(() => {
+		notificationService.notify({
+			id: "slice.notification",
+			message: localize("slice.runWithTemplate.failed", "Template application failed unexpectedly."),
+			severity: Severity.Error,
+		});
+	}).finally(() => {
+		sliceCommandRunActive = false;
 	});
 };
 
-const createSliceCommandTemplateSelection = (
+const createSliceCommandTemplateOptions = (
 	accessor: ServicesAccessor,
-): TemplateSelection | null => {
+): SliceCommandTemplateOptions | null => {
 	const templateViewStateService = accessor.get(ITemplateViewStateService);
 	const notificationService = accessor.get(INotificationService);
 	const userTemplateService = accessor.get(IUserTemplateService);
 	const state = templateViewStateService.getState();
 	if (!state.selectedTemplateId || isAutoTemplateId(state.selectedTemplateId)) {
-		return { kind: "auto" };
+		return {
+			selection: { kind: "auto" },
+			stopOnError: Boolean(state.formState.stopOnError),
+		};
 	}
 
 	const templateId = String(state.selectedTemplateId).trim();
@@ -130,7 +159,10 @@ const createSliceCommandTemplateSelection = (
 		return null;
 	}
 
-	return createTemplateSelection(templateId);
+	return {
+		selection: createTemplateSelection(templateId),
+		stopOnError: Boolean(state.formState.stopOnError),
+	};
 };
 
 const runResourcesWithTemplate = async ({
@@ -138,6 +170,7 @@ const runResourcesWithTemplate = async ({
 	reviewService,
 	selection,
 	sliceService,
+	stopOnError,
 	viewsService,
 	resources,
 }: {
@@ -145,43 +178,98 @@ const runResourcesWithTemplate = async ({
 	readonly reviewService: IReviewServiceType;
 	readonly selection: TemplateSelection;
 	readonly sliceService: ISliceServiceType;
+	readonly stopOnError: boolean;
 	readonly viewsService: Pick<IViewsService, "openViewContainer">;
 	readonly resources: readonly SliceCommandResource[];
 }): Promise<void> => {
 	const requests: SliceResourceRequest[] = [];
-	for (const resource of resources) {
-		const resourceSelection = selection.kind === "saved"
-			? selection
-			: sliceService.getTemplateSelection(resource.resource, resource.sheetId);
-		const reviewExecution = await reviewService.reviewResourceForExecution({
-			resource: resource.resource,
-			sheetId: resource.sheetId ?? null,
-		});
-		if (!reviewExecution) {
+	let skippedCount = 0;
+	for (let index = 0; index < resources.length; index += 1) {
+		const resource = resources[index];
+		if (!resource) {
 			continue;
 		}
 
-		const reviewedTemplate = resourceSelection.kind === "auto"
-			? reviewExecution.systemRecommendedReviewedTemplate ?? null
-			: await getManualReviewedTemplate(reviewService, reviewExecution, resourceSelection);
-		if (!reviewedTemplate) {
-			continue;
-		}
-
-		const request = createSliceResourceRequest({
-			review: reviewExecution,
-			reviewedTemplate,
-			resource,
-			selection: resourceSelection,
-		});
-		if (request) {
-			await confirmManualReviewedTemplate({
-				review: reviewExecution,
-				reviewedTemplate,
-				reviewService,
-				selection: resourceSelection,
+		let skip: { readonly code: string; readonly message: string } | null = null;
+		try {
+			const resourceSelection = selection.kind === "saved"
+				? selection
+				: sliceService.getTemplateSelection(resource.resource, resource.sheetId);
+			const reviewExecution = await reviewService.reviewResourceForExecution({
+				resource: resource.resource,
+				sheetId: resource.sheetId ?? null,
 			});
-			requests.push(request);
+			if (!reviewExecution) {
+				skip = {
+					code: "slice.reviewUnavailable",
+					message: localize("slice.runWithTemplate.reviewUnavailable", "Review data is unavailable for this resource."),
+				};
+			} else {
+				const reviewedTemplate = resourceSelection.kind === "auto"
+					? reviewExecution.systemRecommendedReviewedTemplate ?? null
+					: await getManualReviewedTemplate(reviewService, reviewExecution, resourceSelection);
+				if (!reviewedTemplate) {
+					skip = {
+						code: "slice.reviewTemplateUnavailable",
+						message: localize("slice.runWithTemplate.reviewTemplateUnavailable", "No valid reviewed template is available for this resource."),
+					};
+				} else {
+					const request = createSliceResourceRequest({
+						review: reviewExecution,
+						reviewedTemplate,
+						resource,
+						selection: resourceSelection,
+					});
+					if (!request) {
+						skip = {
+							code: "slice.templateMeasurementMissing",
+							message: localize("slice.runWithTemplate.templateMeasurementMissing", "The reviewed template has no measurement definition."),
+						};
+					} else {
+						await confirmManualReviewedTemplate({
+							review: reviewExecution,
+							reviewedTemplate,
+							reviewService,
+							selection: resourceSelection,
+						});
+						requests.push(request);
+					}
+				}
+			}
+		} catch {
+			skip = {
+				code: "slice.resourcePreparationFailed",
+				message: localize("slice.runWithTemplate.resourcePreparationFailed", "This resource could not be prepared for slicing."),
+			};
+		}
+
+		if (!skip) {
+			continue;
+		}
+
+		skippedCount += 1;
+		sliceService.markResourceSkipped(
+			resource.resource,
+			resource.sheetId,
+			skip.code,
+			skip.message,
+		);
+		if (stopOnError) {
+			const remainingResources = resources.slice(index + 1);
+			const stoppedMessage = localize(
+				"slice.runWithTemplate.stoppedAfterError",
+				"Skipped because template application stopped after an earlier resource failed.",
+			);
+			for (const remainingResource of remainingResources) {
+				skippedCount += 1;
+				sliceService.markResourceSkipped(
+					remainingResource.resource,
+					remainingResource.sheetId,
+					"slice.stoppedAfterError",
+					stoppedMessage,
+				);
+			}
+			break;
 		}
 	}
 
@@ -189,12 +277,23 @@ const runResourcesWithTemplate = async ({
 		notificationService.notify({
 			id: "slice.notification",
 			message: localize("slice.runWithTemplate.noReviewedResourceTables", "No reviewed table resources are available to slice."),
-			severity: Severity.Info,
+			severity: skippedCount ? Severity.Warning : Severity.Info,
 		});
 		return;
 	}
 
 	sliceService.submitResource(requests);
+	if (skippedCount) {
+		notificationService.notify({
+			id: "slice.notification",
+			message: localize(
+				"slice.runWithTemplate.partial",
+				"Queued {0} resource(s) and skipped {1}.",
+				{ 0: requests.length, 1: skippedCount },
+			),
+			severity: Severity.Warning,
+		});
+	}
 	void viewsService.openViewContainer(ChartViewContainerId);
 };
 
