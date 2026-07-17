@@ -314,13 +314,11 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   test("prewarms visible chart plot display targets through Plot owner APIs", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
-    const plotCalculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const plotInspectorPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     commitChartFilesForTest(session, ["file-a", "file-b", "file-c"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
-      plotCalculatedPrefetches,
       plotDisplayPrefetches,
       plotInspectorPrefetches,
       prioritizedCalculationFileIds: [],
@@ -334,7 +332,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         { resource: URI.file("/data/C.csv") },
       ]);
 
-      assert.deepEqual(plotCalculatedPrefetches, []);
       assert.deepEqual(plotDisplayPrefetches, [
         { fileIds: [], priority: "visible", resource: "file:///data/A.csv", sheetId: null },
         { fileIds: [], priority: "visible", resource: "file:///data/B.csv", sheetId: null },
@@ -1411,13 +1408,11 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   test("delegates cached background chart plot display targets to PlotService", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
-    const plotCalculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     commitChartFilesForTest(session, ["file-a", "file-b", "file-c"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       cachedPlotDisplayFileIds: ["file-a"],
       explorerService,
-      plotCalculatedPrefetches,
       plotDisplayPrefetches,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
@@ -1430,7 +1425,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         { resource: URI.file("/data/C.csv") },
       ]);
 
-      assert.deepEqual(plotCalculatedPrefetches, []);
       assert.deepEqual(plotDisplayPrefetches, [
         { fileIds: [], priority: "visible", resource: "file:///data/A.csv", sheetId: null },
         { fileIds: [], priority: "visible", resource: "file:///data/B.csv", sheetId: null },
@@ -1668,7 +1662,6 @@ const createDomainBridgeOptionsForTest = ({
   chartViewInputs,
   cachedPlotDisplayFileIds,
   explorerService,
-  plotCalculatedPrefetches,
   plotDisplayPrefetches,
   plotDisplayPrefetchSnapshotFields,
   plotInspectorPrefetches,
@@ -1692,7 +1685,6 @@ const createDomainBridgeOptionsForTest = ({
   }>;
   readonly cachedPlotDisplayFileIds?: readonly string[];
   readonly explorerService: ExplorerService;
-  readonly plotCalculatedPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
   readonly plotDisplayPrefetches?: Array<{
     readonly fileIds: readonly string[];
     readonly priority: string;
@@ -1747,12 +1739,6 @@ const createDomainBridgeOptionsForTest = ({
 	      : null,
     getState: () => ({ activePlotType: "iv" }),
     onDidChangePlotState: Event.None,
-    prefetchCalculatedData: (fileIds, priority) => {
-      plotCalculatedPrefetches?.push({
-        fileIds: [...fileIds],
-        priority,
-      });
-    },
     prefetchPlotDisplayModel: (input, priority) => {
       plotDisplayPrefetchSnapshotFields?.push(Object.prototype.hasOwnProperty.call(input, "snapshot"));
       plotDisplayPrefetches?.push({

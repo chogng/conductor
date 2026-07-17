@@ -12,8 +12,9 @@ import {
   type CalculatedDataKind,
   type CalculationKind,
 } from "src/cs/workbench/services/calculation/common/calculationTypes";
-import type {
-  CalculationResourceResult,
+import {
+  createCalculationResourceId,
+  type CalculationResourceResult,
 } from "src/cs/workbench/services/calculation/common/calculation";
 import type {
   CalculationCurveRecord,
@@ -148,7 +149,7 @@ export const createCalculatedDataForCalculationResourceResult = ({
     .filter((series): series is CalculatedSeries => Boolean(series));
   const points = seriesList.flatMap(series => series.data);
   const source = {
-    fileId: createResourceCalculationId(result.resource, result.sheetId),
+    fileId: createCalculationResourceId(result.resource, result.sheetId),
     inputKind: "calculationResource" as const,
     resource: result.resource,
     sheetId: result.sheetId ?? null,
@@ -263,7 +264,7 @@ export const createCalculatedDataForFile = ({
   };
 };
 
-const createCalculationSourceFileFromCalculationResourceResult = (
+export const createCalculationSourceFileFromCalculationResourceResult = (
   result: CalculationResourceResult,
   curves: readonly CalculationCurveRecord[],
 ): CalculationSourceFile => {
@@ -277,8 +278,8 @@ const createCalculationSourceFileFromCalculationResourceResult = (
         y: getFiniteDomain(yValues, [0, 1]),
       }
       : undefined,
-    fileId: createResourceCalculationId(result.resource, result.sheetId),
-    fileName: result.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createResourceCalculationId(result.resource, result.sheetId),
+    fileId: createCalculationResourceId(result.resource, result.sheetId),
+    fileName: result.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createCalculationResourceId(result.resource, result.sheetId),
     series: createCalculationSourceSeriesFromCalculationResourceResult(result, curves),
     supportsSs: curves.some(curve => curve.curveFamily === "iv" && curve.ivMode === "transfer"),
     xAxisRole: result.axis.xAxisRole,
@@ -322,15 +323,6 @@ const getCalculationResultCurveType = (
   return curve.curveFamily;
 };
 
-const createResourceCalculationId = (
-  resource: URI,
-  sheetId?: string | null,
-): string => {
-  const resourceId = getResourceKey(resource);
-  const normalizedSheetId = String(sheetId ?? "").trim();
-  return normalizedSheetId ? `${resourceId}\u0000${normalizedSheetId}` : resourceId;
-};
-
 const collectCalculationResultCurves = (
   result: CalculationResourceResult,
   plotType: CalculationKind,
@@ -347,57 +339,6 @@ const collectCalculationResultCurves = (
         return curve.curveGeneration === "derived" && curve.curveFamily === "thresholdFit";
     }
   });
-
-const getResourceKey = (resource: unknown): string => {
-  const text = getResourceString(resource);
-  if (text) {
-    return text.replace(/\\/g, "/");
-  }
-
-  const components = resource as {
-    readonly authority?: unknown;
-    readonly fragment?: unknown;
-    readonly path?: unknown;
-    readonly query?: unknown;
-    readonly scheme?: unknown;
-  } | null | undefined;
-  const path = String(components?.path ?? "").trim();
-  if (!path) {
-    return "";
-  }
-
-  const scheme = String(components?.scheme ?? "").trim();
-  const authority = String(components?.authority ?? "").trim();
-  const query = String(components?.query ?? "").trim();
-  const fragment = String(components?.fragment ?? "").trim();
-  if (scheme === "file") {
-    return [
-      "file://",
-      authority,
-      path,
-      query ? `?${query}` : "",
-      fragment ? `#${fragment}` : "",
-    ].join("").replace(/\\/g, "/");
-  }
-
-  return [
-    scheme ? `${scheme}:` : "",
-    authority ? `//${authority}` : "",
-    path,
-    query ? `?${query}` : "",
-    fragment ? `#${fragment}` : "",
-  ].join("").replace(/\\/g, "/");
-};
-
-const getResourceString = (resource: unknown): string => {
-  const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
-  if (typeof toString !== "function") {
-    return "";
-  }
-
-  const text = String(toString.call(resource) ?? "").trim();
-  return text === "[object Object]" ? "" : text;
-};
 
 const getCalculatedFileId = (file: CalculationSourceFile, index: number): string => {
   const fileId = String(file?.fileId ?? "").trim();

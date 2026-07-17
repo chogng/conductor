@@ -3,12 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from "src/cs/base/common/event";
+import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import type {
-  FileId,
-  FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
 import type {
   OriginCurveExportSeriesOption,
 } from "src/cs/workbench/services/export/common/exportModel";
@@ -24,10 +20,6 @@ export const IExportService = createDecorator<IExportService>("exportService");
 export const ExportContributionId = "workbench.contrib.export";
 export const ExportViewContainerId = "workbench.viewContainer.export";
 export const ExportViewId = "workbench.export";
-
-export const EXPORT_ORIGIN_ZIP_COMMAND_ID = "workbench.action.exportOriginZip";
-export const OPEN_IN_ORIGIN_COMMAND_ID = "workbench.action.openInOrigin";
-export const SHOW_EXPORT_COMMAND_ID = "workbench.action.showExport";
 
 export type OriginCanvasExportScope =
   | "current"
@@ -57,13 +49,19 @@ export type OriginExportAxisSettings = {
 };
 
 export type OriginExportPlanInput = {
-  readonly activeFileId?: FileId | null;
+  readonly activeResource?: URI | null;
+  readonly activeSheetId?: string | null;
   readonly axisSettings?: OriginExportAxisSettings;
-  readonly snapshot: SessionSnapshot;
+  readonly resources: readonly ExportResourceIdentity[];
+};
+
+export type ExportResourceIdentity = {
+  readonly resource: URI;
+  readonly sheetId?: string | null;
 };
 
 export type OriginExportScopeModel = {
-  readonly fileIds: readonly FileId[];
+  readonly fileIds: readonly string[];
   readonly hasMixedYScales: boolean;
 };
 
@@ -74,9 +72,7 @@ export type ExportViewState = {
   readonly showFilteredCanvasKindSelect: boolean;
 };
 
-export type ExportViewStateInput = OriginExportPlanInput & {
-  readonly activeFileRecord?: FileRecord | null;
-};
+export type ExportViewStateInput = OriginExportPlanInput;
 
 export interface IExportService {
   readonly _serviceBrand: undefined;

@@ -13,16 +13,9 @@ import { isTransferLikeFile } from "src/cs/workbench/services/calculation/common
 import { getCachedSsFitAuto } from "src/cs/workbench/services/calculation/common/calculationCacheAccess";
 import { getExcelColumnLabel } from "src/cs/workbench/services/export/common/columnLabels";
 import type {
-  FileId,
-  FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
-import {
-  collectFileRecordBaseCurves,
-  fileRecordSupportsSs,
-  getFileRecordAxisProjection,
-  getFileRecordCurveType,
-  getFileRecordXGroups,
-} from "src/cs/workbench/services/session/common/sessionFileProjection";
+  CalculationResourceResult,
+} from "src/cs/workbench/services/calculation/common/calculation";
+import { createCalculationSourceFileFromCalculationResourceResult } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 
 export type {
   OriginExportMode,
@@ -59,7 +52,7 @@ type SsClassification = Partial<{
   ss_reason: string;
 }>;
 
-type ExportCsvNumberArray = readonly number[];
+type ExportCsvNumberArray = readonly number[] | Float64Array;
 
 export type ExportCsvSeries = {
   readonly groupIndex?: number;
@@ -142,67 +135,18 @@ type CsvSeriesGroup = {
   yArr: ExportCsvNumberArray;
 };
 
-export const createExportCsvFilesFromCanonical = (
-  filesById: Record<FileId, FileRecord>,
-  fileOrder: readonly FileId[],
-): ExportCsvFile[] => {
-  const seen = new Set<FileId>();
-  const entries: ExportCsvFile[] = [];
-  const pushFile = (fileId: FileId): void => {
-    if (seen.has(fileId)) {
-      return;
-    }
-    seen.add(fileId);
-
-    const file = filesById[fileId];
-    if (!file || !collectFileRecordBaseCurves(file).length) {
-      return;
-    }
-
-    entries.push(createExportCsvFileFromRecord(file));
-  };
-
-  for (const fileId of fileOrder) {
-    pushFile(fileId);
-  }
-  for (const fileId of Object.keys(filesById)) {
-    pushFile(fileId);
-  }
-
-  return entries;
-};
-
-export const buildCsvExportsFromCanonical = (
-  filesById: Record<FileId, FileRecord>,
-  fileOrder: readonly FileId[],
-  resolveCurveLabelForSeries?: ResolveCsvCurveLabelForSeries,
-): Array<{
-  csvText: string;
-  filename: string;
-  xyPairCount: number;
-}> =>
-  buildCsvExports(
-    createExportCsvFilesFromCanonical(filesById, fileOrder),
-    resolveCurveLabelForSeries,
+export const createExportCsvFile = (
+  result: CalculationResourceResult,
+): ExportCsvFile => {
+  const file = createCalculationSourceFileFromCalculationResourceResult(
+    result,
+    Object.values(result.curvesByKey).filter(curve => curve.curveGeneration === "base"),
   );
-
-export const buildSsMetricsCsvFromCanonical = ({
-  filesById,
-  fileOrder,
-  manualSsRangesByFileId,
-  ssMethod,
-}: {
-  filesById: Record<FileId, FileRecord>;
-  fileOrder: readonly FileId[];
-  manualSsRangesByFileId?: unknown;
-  ssMethod?: unknown;
-}): string =>
-  buildSsMetricsCsv({
-    csvFiles: createExportCsvFilesFromCanonical(filesById, fileOrder),
-    manualSsRangesByFileId: manualSsRangesByFileId ??
-      createManualSsRangesFromCanonical(filesById, fileOrder),
-    ssMethod,
-  });
+  return {
+    ...file,
+    xAxisRole: file.xAxisRole ?? undefined,
+  };
+};
 
 export const buildCsvExports = (
   csvFiles: ExportCsvFile[] = [],
@@ -340,80 +284,6 @@ const getOrComputeSsFitAuto = (
     | null
     | undefined);
 };
-
-const createManualSsRangesFromCanonical = (
-  filesById: Record<FileId, FileRecord>,
-  fileOrder: readonly FileId[],
-): ManualSsRangesByFileId => {
-  const ranges: ManualSsRangesByFileId = {};
-  const seen = new Set<FileId>();
-  const pushFile = (fileId: FileId): void => {
-    if (seen.has(fileId)) {
-      return;
-    }
-    seen.add(fileId);
-
-    const file = filesById[fileId];
-    if (!file) {
-      return;
-    }
-
-    for (const input of Object.values(file.metricInputsByKey ?? {})) {
-      if (
-        input.source !== "manual" ||
-        !input.metricKey.startsWith("subthreshold:") ||
-        !input.range
-      ) {
-        continue;
-      }
-
-      ranges[file.id] = ranges[file.id] ?? {};
-      ranges[file.id][input.seriesId] = {
-        x1: input.range.x1 ?? null,
-        x2: input.range.x2 ?? null,
-      };
-    }
-  };
-
-  for (const fileId of fileOrder) {
-    pushFile(fileId);
-  }
-  for (const fileId of Object.keys(filesById)) {
-    pushFile(fileId);
-  }
-  return ranges;
-};
-
-const createExportCsvFileFromRecord = (file: FileRecord): ExportCsvFile => {
-  const axis = getFileRecordAxisProjection(file);
-  return {
-    curveType: getFileRecordCurveType(file),
-    calculationCache: file.calculationCache,
-    fileId: file.id,
-    fileName: file.raw.fileName,
-    series: createExportCsvSeriesFromRecord(file),
-    supportsSs: fileRecordSupportsSs(file),
-    xAxisRole: axis.xAxisRole ?? undefined,
-    xGroups: getFileRecordXGroups(file),
-    xUnit: axis.xUnit,
-    yUnit: axis.yUnit,
-    xLabel: axis.xLabel,
-    yLabel: axis.yLabel,
-  };
-};
-
-const createExportCsvSeriesFromRecord = (file: FileRecord): ExportCsvSeries[] =>
-  collectFileRecordBaseCurves(file).map((curve, index): ExportCsvSeries => {
-    const series = file.seriesById[curve.seriesId];
-    return {
-      groupIndex: index,
-      id: curve.seriesId || `series-${index + 1}`,
-      legendValue: series?.legendValue,
-      name: series?.labelOverride ?? series?.name ?? series?.legendValue,
-      y: curve.points.map((point) => point.y),
-      yCol: Number.isInteger(Number(series?.yCol)) ? series?.yCol : index + 1,
-    };
-  });
 
 export const buildSsMetricsCsv = ({
   csvFiles,

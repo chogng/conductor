@@ -20,6 +20,15 @@ export type CalculationResourceIdentity = {
 	readonly sheetId?: string | null;
 };
 
+export function createCalculationResourceId(
+	resource: URI,
+	sheetId?: string | null,
+): string {
+	const resourceId = resource.toString().replace(/\\/g, "/");
+	const normalizedSheetId = String(sheetId ?? "").trim();
+	return normalizedSheetId ? `${resourceId}\u0000${normalizedSheetId}` : resourceId;
+}
+
 export type CalculationResourceResult = CalculationResourceIdentity & {
 	readonly axis: CalculationAxis;
 	readonly completedAt: number;

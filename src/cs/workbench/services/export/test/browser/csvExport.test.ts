@@ -1,15 +1,12 @@
 import assert from "assert";
-import type {
-  BaseCurveKey,
-  FileRecord,
-  MetricKey,
-} from "src/cs/workbench/services/session/common/sessionModel";
+import { URI } from "src/cs/base/common/uri";
+import type { CalculationResourceResult } from "src/cs/workbench/services/calculation/common/calculation";
+import type { BaseCurveKey } from "src/cs/workbench/services/calculation/common/calculationRecords";
 
 import {
   buildCsvExports,
-  buildCsvExportsFromCanonical,
   buildSsMetricsCsv,
-  buildSsMetricsCsvFromCanonical,
+  createExportCsvFile,
 } from "src/cs/workbench/services/export/browser/csvExport";
 import {
   buildOriginExportPlan,
@@ -62,12 +59,9 @@ suite("workbench/services/export/browser/csvExport", () => {
     );
   });
 
-  test("buildCsvExportsFromCanonical writes canonical base curves", () => {
-    const exports = buildCsvExportsFromCanonical(
-      {
-        "file-a": createFileRecord("transfer"),
-      },
-      ["file-a"],
+  test("buildCsvExports writes calculation resource base curves", () => {
+    const exports = buildCsvExports(
+      [createExportCsvFile(createCalculationResult("transfer"))],
       (_file, series) => series.id === "series-a" ? "Edited Legend" : "",
     );
 
@@ -79,12 +73,9 @@ suite("workbench/services/export/browser/csvExport", () => {
     );
   });
 
-  test("buildSsMetricsCsvFromCanonical uses canonical IV mode", () => {
-    const csv = buildSsMetricsCsvFromCanonical({
-      filesById: {
-        "file-a": createFileRecord("output"),
-      },
-      fileOrder: ["file-a"],
+  test("buildSsMetricsCsv uses calculation IV mode", () => {
+    const csv = buildSsMetricsCsv({
+      csvFiles: [createExportCsvFile(createCalculationResult("output"))],
       ssMethod: "auto",
     });
 
@@ -93,34 +84,26 @@ suite("workbench/services/export/browser/csvExport", () => {
     const values = rows[1].split(",");
     const byHeader = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
 
-    assert.equal(byHeader.file_id, "file-a");
+    assert.equal(byHeader.file_id, "test:/file_a.csv");
     assert.equal(byHeader.series_id, "series-a");
     assert.equal(byHeader.ss, "");
     assert.equal(byHeader.ss_ok, "false");
     assert.equal(byHeader.ss_reason, "not_transfer_curve");
   });
 
-  test("buildSsMetricsCsvFromCanonical uses canonical manual SS range input", () => {
-    const file = createFileRecord("transfer");
-    const metricKey = "subthreshold:series-a:ss:manual" as MetricKey;
-    file.metricInputsByKey = {
-      [metricKey]: {
-        fileId: "file-a",
-        metricKey,
-        range: {
+  test("buildSsMetricsCsv uses caller-owned manual SS range input", () => {
+    const csvFile = createExportCsvFile(createCalculationResult("transfer"));
+    const fileId = String(csvFile.fileId);
+    const csv = buildSsMetricsCsv({
+      csvFiles: [csvFile],
+      manualSsRangesByFileId: {
+        [fileId]: {
+          "series-a": {
           x1: 0,
           x2: 2,
+          },
         },
-        seriesId: "series-a",
-        source: "manual",
       },
-    };
-
-    const csv = buildSsMetricsCsvFromCanonical({
-      filesById: {
-        "file-a": file,
-      },
-      fileOrder: ["file-a"],
       ssMethod: "manual",
     });
 
@@ -129,7 +112,7 @@ suite("workbench/services/export/browser/csvExport", () => {
     const values = rows[1].split(",");
     const byHeader = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
 
-    assert.equal(byHeader.file_id, "file-a");
+    assert.equal(byHeader.file_id, "test:/file_a.csv");
     assert.equal(byHeader.series_id, "series-a");
     assert.equal(byHeader.ss_range_source, "manual");
   });
@@ -1544,20 +1527,28 @@ suite("workbench/services/export/browser/csvExport", () => {
   });
 });
 
-const createFileRecord = (ivMode: "transfer" | "output"): FileRecord => {
-  const fileId = "file-a";
+const createCalculationResult = (
+  ivMode: "transfer" | "output",
+): CalculationResourceResult => {
   const seriesId = "series-a";
   const curveKey = `base:iv:${ivMode}:series-a` as BaseCurveKey;
   return {
+    axis: {
+      xAxisRole: ivMode === "transfer" ? "vg" : "vd",
+      xLabel: ivMode === "transfer" ? "Gate Voltage" : "Drain Voltage",
+      xUnit: "V",
+      yLabel: "Drain Current",
+      yUnit: "A",
+    },
+    completedAt: 1,
     curvesByKey: {
       [curveKey]: {
         curveFamily: "iv",
         curveGeneration: "base",
-        fileId,
         ivMode,
         lineage: {
           baseFamily: "iv",
-          baseSeries: { fileId, seriesId },
+          baseSeries: { seriesId },
           curveGeneration: "base",
           ivMode,
         },
@@ -1574,20 +1565,12 @@ const createFileRecord = (ivMode: "transfer" | "output"): FileRecord => {
         signature: "base-signature",
       },
     },
-    id: fileId,
-    kind: "unknown",
+    inputSignature: "input-a",
     metricsByKey: {},
-    name: "file_a.csv",
-    raw: {
-      fileId,
-      fileName: "file_a.csv",
-      tableOrder: [],
-      tablesById: {},
-    },
-    rawTableVersionsById: {},
+    requestSignature: "request-a",
+    resource: URI.parse("test:/file_a.csv"),
     seriesById: {
       [seriesId]: {
-        fileId,
         groupIndex: 0,
         id: seriesId,
         legendValue: "Vd=0.1",
@@ -1596,39 +1579,7 @@ const createFileRecord = (ivMode: "transfer" | "output"): FileRecord => {
       },
     },
     seriesOrder: [seriesId],
-    latestSliceRunId: "run-a",
-    sliceRunsById: {
-      "run-a": {
-        fileId,
-        id: "run-a",
-        mode: "auto",
-        rawTableId: fileId,
-        selection: { kind: "auto" },
-        sourceRawTableVersion: 0,
-        template: {
-          schemaVersion: 1,
-          name: "Template",
-          version: 1,
-          stopOnError: false,
-          blocks: [{
-            rowRange: { startRow: 0, endRow: 2 },
-            x: { columns: [0], unit: "V" },
-            y: { columns: [1], unit: "A" },
-            segmentation: { kind: "auto" },
-            legend: { target: "auto" },
-            titles: {
-              bottom: ivMode === "transfer" ? "Gate Voltage" : "Drain Voltage",
-              left: "Drain Current",
-            },
-          }],
-        },
-        templateFingerprint: "config-a",
-        inputRanges: [],
-        outputCurveKeys: [curveKey],
-        outputSeriesIds: [seriesId],
-        warnings: [],
-        errors: [],
-      },
-    },
+    sourceModelVersion: 1,
+    sourceVersion: 1,
   };
 };

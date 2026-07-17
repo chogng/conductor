@@ -1,5 +1,5 @@
 ---
-description: Origin Export service - Origin/CSV export plan construction from session records and plot models.
+description: Origin Export service - Origin/CSV export plan construction from Calculation records and Plot state.
 applyTo: 'src/cs/workbench/services/export/**,src/cs/workbench/contrib/export/**,src/cs/workbench/contrib/origin/**'
 ---
 # Origin Export
@@ -12,10 +12,10 @@ Export builds export plans and payloads. It is not Chart and not Plot.
 
 - export option state, scope, and selected content keys;
 - Origin/CSV payload planning and validation;
-- mapping Session/Plot/Parameters data into export payloads;
+- mapping Calculation/Plot/Parameters data into export payloads;
 - open-in-Origin, ZIP export, and user-facing export errors.
 
-It consumes Session snapshots, Plot display models, Settings export options,
+It consumes Calculation resource results, Plot state, Settings export options,
 Parameters output when selected, and platform file/dialog services. It does not
 own chart rendering, plot domain calculation, table-model production, template
 execution, or canonical Session mutation.
@@ -36,7 +36,7 @@ execution, or canonical Session mutation.
 ```txt
 Export UI / command
   -> IExportService
-  -> Session + Plot + Parameters + Settings owner APIs
+  -> Calculation + Plot + Parameters + Settings owner APIs
   -> ExportPlan
   -> Origin / ZIP / CSV side effect
 ```
@@ -44,12 +44,11 @@ Export UI / command
 ## Rules
 
 - Use Plot models for display-oriented export.
-- Use Session records for canonical data-oriented export.
-- Read Plot-owned axis/unit/scale settings through `IPlotService.getAxisSettings()`;
-  when exporting remaining Session-backed data, Export owns merging those
-  settings with Session file axis projections.
+- Use Calculation resource results for canonical data-oriented export.
+- Read Plot-owned axis/unit/scale and legend settings through `IPlotService`.
 - Export option state is service-local unless saved project export settings are intentionally introduced.
-- Workbench syncs current selection into Export state; Export reads Session snapshots through its own service boundary, and export execution rereads owner APIs.
+- Workbench passes selected resource/sheet identities to Export; export execution
+  rereads current Calculation and Plot owner state.
 - Notification/toast side effects belong to export/origin execution, not Workbench callback bags.
 
 ## Do Not

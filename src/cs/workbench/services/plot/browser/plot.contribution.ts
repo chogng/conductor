@@ -12,7 +12,6 @@ import { PlotService } from 'src/cs/workbench/services/plot/browser/plotService'
 import { IPlotService } from 'src/cs/workbench/services/plot/common/plot';
 import { ICalculationService } from 'src/cs/workbench/services/calculation/common/calculation';
 import { ISettingsService } from 'src/cs/workbench/services/settings/common/settings';
-import { ISessionService } from 'src/cs/workbench/services/session/common/session';
 
 const plotCalculatedDataWorkerDescriptor = new WebWorkerDescriptor({
 	esmModuleLocationBundler: plotCalculatedDataWorkerUrl,
@@ -22,7 +21,6 @@ const plotCalculatedDataWorkerDescriptor = new WebWorkerDescriptor({
 class BrowserPlotService extends PlotService {
 	public constructor(
 		@IWebWorkerService webWorkerService: IWebWorkerService,
-		@ISessionService sessionService: ISessionService,
 		@ISettingsService settingsService: ISettingsService,
 		@IStorageService storageService: IStorageService,
 		@ICalculationService calculationService: ICalculationService,
@@ -32,7 +30,6 @@ class BrowserPlotService extends PlotService {
 				webWorkerService,
 				plotCalculatedDataWorkerDescriptor,
 			),
-			sessionService,
 			settingsService,
 			storageService,
 			calculationService,

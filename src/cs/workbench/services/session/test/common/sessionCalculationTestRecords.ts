@@ -11,11 +11,11 @@ import type {
 	CalculationRecordsInput,
 	CalculationSeriesRecord,
 } from "src/cs/workbench/services/calculation/common/calculationRecords";
-import { getFileRecordAxisProjection } from "src/cs/workbench/services/session/common/sessionFileProjection";
 import type {
 	CurveRecord,
 	FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import { getLatestSliceRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 export function createCalculationRecordsInputForTest(
 	file: FileRecord,
@@ -82,6 +82,21 @@ export function createCalculationRecordsInputForTest(
 		...(Object.keys(metricInputsByKey).length ? { metricInputsByKey } : {}),
 		seriesById,
 		seriesOrder: file.seriesOrder,
+	};
+}
+
+function getFileRecordAxisProjection(file: FileRecord): CalculationRecordsInput["axis"] {
+	const sliceRun = getLatestSliceRunRecord(file);
+	const ivMode = Object.values(file.curvesByKey).find(curve =>
+		curve.curveGeneration === "base" && curve.curveFamily === "iv" && curve.ivMode
+	)?.ivMode;
+	const block = sliceRun?.template.blocks[0];
+	return {
+		xAxisRole: ivMode === "transfer" ? "vg" : ivMode === "output" ? "vd" : null,
+		xLabel: block?.titles?.bottom,
+		xUnit: block?.x.unit,
+		yLabel: block?.titles?.left,
+		yUnit: block?.y.unit,
 	};
 }
 

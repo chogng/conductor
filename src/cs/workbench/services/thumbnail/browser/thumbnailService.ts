@@ -495,12 +495,6 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 
 	private prefetchPlotPreview(target: NormalizedThumbnailPreviewTarget, priority: ThumbnailPreviewPriority): void {
 		const plotType = this.plotService.getState().activePlotType;
-		if (!target.resource) {
-			const fileId = normalizePreviewFileId(target.fileId);
-			if (fileId) {
-				this.plotService.prefetchCalculatedData([fileId], priority, plotType);
-			}
-		}
 		this.plotService.prefetchPlotDisplayModel?.(
 			createPlotPreviewInput(target, plotType),
 			priority,

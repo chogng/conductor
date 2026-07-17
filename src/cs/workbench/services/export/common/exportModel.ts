@@ -10,8 +10,9 @@ import type {
   OriginExportMode,
 } from "src/cs/workbench/services/export/common/originExport";
 import type {
-  FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
+  CalculationResourceResult,
+} from "src/cs/workbench/services/calculation/common/calculation";
+import { createCalculationResourceId } from "src/cs/workbench/services/calculation/common/calculation";
 
 export type OriginExportContentOption = {
   group: "basic" | "derived";
@@ -40,14 +41,15 @@ export const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
   { group: "derived", key: "vth", label: "Vth" },
 ];
 
-export const createOriginCurveOptionsFromRecord = (
-  file: FileRecord,
+export const createOriginCurveOptions = (
+  result: CalculationResourceResult,
   resolveSeriesLabel: (fileId: string, seriesId: string, fallback: string, index: number) => string =
     (_fileId, _seriesId, fallback, index) => fallback || `Series ${index + 1}`,
-): OriginCurveExportSeriesOption[] =>
-  file.seriesOrder
+): OriginCurveExportSeriesOption[] => {
+  const fileId = createCalculationResourceId(result.resource, result.sheetId);
+  return result.seriesOrder
     .map((seriesId, index) => {
-      const series = file.seriesById[seriesId];
+      const series = result.seriesById[seriesId];
       if (!series) return null;
       const fallback = String(
         series.labelOverride ??
@@ -57,12 +59,13 @@ export const createOriginCurveOptionsFromRecord = (
       );
       return {
         key: seriesId,
-        label: resolveSeriesLabel(file.id, seriesId, fallback, index),
-        sourceFileId: file.id,
+        label: resolveSeriesLabel(fileId, seriesId, fallback, index),
+        sourceFileId: fileId,
         sourceSeriesId: seriesId,
       };
     })
     .filter((option): option is OriginCurveExportSeriesOption => Boolean(option));
+};
 
 export const normalizeOriginExportContentKeys = (
   keys: readonly OriginExportContentKey[],

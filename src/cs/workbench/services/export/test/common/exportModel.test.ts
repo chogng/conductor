@@ -3,12 +3,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from "assert";
-
-import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import { URI } from "src/cs/base/common/uri";
+import type { CalculationResourceResult } from "src/cs/workbench/services/calculation/common/calculation";
 
 import {
   createExportPaneState,
-  createOriginCurveOptionsFromRecord,
+  createOriginCurveOptions,
   getCanvasScopeSummary,
   getExportSelectionSummary,
 } from "src/cs/workbench/services/export/common/exportModel";
@@ -104,10 +104,10 @@ suite("workbench/services/export/common/exportModel", () => {
     );
   });
 
-  test("createOriginCurveOptionsFromRecord uses canonical series order", () => {
+  test("createOriginCurveOptions uses calculation series order", () => {
     assert.deepEqual(
-      createOriginCurveOptionsFromRecord(
-        createFileRecord(),
+      createOriginCurveOptions(
+        createCalculationResult(),
         (_fileId, seriesId, fallback) =>
           seriesId === "series-b" ? "Edited B" : fallback,
       ),
@@ -115,13 +115,13 @@ suite("workbench/services/export/common/exportModel", () => {
         {
           key: "series-a",
           label: "Vd=0.1",
-          sourceFileId: "file-a",
+          sourceFileId: "test:/file-a.csv",
           sourceSeriesId: "series-a",
         },
         {
           key: "series-b",
           label: "Edited B",
-          sourceFileId: "file-a",
+          sourceFileId: "test:/file-a.csv",
           sourceSeriesId: "series-b",
         },
       ],
@@ -129,16 +129,23 @@ suite("workbench/services/export/common/exportModel", () => {
   });
 });
 
-const createFileRecord = (): FileRecord => ({
+const createCalculationResult = (): CalculationResourceResult => ({
+  axis: {
+    xAxisRole: "vg",
+    xLabel: "Gate Voltage",
+    xUnit: "V",
+    yLabel: "Drain Current",
+    yUnit: "A",
+  },
+  completedAt: 1,
   curvesByKey: {
     "base:iv:transfer:series-a": {
       curveFamily: "iv",
       curveGeneration: "base",
-      fileId: "file-a",
       ivMode: "transfer",
       lineage: {
         baseFamily: "iv",
-        baseSeries: { fileId: "file-a", seriesId: "series-a" },
+        baseSeries: { seriesId: "series-a" },
         curveGeneration: "base",
         ivMode: "transfer",
       },
@@ -149,11 +156,10 @@ const createFileRecord = (): FileRecord => ({
     "base:iv:transfer:series-b": {
       curveFamily: "iv",
       curveGeneration: "base",
-      fileId: "file-a",
       ivMode: "transfer",
       lineage: {
         baseFamily: "iv",
-        baseSeries: { fileId: "file-a", seriesId: "series-b" },
+        baseSeries: { seriesId: "series-b" },
         curveGeneration: "base",
         ivMode: "transfer",
       },
@@ -162,27 +168,18 @@ const createFileRecord = (): FileRecord => ({
       signature: "base-b",
     },
   },
-  id: "file-a",
-  kind: "unknown",
+  inputSignature: "input-a",
   metricsByKey: {},
-  name: "file-a.csv",
-  raw: {
-    fileId: "file-a",
-    fileName: "file-a.csv",
-    tableOrder: [],
-    tablesById: {},
-  },
-  rawTableVersionsById: {},
+  requestSignature: "request-a",
+  resource: URI.parse("test:/file-a.csv"),
   seriesById: {
     "series-a": {
-      fileId: "file-a",
       groupIndex: 0,
       id: "series-a",
       legendValue: "Vd=0.1",
       y: [1],
     },
     "series-b": {
-      fileId: "file-a",
       groupIndex: 1,
       id: "series-b",
       name: "Source B",
@@ -190,4 +187,6 @@ const createFileRecord = (): FileRecord => ({
     },
   },
   seriesOrder: ["series-a", "series-b"],
+  sourceModelVersion: 1,
+  sourceVersion: 1,
 });

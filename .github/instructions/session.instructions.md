@@ -27,7 +27,6 @@ model services.
 | --- | --- |
 | `common/session.ts` | service contract, snapshot, commit inputs, events. |
 | `common/sessionModel.ts` | canonical records: files, raw, table model, slice runs, series, curves, metrics, cache. |
-| `common/sessionFileProjection.ts` | pure legacy `FileRecord` curve/axis projections for remaining Session-backed Plot/Export consumers. |
 | `common/sessionEvents.ts` | change reasons, affected ids, helper types. |
 | `browser/sessionService.ts` | mutable model owner, validation, versioning, events. |
 
@@ -81,8 +80,8 @@ lifecycle through Session.
 URI-backed Slice run/output results stay in `ISliceService`; do not add new
 Session commit or cleanup APIs for them.
 
-Do not add a Session commit API for `CalculationResourceResult`. Plot and
-Parameters consume URI-backed calculated results through `ICalculationService`.
+Do not add a Session commit API for `CalculationResourceResult`. Plot, Export,
+and Parameters consume URI-backed calculated results through `ICalculationService`.
 
 ## Do Not
 

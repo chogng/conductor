@@ -1,13 +1,13 @@
 ---
-description: Plot service - drawing-domain consumer of session curves/metrics, plot settings, domains, downsampling, render models, and shared models for chart/thumbnail/export.
+description: Plot service - drawing-domain consumer of Calculation results, plot settings, domains, downsampling, render models, and shared models for chart/thumbnail/export.
 applyTo: 'src/cs/workbench/services/plot/**,src/cs/workbench/contrib/plot/**'
 ---
 # Plot
 
 Plot is the drawing core. Chart is a host that renders Plot output.
 
-`IPlotService` consumes legacy Session curves and resource/sheet Calculation results, and
-produces plot render/display models for Chart, Thumbnail, Search, and Export.
+`IPlotService` consumes resource/sheet Calculation results and produces plot
+render/display models for Chart, Thumbnail, Search, and Export.
 
 ## Ownership
 
@@ -18,8 +18,7 @@ produces plot render/display models for Chart, Thumbnail, Search, and Export.
 - axis unit conversion and y-scale settings;
 - plot domains, ticks, display labels, legend labels;
 - display downsampling;
-- render/display model assembly from legacy Session curves and resource/sheet
-  Calculation results;
+- render/display model assembly from resource/sheet Calculation results;
 - calculated-data and display-model caches/prefetch queues.
 
 It does not own DOM rendering, chart panel layout, raw parsing, table-model
@@ -32,11 +31,10 @@ production, template execution, or thumbnail bitmap cache.
 | `services/plot/common/plot.ts` | `IPlotService`, `PlotType`, state, events, inputs. |
 | `services/plot/common/plotModel.ts` | shared model types. No DOM. |
 | `services/plot/common/plotSettings.ts` | unit/scale/visibility/plot-type settings. |
-| `services/plot/common/canonicalCalculatedData.ts` | legacy Session `FileRecord` adapter into Plot calculated-data inputs. |
-| `services/plot/browser/plotService.ts` | state owner, session subscriber, cache/prefetch owner. |
-| `services/plot/browser/plotCalculatedDataWorker*.ts` | worker entry/client for async calculated data and display model work. |
+| `services/plot/browser/plotService.ts` | state, Calculation subscription, cache, and prefetch owner. |
+| `services/plot/browser/plotCalculatedDataWorker*.ts` | worker entry/client for async display-model work. |
 | `services/plot/browser/plotDisplayModel.ts` | pure display-model builder. |
-| `services/plot/browser/plotRenderModel.ts` | session curves/metrics -> render model. |
+| `services/plot/browser/plotRenderModel.ts` | calculated data -> render model. |
 | `services/plot/browser/plotViewModel.ts` | domains, ticks, downsampling, signed-log helpers. |
 | `contrib/plot/browser/plotMainView.ts` | DOM adapter from Plot model to chart widget props. No Session reads. |
 | `contrib/plot/browser/plotMainChart.ts` | low-level drawing widget; props only. |
@@ -44,7 +42,7 @@ production, template execution, or thumbnail bitmap cache.
 ## Flow
 
 ```txt
-SessionSnapshot-backed file ids or resource/sheet Calculation results + PlotState
+resource/sheet Calculation results + PlotState
   -> PlotService
   -> calculated-data cache / display-model cache / worker queues
   -> PlotRenderModel / PlotDisplayModel
@@ -72,26 +70,12 @@ uses platform storage; callers should not write settings/storage directly.
 - Consumers request prefetch on cache miss instead of synchronously creating expensive data in render.
 - Calculated-data and display-model prefetch are separate cache warmups.
 - PlotService owns dedupe, cache-hit skip, queue promotion, stale-result checks, and perf counters.
-- Consumers pass file identity or direct resource/sheet identity into Plot read/prefetch APIs;
-  they should not pass `SessionSnapshot` through Plot input records. PlotService
-  resolves legacy Session-backed file ids internally as the Plot owner fallback.
-- Resource/sheet consumers pass `resource` and optional `sheetId` directly. Do
-  not pair a resource/sheet input with a legacy file id in the same Plot input;
-  derive downstream keys from the resource identity inside Plot.
-- Consumers that need Plot-owned axis/unit/scale settings call `getAxisSettings()`
-  without passing Session snapshots. Session-backed callers merge file default
-  axis projections in their own owner boundary when they still consume Session
-  data.
-- Resource/sheet calculated/display reads resolve the current calculated result
-  through `ICalculationService` and must not resolve `ISessionService.getSnapshot()` just to
-  satisfy Plot input shape. Session snapshots are required only for
-  Session-backed file ids.
-- Display-model creation uses Plot-owned storage settings when a resource/sheet input has
-  no Session snapshot; do not couple resource/sheet axis/unit/scale state back to
-  Session records.
-- Worker requests send only fields needed for plot calculation: base curves,
-  matching series, latest `SliceRun` template metadata, and minimal raw file
-  identity. Do not post full raw table stores.
+- Consumers pass `resource` and optional `sheetId` directly into Plot read and
+  prefetch APIs. Plot derives cache and state keys from that identity.
+- Consumers that need Plot-owned axis/unit/scale settings call `getAxisSettings()`.
+- Calculated/display reads resolve the current result through `ICalculationService`.
+- Display-model worker requests send calculated data plus presentation inputs;
+  they do not send Session records or raw table stores.
 - Use bounded interactive/background worker lanes. Reserve interactive capacity for active chart and hover work.
 - Prefetch priority follows user-facing urgency: active chart, hover thumbnail, visible thumbnails, recent interactive targets, nearby thumbnails, idle.
 - Visible/nearby thumbnail backfill runs only while Explorer is in chart thumbnail layout.
@@ -101,9 +85,6 @@ uses platform storage; callers should not write settings/storage directly.
 
 ## Invalidation And Retention
 
-- Session changes should invalidate only affected file ids when possible.
-- Full Session clears/removals clear Session-backed file-record caches; resource/sheet
-  Calculation caches are invalidated by Calculation resource changes, not by Session events.
 - Calculation result changes should invalidate only affected resource/sheet identities when
   possible.
 - Plot-relevant data changes publish targeted calculated/display cache events.
@@ -114,10 +95,7 @@ uses platform storage; callers should not write settings/storage directly.
 - Eviction is silent cache lifecycle; data-change invalidation publishes events.
 - Cached reads for active chart, hover, file switch, and recent backfill refresh recency.
 
-Plot render models currently consume template/base curve records from Session
-or resource/sheet Calculation results and Plot-owned settings. Do not invalidate active
-chart/hover caches for calculated-record, metric, or derived-only curve changes
-unless Plot starts consuming those as render inputs.
+Plot render models consume resource/sheet Calculation results and Plot-owned settings.
 
 ## Chart And Widget Rules
 
@@ -151,7 +129,7 @@ Recommended files:
 ## Do Not
 
 - Do not put canvas/SVG DOM code in `PlotService`.
-- Do not let Chart rebuild curve domains from raw Session records.
+- Do not let Chart rebuild curve domains from Calculation records.
 - Do not duplicate downsampling logic in Thumbnail.
 - Do not compute table model or template outputs in Plot.
 - Do not store Plot display state in Session unless it becomes saved project state.

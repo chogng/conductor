@@ -3,86 +3,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { bootstrapWebWorker } from 'src/cs/base/common/worker/webWorker';
-import { hasFileRecordBaseCurves } from 'src/cs/workbench/services/session/common/sessionFileProjection';
-import {
-	createCalculatedDataForFile,
-	type CalculatedData,
-} from 'src/cs/workbench/services/calculation/common/calculationReadModel';
+import type { CalculatedData } from 'src/cs/workbench/services/calculation/common/calculationReadModel';
 import { createPlotDisplayModelFromCalculatedData } from 'src/cs/workbench/services/plot/browser/plotDisplayModel';
 import type {
 	PlotDisplayModel,
 	PlotFileAxisSettings,
 	PlotType,
 } from 'src/cs/workbench/services/plot/common/plot';
-import type {
-	FileId,
-	FileRecord,
-} from 'src/cs/workbench/services/session/common/sessionModel';
-
-export type PlotCalculatedDataWorkerRequest = {
-	readonly file: FileRecord;
-	readonly fileId: FileId;
-	readonly plotType: PlotType;
-	readonly requestId: number;
-	readonly sessionVersion: number;
-};
-
-export type PlotCalculatedDataWorkerOutput = {
-	readonly calculatedData: CalculatedData | null;
-	readonly fileId: FileId;
-	readonly plotType: PlotType;
-	readonly requestId: number;
-	readonly sessionVersion: number;
-};
 
 export type PlotDisplayModelWorkerRequest = {
 	readonly axisSettings?: PlotFileAxisSettings;
 	readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
 	readonly calculatedData: CalculatedData;
-	readonly fileId: FileId;
+	readonly fileId: string;
 	readonly hiddenLegendKeys?: readonly string[];
 	readonly includeInspector?: boolean;
 	readonly legendLabels?: Readonly<Record<string, string>>;
 	readonly plotType: PlotType;
 	readonly requestId: number;
-	readonly sessionVersion: number;
+	readonly dataVersion: number;
 };
 
 export type PlotDisplayModelWorkerOutput = {
 	readonly displayModel: PlotDisplayModel | null;
-	readonly fileId: FileId;
+	readonly fileId: string;
 	readonly plotType: PlotType;
 	readonly requestId: number;
-	readonly sessionVersion: number;
+	readonly dataVersion: number;
 };
 
 export interface IPlotCalculatedDataWorker {
-	$calculateData(input: PlotCalculatedDataWorkerRequest): PlotCalculatedDataWorkerOutput;
 	$calculateDisplayModel(input: PlotDisplayModelWorkerRequest): PlotDisplayModelWorkerOutput;
 }
 
 class PlotCalculatedDataWorker implements IPlotCalculatedDataWorker {
-	public $calculateData(
-		input: PlotCalculatedDataWorkerRequest,
-	): PlotCalculatedDataWorkerOutput {
-		const file = input.file;
-		const fileId = String(input.fileId ?? file?.id ?? '').trim();
-		const plotType = input.plotType;
-		if (!file || !fileId || !plotType) {
-			throw new Error('Plot worker request is missing file or plot type.');
-		}
-
-		return {
-			calculatedData: hasFileRecordBaseCurves(file)
-				? createCalculatedDataForFile({ file, plotType })
-				: null,
-			fileId,
-			plotType,
-			requestId: normalizeInteger(input.requestId),
-			sessionVersion: normalizeInteger(input.sessionVersion),
-		};
-	}
-
 	public $calculateDisplayModel(
 		input: PlotDisplayModelWorkerRequest,
 	): PlotDisplayModelWorkerOutput {
@@ -105,7 +59,7 @@ class PlotCalculatedDataWorker implements IPlotCalculatedDataWorker {
 			fileId,
 			plotType,
 			requestId: normalizeInteger(input.requestId),
-			sessionVersion: normalizeInteger(input.sessionVersion),
+			dataVersion: normalizeInteger(input.dataVersion),
 		};
 	}
 }

@@ -1257,8 +1257,12 @@ export class Workbench extends Layout {
 
   private renderExportView(): void {
     this.exportService.updateViewState({
-      activeFileId: this.getSelectedChartFileId(),
-      snapshot: this.session.getSnapshot(),
+      activeResource: this.explorerService.selectedResource,
+      activeSheetId: this.explorerService.selectedSheetId,
+      resources: this.explorerService.files.map(file => ({
+        resource: file.resource,
+        sheetId: file.sheetId ?? null,
+      })),
     });
   }
 

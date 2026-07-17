@@ -7,11 +7,11 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { localize } from "src/cs/nls";
 import {
-  createExportCsvFilesFromCanonical,
+  createExportCsvFile,
   type ExportCsvFile,
 } from "src/cs/workbench/services/export/browser/csvExport";
 import {
-  createOriginCurveOptionsFromRecord,
+  createOriginCurveOptions,
 } from "src/cs/workbench/services/export/common/exportModel";
 import {
   runExportOriginZip,
@@ -37,19 +37,16 @@ import {
   type OriginExportPlan,
   type OriginYAxisScaleMode,
 } from "src/cs/workbench/services/export/common/originExport";
-import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
-import { getFileRecordAxisProjection } from "src/cs/workbench/services/session/common/sessionFileProjection";
-import {
-  getPlotFileAxisSettings,
-} from "src/cs/workbench/services/plot/common/plotAxisSettings";
 import {
   getXUnitMeta,
   getYUnitMeta,
 } from "src/cs/workbench/services/plot/common/units";
 import {
-  ISessionService,
-  type SessionSnapshot,
-} from "src/cs/workbench/services/session/common/session";
+  createCalculationResourceId,
+  ICalculationService,
+  type CalculationResourceResult,
+} from "src/cs/workbench/services/calculation/common/calculation";
+import type { URI } from "src/cs/base/common/uri";
 import {
   getOriginOpenPlotOptions,
   ISettingsService,
@@ -62,7 +59,9 @@ type OriginExportFile = {
   readonly curveType?: string;
   readonly fileId?: string;
   readonly fileName?: string;
+  readonly resource: URI;
   readonly series?: readonly OriginExportSeries[];
+  readonly sheetId?: string | null;
   readonly xAxisRole?: string;
   readonly xGroups?: readonly OriginExportNumberArray[];
   readonly xLabel?: string;
@@ -85,7 +84,8 @@ type OriginExportSeries = {
 type OriginExportNumberArray = readonly number[] | Float64Array;
 
 type ResolvedOriginExportPlanInput = OriginExportPlanInput & {
-  readonly snapshot: SessionSnapshot;
+  readonly activeFileId: string | null;
+  readonly results: readonly CalculationResourceResult[];
 };
 
 export class BrowserExportService extends Disposable implements IExportService {
@@ -109,12 +109,17 @@ export class BrowserExportService extends Disposable implements IExportService {
   private viewState: ExportViewState = createDefaultExportViewState();
 
   constructor(
-    @ISessionService private readonly sessionService: ISessionService,
+    @ICalculationService private readonly calculationService: ICalculationService,
     @ISettingsService private readonly settingsService: ISettingsService,
     @IPlotService private readonly plotService: IPlotService,
     @INotificationService private readonly notificationService: INotificationService,
   ) {
     super();
+    this._register(this.calculationService.onDidChangeResourceCalculationResult(() => {
+      if (this.currentOriginExportPlanInput) {
+        this.updateViewState(this.currentOriginExportPlanInput);
+      }
+    }));
   }
 
   getState(): ExportState {
@@ -128,13 +133,12 @@ export class BrowserExportService extends Disposable implements IExportService {
   public updateViewState(input: ExportViewStateInput): ExportViewState {
     this.currentOriginExportPlanInput = input;
     const planInput = this.resolveOriginExportPlanInput(this.currentOriginExportPlanInput);
-    const snapshot = planInput.snapshot;
-    const activeFileRecord = this.resolveActiveOriginFileRecord(planInput);
-    const curveOptions = activeFileRecord
-      ? createOriginCurveOptionsFromRecord(
-        activeFileRecord,
+    const activeResult = this.resolveActiveOriginResult(planInput);
+    const curveOptions = activeResult
+      ? createOriginCurveOptions(
+        activeResult,
         (fileId, seriesId, fallback, index) =>
-          this.resolveOriginSeriesLabel(snapshot, fileId, seriesId, fallback, index),
+          this.resolveOriginSeriesLabel(activeResult, fileId, seriesId, fallback, index),
       )
       : [];
     this.syncSelectedCurveKeys(curveOptions.map(option => option.key));
@@ -180,10 +184,10 @@ export class BrowserExportService extends Disposable implements IExportService {
       files,
       this.createSelectedOriginSeriesIdsByFile(files),
       this.state.originMode,
-      (file) => this.resolveOriginYScaleForFile(input.axisSettings, file),
-      (file) => getXUnitMeta(this.resolveOriginXUnitForFile(input.axisSettings, file)).factor,
-      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(input.axisSettings, file)).factor,
-      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(input.axisSettings, file)).label,
+      (file) => this.resolveOriginYScaleForFile(input.axisSettings, file as OriginExportFile),
+      (file) => getXUnitMeta(this.resolveOriginXUnitForFile(input.axisSettings, file as OriginExportFile)).factor,
+      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(input.axisSettings, file as OriginExportFile)).factor,
+      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(input.axisSettings, file as OriginExportFile)).label,
       (file, series, index) =>
         this.resolveOriginCurveLabel(input, file as OriginExportFile, series, index),
       (file, axis) => this.resolveOriginAxisTitleForFile(input, file as OriginExportFile, axis),
@@ -274,33 +278,34 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   private resolveOriginExportPlanInput(input: OriginExportPlanInput): ResolvedOriginExportPlanInput {
-    const snapshot = this.sessionService.getSnapshot();
+    for (const target of input.resources) {
+      this.calculationService.prioritizeResource(target.resource, target.sheetId);
+    }
+    const results = input.resources
+      .map(target => this.calculationService.getResourceResult(target.resource, target.sheetId))
+      .filter((result): result is CalculationResourceResult => result !== null);
+    const activeFileId = input.activeResource
+      ? createCalculationResourceId(input.activeResource, input.activeSheetId)
+      : null;
     return {
-      activeFileId: input.activeFileId,
-      axisSettings: input.axisSettings ?? this.getAxisSettings(snapshot),
-      snapshot,
+      ...input,
+      activeFileId,
+      axisSettings: input.axisSettings ?? this.plotService.getAxisSettings(),
+      results,
     };
   }
 
   private getCurrentOriginExportPlanInput(): ResolvedOriginExportPlanInput {
     return this.resolveOriginExportPlanInput(this.currentOriginExportPlanInput ?? {
-      activeFileId: null,
-      snapshot: this.sessionService.getSnapshot(),
-    });
-  }
-
-  private getAxisSettings(snapshot: SessionSnapshot): OriginExportAxisSettings {
-    return getPlotFileAxisSettings({
-      axisSettings: this.plotService.getAxisSettings(),
-      snapshot,
+      activeResource: null,
+      resources: [],
     });
   }
 
   private resolveOriginExportFiles(input: ResolvedOriginExportPlanInput): OriginExportFile[] {
-    const csvFiles = createExportCsvFilesFromCanonical(
-      input.snapshot.filesById,
-      input.snapshot.fileOrder,
-    ).map((file) => this.createOriginExportFile(file));
+    const csvFiles = input.results.map(result =>
+      this.createOriginExportFile(createExportCsvFile(result), result)
+    );
     if (!csvFiles.length) {
       return [];
     }
@@ -320,11 +325,16 @@ export class BrowserExportService extends Disposable implements IExportService {
     return activeFile ? [activeFile] : [];
   }
 
-  private createOriginExportFile(file: OriginExportSourceFile): OriginExportFile {
+  private createOriginExportFile(
+    file: OriginExportSourceFile,
+    result: CalculationResourceResult,
+  ): OriginExportFile {
     const xAxisRole = String(file.xAxisRole ?? "").trim();
     return {
       ...file,
       curveType: file.curveType ? String(file.curveType) : undefined,
+      resource: result.resource,
+      sheetId: result.sheetId ?? null,
       xAxisRole: xAxisRole || undefined,
     };
   }
@@ -359,11 +369,13 @@ export class BrowserExportService extends Disposable implements IExportService {
     const seriesId = String(series?.id ?? "");
     const fallback = this.resolveFallbackOriginCurveLabel(series, index);
     const fileId = String(file?.fileId ?? "");
-    return this.resolveOriginSeriesLabel(input.snapshot, fileId, seriesId, fallback, index);
+    return file
+      ? this.resolveOriginSeriesLabel(file, fileId, seriesId, fallback, index)
+      : fallback;
   }
 
   private resolveOriginSeriesLabel(
-    snapshot: SessionSnapshot,
+    target: Pick<OriginExportFile, "resource" | "sheetId"> | CalculationResourceResult,
     fileId: string,
     seriesId: string,
     fallback: string,
@@ -372,14 +384,17 @@ export class BrowserExportService extends Disposable implements IExportService {
     const normalizedFileId = String(fileId ?? "").trim();
     const normalizedSeriesId = String(seriesId ?? "").trim();
     const plotLabel = normalizedFileId && normalizedSeriesId
-      ? this.plotService.getLegendLabels(normalizedFileId)[normalizedSeriesId]
+      ? this.plotService.getLegendLabels({
+        resource: target.resource,
+        sheetId: target.sheetId ?? null,
+      })[normalizedSeriesId]
       : undefined;
     if (plotLabel) {
       return plotLabel;
     }
 
-    const series = normalizedFileId && normalizedSeriesId
-      ? snapshot.filesById[normalizedFileId]?.seriesById[normalizedSeriesId]
+    const series = "seriesById" in target && normalizedSeriesId
+      ? target.seriesById[normalizedSeriesId]
       : undefined;
     return String(
       series?.labelOverride ??
@@ -440,40 +455,26 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   private resolveOriginAxisTitleForFile(
-    input: ResolvedOriginExportPlanInput,
+    _input: ResolvedOriginExportPlanInput,
     file: OriginExportFile | null | undefined,
     axis: "x" | "y",
   ): string {
-    const record = this.resolveOriginFileRecord(input, file);
-    const axisProjection = record ? getFileRecordAxisProjection(record) : undefined;
     if (axis === "x") {
-      return String(
-        axisProjection?.xLabel ??
-          file?.xLabel ??
-          "",
-      );
+      return String(file?.xLabel ?? "");
     }
 
-    return String(
-      axisProjection?.yLabel ??
-        file?.yLabel ??
-        "",
-    );
+    return String(file?.yLabel ?? "");
   }
 
-  private resolveActiveOriginFileRecord(
+  private resolveActiveOriginResult(
     input: ResolvedOriginExportPlanInput,
-  ): FileRecord | null {
+  ): CalculationResourceResult | null {
     const activeFileId = String(input.activeFileId ?? "").trim();
-    return activeFileId ? input.snapshot.filesById[activeFileId] ?? null : null;
-  }
-
-  private resolveOriginFileRecord(
-    input: ResolvedOriginExportPlanInput,
-    file: OriginExportFile | null | undefined,
-  ): FileRecord | undefined {
-    const fileId = String(file?.fileId ?? "").trim();
-    return fileId ? input.snapshot.filesById[fileId] : undefined;
+    return activeFileId
+      ? input.results.find(result =>
+        createCalculationResourceId(result.resource, result.sheetId) === activeFileId
+      ) ?? null
+      : null;
   }
 
   private isOriginFilteredCanvas(file: OriginExportFile): boolean {

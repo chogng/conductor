@@ -244,10 +244,10 @@ Specific flow owners:
   guards, and submit Slice requests.
 - Slice execution: Slice executes concrete reviewed/manual Template snapshots and owns resource/sheet base-curve results.
 - Calculation: Calculation derives and caches resource/sheet curves/metrics from Slice results.
-- Plot: Plot consumes Calculation resource results and legacy canonical curves to produce render models.
+- Plot: Plot consumes Calculation resource results to produce render models.
 - Chart: Chart hosts plot UI; it does not interpret raw session facts.
 - Thumbnail: Thumbnail consumes Plot render models; it does not derive curves.
-- Export: consumes remaining Session/Plot/metric state through its own service.
+- Export: consumes Calculation/Plot/metric state through its own service.
 - Parameters: consumes Calculation resource results through its own service.
 - Search: consumes explicit URI structured-content snapshots plus Plot/Chart owner state.
 

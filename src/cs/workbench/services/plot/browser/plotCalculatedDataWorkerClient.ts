@@ -10,8 +10,6 @@ import { getPerfNow, logPerf } from 'src/cs/workbench/common/perf';
 import type { CalculatedData } from 'src/cs/workbench/services/calculation/common/calculationReadModel';
 import type {
 	IPlotCalculatedDataWorker,
-	PlotCalculatedDataWorkerOutput,
-	PlotCalculatedDataWorkerRequest,
 	PlotDisplayModelWorkerOutput,
 	PlotDisplayModelWorkerRequest,
 } from 'src/cs/workbench/services/plot/browser/plotCalculatedDataWorker';
@@ -20,45 +18,30 @@ import type {
 	PlotFileAxisSettings,
 	PlotType,
 } from 'src/cs/workbench/services/plot/common/plot';
-import {
-	getLatestSliceRunRecord,
-	type FileId,
-	type FileRecord,
-} from 'src/cs/workbench/services/session/common/sessionModel';
-
 const PLOT_CALCULATED_DATA_WORKER_TIMEOUT_MS = 15_000;
 
 type PlotWorkerLane = 'background' | 'detail' | 'interactive';
-type PlotWorkerRequestKind = 'calculateData' | 'calculateDisplayModel';
-type PlotWorkerResult = PlotCalculatedDataWorkerOutput | PlotDisplayModelWorkerOutput;
+type PlotWorkerRequestKind = 'calculateDisplayModel';
+type PlotWorkerResult = PlotDisplayModelWorkerOutput;
 
 export type PlotDisplayModelWorkerLane = PlotWorkerLane;
-
-export type PlotCalculatedDataWorkerInput = {
-	readonly file: FileRecord;
-	readonly plotType: PlotType;
-	readonly priority?: PlotCalculatedDataPrefetchPriority;
-	readonly requestId: number;
-	readonly sessionVersion: number;
-};
 
 export type PlotDisplayModelWorkerInput = {
 	readonly axisSettings?: PlotFileAxisSettings;
 	readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
 	readonly calculatedData: CalculatedData;
-	readonly fileId: FileId;
+	readonly fileId: string;
 	readonly hiddenLegendKeys?: readonly string[];
 	readonly includeInspector?: boolean;
 	readonly legendLabels?: Readonly<Record<string, string>>;
 	readonly plotType: PlotType;
 	readonly priority?: PlotCalculatedDataPrefetchPriority;
 	readonly requestId: number;
-	readonly sessionVersion: number;
+	readonly dataVersion: number;
 	readonly workerLane?: PlotDisplayModelWorkerLane;
 };
 
 export type {
-	PlotCalculatedDataWorkerOutput,
 	PlotDisplayModelWorkerOutput,
 };
 
@@ -89,25 +72,6 @@ export class PlotCalculatedDataWorkerClient extends Disposable {
 		};
 	}
 
-	public calculateData(
-		input: PlotCalculatedDataWorkerInput,
-	): Promise<PlotCalculatedDataWorkerOutput | null> {
-		const payload: PlotCalculatedDataWorkerRequest = {
-			file: createPlotWorkerFileRecord(input.file),
-			fileId: input.file.id,
-			plotType: input.plotType,
-			requestId: input.requestId,
-			sessionVersion: input.sessionVersion,
-		};
-		return this.request<PlotCalculatedDataWorkerOutput>({
-			execute: worker => worker.proxy.$calculateData(payload),
-			kind: 'calculateData',
-			lane: getPlotWorkerLane(input.priority),
-			requestId: input.requestId,
-			sessionVersion: input.sessionVersion,
-		});
-	}
-
 	public calculateDisplayModel(
 		input: PlotDisplayModelWorkerInput,
 	): Promise<PlotDisplayModelWorkerOutput | null> {
@@ -121,14 +85,14 @@ export class PlotCalculatedDataWorkerClient extends Disposable {
 			legendLabels: input.legendLabels,
 			plotType: input.plotType,
 			requestId: input.requestId,
-			sessionVersion: input.sessionVersion,
+			dataVersion: input.dataVersion,
 		};
 		return this.request<PlotDisplayModelWorkerOutput>({
 			execute: worker => worker.proxy.$calculateDisplayModel(payload),
 			kind: 'calculateDisplayModel',
 			lane: input.workerLane ?? getPlotWorkerLane(input.priority),
 			requestId: input.requestId,
-			sessionVersion: input.sessionVersion,
+			dataVersion: input.dataVersion,
 		});
 	}
 
@@ -137,7 +101,7 @@ export class PlotCalculatedDataWorkerClient extends Disposable {
 		readonly kind: PlotWorkerRequestKind;
 		readonly lane: PlotWorkerLane;
 		readonly requestId: number;
-		readonly sessionVersion: number;
+		readonly dataVersion: number;
 	}): Promise<T | null> {
 		return new Promise<T | null>(resolve => {
 			this.lanes[input.lane].request({
@@ -145,7 +109,7 @@ export class PlotCalculatedDataWorkerClient extends Disposable {
 				kind: input.kind,
 				requestId: input.requestId,
 				resolve: result => resolve(result as T | null),
-				sessionVersion: input.sessionVersion,
+				dataVersion: input.dataVersion,
 			});
 		});
 	}
@@ -158,7 +122,7 @@ type ReusablePlotWorkerRequest = {
 	readonly kind: PlotWorkerRequestKind;
 	readonly requestId: number;
 	readonly resolve: (result: PlotWorkerResult | null) => void;
-	readonly sessionVersion: number;
+	readonly dataVersion: number;
 };
 
 class ReusablePlotWorkerLane extends Disposable {
@@ -235,7 +199,7 @@ class ReusablePlotWorkerLane extends Disposable {
 			if (
 				this.activeRequest !== request ||
 				result.requestId !== request.requestId ||
-				result.sessionVersion !== request.sessionVersion
+				result.dataVersion !== request.dataVersion
 			) {
 				return;
 			}
@@ -304,49 +268,6 @@ class ReusablePlotWorkerLane extends Disposable {
 		this.worker?.dispose();
 		this.worker = null;
 	}
-}
-
-function createPlotWorkerFileRecord(file: FileRecord): FileRecord {
-	const latestSliceRun = getLatestSliceRunRecord(file);
-	const curvesByKey: FileRecord['curvesByKey'] = {};
-	for (const [key, curve] of Object.entries(file.curvesByKey)) {
-		if (curve.curveGeneration === 'base') {
-			curvesByKey[key] = curve;
-		}
-	}
-	const curveSeriesIds = new Set(
-		Object.values(curvesByKey).map(curve => curve.seriesId),
-	);
-	const seriesById: FileRecord['seriesById'] = {};
-	for (const [seriesId, series] of Object.entries(file.seriesById)) {
-		if (curveSeriesIds.has(seriesId)) {
-			seriesById[seriesId] = series;
-		}
-	}
-
-	const workerFile: FileRecord = {
-		curvesByKey,
-		id: file.id,
-		kind: file.kind,
-		metricsByKey: {},
-		name: file.name,
-		raw: {
-			fileId: file.raw.fileId,
-			fileName: file.raw.fileName,
-			tableOrder: [],
-			tablesById: {},
-		},
-		rawTableVersionsById: {},
-		seriesById,
-		seriesOrder: file.seriesOrder.filter(seriesId => curveSeriesIds.has(seriesId)),
-	};
-	if (latestSliceRun) {
-		workerFile.latestSliceRunId = latestSliceRun.id;
-		workerFile.sliceRunsById = {
-			[latestSliceRun.id]: latestSliceRun,
-		};
-	}
-	return workerFile;
 }
 
 function getPlotWorkerLane(

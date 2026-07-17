@@ -7,6 +7,7 @@ import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { createCalculationResourceId } from "src/cs/workbench/services/calculation/common/calculation";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import {
 	BrowserThumbnailPreviewService,
@@ -71,7 +72,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
 		));
 		const changedFileIds: string[] = [];
@@ -147,7 +147,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 				prefetchPlotDisplayModel: () => undefined,
 			} as unknown as IPlotService,
 		));
@@ -168,7 +167,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			readonly hasFileId: boolean;
 			readonly resource?: string | null;
 		}> = [];
-		const calculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
 		const displayPrefetches: Array<{
 			readonly hasFileId: boolean;
 			readonly resource?: string | null;
@@ -189,9 +187,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: (fileIds: readonly string[], priority: string) => {
-					calculatedPrefetches.push({ fileIds, priority });
-				},
 				prefetchPlotDisplayModel: (input: Parameters<IPlotService["prefetchPlotDisplayModel"]>[0]) => {
 					displayPrefetches.push({
 						hasFileId: Object.prototype.hasOwnProperty.call(input, "fileId"),
@@ -203,7 +198,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 
 		service.prefetch([resourceInput], "visible");
 
-		assert.deepEqual(calculatedPrefetches, []);
 		assert.deepEqual(displayPrefetches, [{
 			hasFileId: false,
 			resource: "file:///data/Uri.csv",
@@ -235,7 +229,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: cacheEmitter.event,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 				prefetchPlotDisplayModel: () => undefined,
 			} as unknown as IPlotService,
 		));
@@ -316,7 +309,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotDisplayModelCache: displayModelEmitter.event,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 				prefetchPlotDisplayModel: () => undefined,
 			} as unknown as IPlotService,
 		));
@@ -393,7 +385,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotDisplayModelCache: displayModelEmitter.event,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 				prefetchPlotDisplayModel: () => undefined,
 			} as unknown as IPlotService,
 		));
@@ -433,7 +424,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
 		));
 		const changedFileIds: string[] = [];
@@ -471,7 +461,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
 		));
 
@@ -486,18 +475,20 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(service.get("file-a").kind, "ready");
 	});
 
-	test("preview requests promote matching plot calculated data priority when hover cannot synchronously resolve", async () => {
-		const plotPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
-		const calculatedFileIds: string[] = [];
+	test("preview requests promote resource display prefetch priority when hover cannot synchronously resolve", async () => {
+		const plotPrefetches: Array<{ resource: string; priority: string }> = [];
+		const calculatedResources: Array<string | null> = [];
 		let modelReady = false;
+		const hoverTarget = { fileId: "hover-a", resource: URI.file("/workspace/hover-a.csv") };
+		const visibleTarget = { fileId: "visible-a", resource: URI.file("/workspace/visible-a.csv") };
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
-					calculatedFileIds.push(fileId);
+				getCachedCalculatedData: (input: Parameters<IPlotService["getCachedCalculatedData"]>[0]) => {
+					calculatedResources.push(input.resource?.toString() ?? null);
 					return modelReady
 						? {
-							fileId,
-							signature: `plot:${fileId}`,
+							fileId: createCalculationResourceId(input.resource!, input.sheetId),
+							signature: `plot:${input.resource?.toString()}`,
 						}
 						: null;
 				},
@@ -505,25 +496,29 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: (fileIds: readonly string[], priority: string) => {
-					plotPrefetches.push({ fileIds, priority });
+				prefetchPlotDisplayModel: (input: Parameters<IPlotService["prefetchPlotDisplayModel"]>[0], priority: string) => {
+					plotPrefetches.push({ resource: input.resource?.toString() ?? "", priority });
 				},
 			} as unknown as IPlotService,
 		));
 
-		service.request("hover-a", "hover");
-		service.prefetch(["visible-a"], "visible");
+		service.request(hoverTarget, "hover");
+		service.prefetch([visibleTarget], "visible");
 
 		assert.deepEqual(plotPrefetches, [
-			{ fileIds: ["hover-a"], priority: "hover" },
-			{ fileIds: ["visible-a"], priority: "visible" },
+			{ resource: hoverTarget.resource.toString(), priority: "hover" },
+			{ resource: visibleTarget.resource.toString(), priority: "visible" },
 		]);
-		assert.deepEqual(calculatedFileIds, ["hover-a"]);
+		assert.deepEqual(calculatedResources, [hoverTarget.resource.toString()]);
 
 		modelReady = true;
 		await timeout();
 
-		assert.deepEqual(calculatedFileIds, ["hover-a", "hover-a", "visible-a"]);
+		assert.deepEqual(calculatedResources, [
+			hoverTarget.resource.toString(),
+			hoverTarget.resource.toString(),
+			visibleTarget.resource.toString(),
+		]);
 	});
 
 	test("preview prefetch runs through a deferred budgeted queue", async () => {
@@ -543,7 +538,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
 		));
 
@@ -574,7 +568,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
 		));
 
@@ -609,7 +602,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: cacheEmitter.event,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
 		));
 
@@ -646,7 +638,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: cacheEmitter.event,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
 		));
 		const changedFileIds: string[] = [];
@@ -685,7 +676,6 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: cacheEmitter.event,
 				onDidChangePlotState: Event.None,
-				prefetchCalculatedData: () => undefined,
 			} as unknown as IPlotService,
 		));
 		const changedFileIds: string[] = [];

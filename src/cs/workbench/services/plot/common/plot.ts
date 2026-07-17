@@ -10,11 +10,7 @@ import {
   type CalculationKind,
 } from "src/cs/workbench/services/calculation/common/calculationTypes";
 import type { CalculatedData } from "src/cs/workbench/services/calculation/common/calculationReadModel";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import type {
-  FileId,
-  SeriesId,
-} from "src/cs/workbench/services/session/common/sessionModel";
+import type { SeriesId } from "src/cs/workbench/services/calculation/common/calculationRecords";
 import type {
   PlotMainRenderModel,
   PlotMainSeries,
@@ -25,6 +21,7 @@ export const PlotTypes = CalculationKinds;
 export const IPlotService = createDecorator<IPlotService>("plotService");
 
 export type PlotType = CalculationKind;
+type FileId = string;
 
 export const isPlotType = (value: unknown): value is PlotType =>
   typeof value === "string" && (PlotTypes as readonly string[]).includes(value);
@@ -64,7 +61,6 @@ export type PlotTargetReference = FileId | URI | PlotTargetInput;
 
 export type PlotCalculatedDataInput = {
   readonly plotType?: PlotType;
-  readonly snapshot?: SessionSnapshot;
 } & PlotTargetInput;
 
 export type PlotCalculatedDataPrefetchPriority = "active" | "hover" | "visible" | "recent" | "nearby" | "idle";
@@ -155,7 +151,6 @@ export interface IPlotService {
   getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getPlotMainRenderModel(input: PlotMainRenderModelInput): PlotMainRenderModel | null;
   cancelQueuedPlotInspectorDisplayModelPrefetch(): void;
-  prefetchCalculatedData(fileIds: readonly FileId[], priority: PlotCalculatedDataPrefetchPriority, plotType?: PlotType): void;
   prefetchPlotInspectorDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModels(inputs: readonly PlotDisplayModelInput[], priority: PlotCalculatedDataPrefetchPriority): void;

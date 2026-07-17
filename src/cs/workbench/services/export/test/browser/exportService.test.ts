@@ -5,18 +5,23 @@
 import assert from "assert";
 
 import { Event as BaseEvent } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import {
+	createCalculationResourceId,
+	type CalculationResourceResult,
+	type ICalculationService,
+} from "src/cs/workbench/services/calculation/common/calculation";
 import type {
 	ExportState,
 	ExportViewState,
 } from "src/cs/workbench/services/export/common/export";
-import type {
-	ISessionService,
-	SessionSnapshot,
-} from "src/cs/workbench/services/session/common/session";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
-import type { IPlotService, PlotFileAxisSettings } from "src/cs/workbench/services/plot/common/plot";
-import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import type {
+	IPlotService,
+	PlotFileAxisSettings,
+	PlotTargetReference,
+} from "src/cs/workbench/services/plot/common/plot";
 
 import { BrowserExportService } from "src/cs/workbench/services/export/browser/exportService";
 import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
@@ -153,8 +158,8 @@ suite("workbench/services/export/browser/exportService", () => {
 		}));
 
 		const viewState = service.updateViewState({
-			activeFileId: null,
-			snapshot: createEmptySnapshot(),
+			activeResource: null,
+			resources: [],
 		});
 
 		assert.deepEqual(viewState, {
@@ -177,54 +182,57 @@ suite("workbench/services/export/browser/exportService", () => {
 	});
 
 	test("resolves curve labels from plot owner state", () => {
-		const snapshot = createSnapshotWithFile(createExportFileRecord());
-		const service = createExportService(snapshot, {
-			"file-a": {
+		const result = createCalculationResult();
+		const fileId = createCalculationResourceId(result.resource, result.sheetId);
+		const service = createExportService([result], {
+			[fileId]: {
 				"series-a": "Plot Label",
 			},
 		});
 
 		const viewState = service.updateViewState({
-			activeFileId: "file-a",
-			snapshot,
+			activeResource: result.resource,
+			resources: [{ resource: result.resource }],
 		});
 
 		assert.deepEqual(viewState.curveOptions.map(option => option.label), ["Plot Label"]);
 		service.dispose();
 	});
 
-	test("merges Plot axis settings with Session export files inside Export", () => {
-		const files = [
-			createExportFileRecord("file-a", "transfer"),
-			createExportFileRecord("file-b", "output"),
+	test("uses Plot axis settings with calculation resource files", () => {
+		const results = [
+			createCalculationResult("file-a", "transfer"),
+			createCalculationResult("file-b", "output"),
 		];
-		const snapshot = createSnapshot(files);
-		const service = createExportService(snapshot, {}, {
+		const fileBId = createCalculationResourceId(results[1].resource, results[1].sheetId);
+		const service = createExportService(results, {}, {
 			xUnitByFileId: {},
-			yScaleByFileId: { "file-b": "log" },
+			yScaleByFileId: { [fileBId]: "log" },
 			yUnitByFileId: {},
 		});
 
 		service.setCanvasScope("all");
 		const viewState = service.updateViewState({
-			activeFileId: "file-a",
-			snapshot,
+			activeResource: results[0].resource,
+			resources: results.map(result => ({ resource: result.resource })),
 		});
 
-		assert.deepEqual(viewState.scopedFileIds, ["file-a", "file-b"]);
+		assert.deepEqual(viewState.scopedFileIds, results.map(result =>
+			createCalculationResourceId(result.resource, result.sheetId)
+		));
 		assert.equal(viewState.hasMixedExportYScales, true);
 		service.dispose();
 	});
 });
 
 const createExportService = (
-	snapshot: SessionSnapshot = createEmptySnapshot(),
+	results: readonly CalculationResourceResult[] = [],
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
 	axisSettings: PlotFileAxisSettings = createEmptyAxisSettings(),
 ): BrowserExportService => {
 	const notificationService = exportTestStore.add(new NotificationService());
 	const service = new BrowserExportService(
-		createSessionServiceStub(snapshot),
+		createCalculationServiceStub(results),
 		createSettingsServiceStub(),
 		createPlotServiceStub(legendLabelsByFileId, axisSettings),
 		notificationService,
@@ -233,9 +241,16 @@ const createExportService = (
 	return service;
 };
 
-const createSessionServiceStub = (snapshot: SessionSnapshot): ISessionService => ({
-	getSnapshot: () => snapshot,
-} as ISessionService);
+const createCalculationServiceStub = (
+	results: readonly CalculationResourceResult[],
+): ICalculationService => ({
+	getResourceResult: (resource: URI, sheetId?: string | null) => results.find(result =>
+		createCalculationResourceId(result.resource, result.sheetId) ===
+		createCalculationResourceId(resource, sheetId)
+	) ?? null,
+	onDidChangeResourceCalculationResult: BaseEvent.None,
+	prioritizeResource: () => undefined,
+} as unknown as ICalculationService);
 
 const createSettingsServiceStub = (): ISettingsService => ({
 	getConductorSettings: () => null,
@@ -247,7 +262,15 @@ const createPlotServiceStub = (
 ): IPlotService => ({
 	getCachedCalculatedData: () => null,
 	getAxisSettings: () => axisSettings,
-	getLegendLabels: (fileId: string) => legendLabelsByFileId[fileId] ?? {},
+	getLegendLabels: (target: PlotTargetReference) => {
+		if (!target || typeof target === "string" || target instanceof URI) {
+			return {};
+		}
+		const fileId = target.resource
+			? createCalculationResourceId(target.resource, target.sheetId)
+			: String(target.fileId ?? "");
+		return legendLabelsByFileId[fileId] ?? {};
+	},
 	onDidChangeCalculatedDataCache: BaseEvent.None,
 } as unknown as IPlotService);
 
@@ -257,39 +280,24 @@ const createEmptyAxisSettings = (): PlotFileAxisSettings => ({
 	yUnitByFileId: {},
 });
 
-const createEmptySnapshot = (): SessionSnapshot => ({
-	fileOrder: [],
-	filesById: {},
-	schemaVersion: 1,
-	sessionVersion: 1,
-});
-
-const createSnapshot = (files: readonly FileRecord[]): SessionSnapshot => ({
-	fileOrder: files.map(file => file.id),
-	filesById: Object.fromEntries(files.map(file => [file.id, file])),
-	schemaVersion: 1,
-	sessionVersion: 1,
-});
-
-const createSnapshotWithFile = (file: FileRecord): SessionSnapshot => createSnapshot([file]);
-
-const createExportFileRecord = (
-	fileId: string = "file-a",
+const createCalculationResult = (
+	fileId = "file-a",
 	ivMode: "transfer" | "output" = "transfer",
-): FileRecord => ({
-	id: fileId,
-	kind: "unknown",
-	name: `${fileId}.csv`,
-	raw: {
-		fileId,
-		fileName: `${fileId}.csv`,
-		tableOrder: [],
-		tablesById: {},
+): CalculationResourceResult => ({
+	axis: {
+		xAxisRole: ivMode === "transfer" ? "vg" : "vd",
+		xLabel: ivMode === "transfer" ? "Gate Voltage" : "Drain Voltage",
+		xUnit: "V",
+		yLabel: "Drain Current",
+		yUnit: "A",
 	},
-	rawTableVersionsById: {},
+	completedAt: 1,
+	inputSignature: `input-${fileId}`,
+	metricsByKey: {},
+	requestSignature: `request-${fileId}`,
+	resource: URI.parse(`test:/${fileId}.csv`),
 	seriesById: {
 		"series-a": {
-			fileId,
 			groupIndex: 0,
 			id: "series-a",
 			name: "Fallback Label",
@@ -301,12 +309,10 @@ const createExportFileRecord = (
 		[`base:iv:${ivMode}:series-a`]: {
 			curveFamily: "iv",
 			curveGeneration: "base",
-			fileId,
 			ivMode,
 			lineage: {
 				baseFamily: "iv",
 				baseSeries: {
-					fileId,
 					seriesId: "series-a",
 				},
 				curveGeneration: "base",
@@ -317,5 +323,6 @@ const createExportFileRecord = (
 			signature: "series-a",
 		},
 	},
-	metricsByKey: {},
+	sourceModelVersion: 1,
+	sourceVersion: 1,
 });

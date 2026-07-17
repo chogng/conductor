@@ -243,7 +243,6 @@ const createIdlePlotServiceForTest = (): IPlotService => ({
 	onDidChangeCalculatedDataCache: Event.None as IPlotService["onDidChangeCalculatedDataCache"],
 	onDidChangePlotDisplayModelCache: Event.None as IPlotService["onDidChangePlotDisplayModelCache"],
 	onDidChangePlotState: Event.None as IPlotService["onDidChangePlotState"],
-	prefetchCalculatedData: () => undefined,
 	prefetchPlotDisplayModel: () => undefined,
 	prefetchPlotDisplayModels: () => undefined,
 	prefetchPlotInspectorDisplayModel: () => undefined,
