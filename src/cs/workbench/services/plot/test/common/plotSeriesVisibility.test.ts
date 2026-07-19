@@ -62,8 +62,8 @@ const createModel = (): PlotSeriesVisibilityModel => ({
   ],
   signature: "model-signature",
   source: {
-    fileId: "file-a",
     inputKind: "processed",
+    resource: "file:///file-a.csv",
   },
   xDomain: [-2, 1],
   xUnitLabel: "V",

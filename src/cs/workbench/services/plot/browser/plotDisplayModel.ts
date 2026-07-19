@@ -6,10 +6,11 @@ import {
   createSecondCalculatedData,
   type CalculatedData,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
+import { createCalculationResourceId } from "src/cs/workbench/services/calculation/common/calculation";
 import {
   type PlotAxisTitleContext,
+  type PlotAxisSettings,
   type PlotDisplayModel,
-  type PlotFileAxisSettings,
   type PlotPaneDisplayModel,
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
@@ -29,7 +30,7 @@ import {
 } from "src/cs/workbench/services/plot/common/units";
 
 export type CreatePlotDisplayModelInput = {
-  readonly axisSettings?: PlotFileAxisSettings;
+  readonly axisSettings?: PlotAxisSettings;
   readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
   readonly calculatedData: CalculatedData | null;
   readonly hiddenLegendKeys?: readonly string[];
@@ -47,7 +48,6 @@ export const createPlotDisplayModelFromCalculatedData = (
 
   const chartXTitleContext = createAxisTitleContext({
     axis: "x",
-    fileId: parts.fileId,
     pane: "chart",
     plotType: parts.chartData.kind as PlotType,
     resource: parts.resource,
@@ -55,7 +55,6 @@ export const createPlotDisplayModelFromCalculatedData = (
   });
   const chartYTitleContext = createAxisTitleContext({
     axis: "y",
-    fileId: parts.fileId,
     pane: "chart",
     plotType: parts.chartData.kind as PlotType,
     resource: parts.resource,
@@ -85,14 +84,12 @@ export const createPlotDisplayModelFromCalculatedData = (
       yAxisTitleContext: chartYTitleContext,
       yScaleMode: parts.yScaleMode,
     },
-    fileId: parts.fileId,
     inspector: input.includeInspector === false
       ? null
       : createInspectorDisplayModel({
         axisTitleOverridesByKey: input.axisTitleOverridesByKey,
         chartData: parts.chartData,
         displayUnits: parts.displayUnits,
-        fileId: parts.fileId,
         colorSeriesList: parts.colorSeriesList,
         resource: parts.resource,
         sheetId: parts.sheetId,
@@ -118,7 +115,6 @@ export const createPlotInspectorDisplayModelFromCalculatedData = (
     chartData: parts.chartData,
     colorSeriesList: parts.colorSeriesList,
     displayUnits: parts.displayUnits,
-    fileId: parts.fileId,
     resource: parts.resource,
     sheetId: parts.sheetId,
     yScaleMode: parts.yScaleMode,
@@ -136,14 +132,13 @@ const createPlotDisplayModelParts = (
     readonly yFactor: number;
     readonly yUnit: string | undefined;
   };
-  readonly fileId: string;
-  readonly resource?: PlotDisplayModel["resource"];
+  readonly resource: PlotDisplayModel["resource"];
   readonly sheetId?: PlotDisplayModel["sheetId"];
   readonly yScaleMode: "linear" | "log";
 } | null => {
   const calculatedData = input.calculatedData;
-  const fileId = String(calculatedData?.source.fileId ?? "").trim();
-  if (!calculatedData || !fileId) {
+  const resource = calculatedData?.source.resource;
+  if (!calculatedData || !resource) {
     return null;
   }
 
@@ -158,8 +153,7 @@ const createPlotDisplayModelParts = (
     chartData,
     colorSeriesList: calculatedData.seriesList,
     displayUnits,
-    fileId,
-    resource: calculatedData.source.resource ?? null,
+    resource,
     sheetId: calculatedData.source.sheetId ?? null,
     yScaleMode,
   };
@@ -188,7 +182,6 @@ const createInspectorDisplayModel = ({
   chartData,
   colorSeriesList,
   displayUnits,
-  fileId,
   resource,
   sheetId,
   yScaleMode,
@@ -202,8 +195,7 @@ const createInspectorDisplayModel = ({
     readonly yFactor: number;
     readonly yUnit: string | undefined;
   };
-  readonly fileId: string;
-  readonly resource?: PlotDisplayModel["resource"];
+  readonly resource: PlotDisplayModel["resource"];
   readonly sheetId?: PlotDisplayModel["sheetId"];
   readonly yScaleMode: "linear" | "log";
 }): PlotDisplayModel["inspector"] => {
@@ -213,7 +205,6 @@ const createInspectorDisplayModel = ({
     : undefined;
   const inspectorXTitleContext = createAxisTitleContext({
     axis: "x",
-    fileId,
     pane: "inspector",
     plotType: chartData.kind as PlotType,
     resource,
@@ -221,7 +212,6 @@ const createInspectorDisplayModel = ({
   });
   const inspectorYTitleContext = createAxisTitleContext({
     axis: "y",
-    fileId,
     pane: "inspector",
     plotType: chartData.kind as PlotType,
     resource,
@@ -254,23 +244,23 @@ const createInspectorDisplayModel = ({
 
 const resolveDisplayUnits = (
   data: CalculatedData,
-  axisSettings: PlotFileAxisSettings | undefined,
+  axisSettings: PlotAxisSettings | undefined,
 ): {
   readonly xFactor: number;
   readonly xUnit: string | undefined;
   readonly yFactor: number;
   readonly yUnit: string | undefined;
 } => {
-  const fileId = String(data.source.fileId ?? "").trim();
+  const resourceKey = getCalculatedDataResourceKey(data);
   const sourceXUnit = normalizeXUnit(data.xUnitLabel, "V") || "V";
   const sourceYUnit = normalizeYUnit(data.yUnitLabel);
   const xUnit = normalizeXUnitForFamily(
-    fileId ? axisSettings?.xUnitByFileId?.[fileId] : undefined,
+    resourceKey ? axisSettings?.xUnitByResourceKey?.[resourceKey] : undefined,
     sourceXUnit,
   ) || sourceXUnit;
   const yUnit = sourceYUnit
     ? normalizeYUnitForFamily(
-        fileId ? axisSettings?.yUnitByFileId?.[fileId] : undefined,
+        resourceKey ? axisSettings?.yUnitByResourceKey?.[resourceKey] : undefined,
         sourceYUnit,
       ) || sourceYUnit
     : undefined;
@@ -285,22 +275,24 @@ const resolveDisplayUnits = (
 
 const createUnitControlModel = (
   data: CalculatedData,
-  axisSettings: PlotFileAxisSettings | undefined,
+  axisSettings: PlotAxisSettings | undefined,
 ): PlotDisplayModel["unitControl"] => {
-  const fileId = String(data.source.fileId ?? "").trim();
-  if (!fileId) {
+  const resource = data.source.resource;
+  const resourceKey = getCalculatedDataResourceKey(data);
+  if (!resource || !resourceKey) {
     return null;
   }
 
   const sourceXUnit = normalizeXUnit(data.activeFile?.xUnit, "V") || "V";
   const displayYUnit = normalizeYUnit(data.yUnitLabel);
   return {
-    fileId,
-    xUnit: normalizeXUnitForFamily(axisSettings?.xUnitByFileId?.[fileId], sourceXUnit) || sourceXUnit,
+    resource,
+    sheetId: data.source.sheetId ?? null,
+    xUnit: normalizeXUnitForFamily(axisSettings?.xUnitByResourceKey?.[resourceKey], sourceXUnit) || sourceXUnit,
     xUnitOptions: getXUnitValuesForFamily(sourceXUnit),
     yScale: resolveYScale(data, axisSettings),
     yUnit: displayYUnit
-      ? normalizeYUnitForFamily(axisSettings?.yUnitByFileId?.[fileId], displayYUnit) || displayYUnit
+      ? normalizeYUnitForFamily(axisSettings?.yUnitByResourceKey?.[resourceKey], displayYUnit) || displayYUnit
       : null,
     yUnitOptions: displayYUnit ? getYUnitValuesForFamily(displayYUnit) : [],
   };
@@ -308,74 +300,20 @@ const createUnitControlModel = (
 
 const getPlotAxisTitleIdentityKey = (
   context: PlotAxisTitleContext,
-): string => {
-  const resource = getResourceKey(context.resource);
-  if (!resource) {
-    return context.fileId;
-  }
-
-  const sheetId = String(context.sheetId ?? "").trim();
-  return sheetId ? `${resource}\u0000${sheetId}` : resource;
-};
-
-const getResourceKey = (resource: unknown): string => {
-  const text = getResourceString(resource);
-  if (text) {
-    return text.replace(/\\/g, "/");
-  }
-
-  const components = resource as {
-    readonly authority?: unknown;
-    readonly fragment?: unknown;
-    readonly path?: unknown;
-    readonly query?: unknown;
-    readonly scheme?: unknown;
-  } | null | undefined;
-  const path = String(components?.path ?? "").trim();
-  if (!path) {
-    return "";
-  }
-
-  const scheme = String(components?.scheme ?? "").trim();
-  const authority = String(components?.authority ?? "").trim();
-  const query = String(components?.query ?? "").trim();
-  const fragment = String(components?.fragment ?? "").trim();
-  if (scheme === "file") {
-    return [
-      "file://",
-      authority,
-      path,
-      query ? `?${query}` : "",
-      fragment ? `#${fragment}` : "",
-    ].join("").replace(/\\/g, "/");
-  }
-
-  return [
-    scheme ? `${scheme}:` : "",
-    authority ? `//${authority}` : "",
-    path,
-    query ? `?${query}` : "",
-    fragment ? `#${fragment}` : "",
-  ].join("").replace(/\\/g, "/");
-};
-
-const getResourceString = (resource: unknown): string => {
-  const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
-  if (typeof toString !== "function") {
-    return "";
-  }
-
-  const text = String(toString.call(resource) ?? "").trim();
-  return text === "[object Object]" ? "" : text;
-};
+): string => createCalculationResourceId(context.resource, context.sheetId);
 
 const resolveYScale = (
   data: CalculatedData,
-  axisSettings: PlotFileAxisSettings | undefined,
+  axisSettings: PlotAxisSettings | undefined,
 ): "linear" | "log" => {
-  const fileId = String(data.source.fileId ?? "").trim();
-  return fileId && axisSettings?.yScaleByFileId?.[fileId] === "log" ? "log" : "linear";
+  const resourceKey = getCalculatedDataResourceKey(data);
+  return resourceKey && axisSettings?.yScaleByResourceKey?.[resourceKey] === "log" ? "log" : "linear";
 };
+
+const getCalculatedDataResourceKey = (data: CalculatedData): string | null =>
+  data.source.resource
+    ? createCalculationResourceId(data.source.resource, data.source.sheetId)
+    : null;
 
 const applyLegendLabels = (
   data: CalculatedData,

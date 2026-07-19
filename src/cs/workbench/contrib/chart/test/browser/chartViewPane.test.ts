@@ -5,6 +5,7 @@
 import assert from "assert";
 
 import { Emitter, Event } from "src/cs/base/common/event";
+import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { ICommandEvent, ICommandService } from "src/cs/platform/commands/common/commands";
 import {
@@ -26,9 +27,12 @@ import type {
 	PlotDisplayModel,
 	PlotLegendModel,
 	PlotPaneDisplayModel,
+	PlotTarget,
 } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
+
+const TEST_RESOURCE = URI.parse("file:///file-a.csv");
 
 suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -57,6 +61,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 		const commandIds: string[] = [];
 		const input = createChartViewInput({
 			activeFileId: "file-a",
+			activeResource: TEST_RESOURCE,
 			activePlotType: "iv",
 			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
 			hasChartData: true,
@@ -106,6 +111,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 
 		const input = createChartViewInput({
 			activeFileId: "file-a",
+			activeResource: TEST_RESOURCE,
 			activePlotType: "iv",
 			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
 			hasChartData: true,
@@ -144,7 +150,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 			inputElement.dispatchEvent(new globalThis.FocusEvent("blur"));
 			await Promise.resolve();
 
-			assert.equal(plotService.getLegendLabels("file-a")["series-a"], "Edited");
+			assert.equal(plotService.getLegendLabels({ resource: TEST_RESOURCE })["series-a"], "Edited");
 			assert.equal(pane.element.querySelectorAll(".chart_view_detail_actions").length, 1);
 			assert.equal(pane.element.querySelectorAll(`button[data-action-id="${CHART_LEGEND_ACTION_ID}"]`).length, 1);
 		} finally {
@@ -159,6 +165,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 
 		const input = createChartViewInput({
 			activeFileId: "file-a",
+			activeResource: TEST_RESOURCE,
 			activePlotType: "iv",
 			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
 			hasChartData: true,
@@ -204,6 +211,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 
 		const input = createChartViewInput({
 			activeFileId: "file-a",
+			activeResource: TEST_RESOURCE,
 			activePlotType: "iv",
 			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
 			hasChartData: true,
@@ -326,7 +334,7 @@ const createPlotServiceForTest = (
 		activePlotType: "iv",
 		axisTitleOverridesByKey: {},
 		hiddenLegendKeysByPlotKey: {},
-		legendLabelsByFileId: {},
+		legendLabelsByResourceKey: {},
 	}),
 	onDidChangeCalculatedDataCache: Event.None,
 	onDidChangePlotDisplayModelCache: Event.None,
@@ -337,7 +345,7 @@ const createPlotServiceForTest = (
 		request: Parameters<IPlotService["prefetchPlotInspectorDisplayModel"]>[0],
 		priority: Parameters<IPlotService["prefetchPlotInspectorDisplayModel"]>[1],
 	) => {
-		prefetches.push(`${request.fileId}:${priority}`);
+		prefetches.push(`${request.resource.toString()}:${priority}`);
 	},
 	setAxisTitleOverride: () => undefined,
 	setActivePlotType: () => undefined,
@@ -349,12 +357,12 @@ const createPlotServiceForTest = (
 
 const createPlotServiceForLegendEditTest = (): IPlotService => {
 	const onDidChangePlotStateEmitter = new Emitter<ReturnType<IPlotService["getState"]>>();
-	let legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {};
+	let legendLabelsByResourceKey: Readonly<Record<string, Readonly<Record<string, string>>>> = {};
 	const getState = () => ({
 		activePlotType: "iv" as const,
 		axisTitleOverridesByKey: {},
 		hiddenLegendKeysByPlotKey: {},
-		legendLabelsByFileId,
+		legendLabelsByResourceKey,
 	});
 	return {
 		_serviceBrand: undefined,
@@ -362,7 +370,7 @@ const createPlotServiceForLegendEditTest = (): IPlotService => {
 		getCachedPlotDisplayModel: () => createPlotDisplayModel(),
 		getCachedPlotLegendModel: () => createPlotLegendModel(),
 		getHiddenLegendKeys: () => [],
-		getLegendLabels: (fileId: string) => legendLabelsByFileId[fileId] ?? {},
+		getLegendLabels: () => legendLabelsByResourceKey[TEST_RESOURCE.toString()] ?? {},
 		getState,
 		onDidChangeCalculatedDataCache: Event.None,
 		onDidChangePlotDisplayModelCache: Event.None,
@@ -372,12 +380,12 @@ const createPlotServiceForLegendEditTest = (): IPlotService => {
 		prefetchPlotInspectorDisplayModel: () => undefined,
 		setAxisTitleOverride: () => undefined,
 		setActivePlotType: () => undefined,
-		setLegendLabel: (fileId: string, seriesId: string, label: string | null) => {
-			legendLabelsByFileId = label
+		setLegendLabel: (_target: PlotTarget, seriesId: string, label: string | null) => {
+			legendLabelsByResourceKey = label
 				? {
-					...legendLabelsByFileId,
-					[fileId]: {
-						...(legendLabelsByFileId[fileId] ?? {}),
+					...legendLabelsByResourceKey,
+					[TEST_RESOURCE.toString()]: {
+						...(legendLabelsByResourceKey[TEST_RESOURCE.toString()] ?? {}),
 						[seriesId]: label,
 					},
 				}
@@ -398,7 +406,7 @@ const createPlotServiceForHeaderStabilityTest = (): IPlotService & {
 		activePlotType: "iv" as const,
 		axisTitleOverridesByKey: {},
 		hiddenLegendKeysByPlotKey: {},
-		legendLabelsByFileId: {},
+		legendLabelsByResourceKey: {},
 	});
 	return {
 		_serviceBrand: undefined,
@@ -428,15 +436,15 @@ const createPlotServiceForHeaderStabilityTest = (): IPlotService & {
 
 const createPlotDisplayModel = (): PlotDisplayModel => ({
 	chart: createPlotPaneDisplayModel("chart"),
-	fileId: "file-a",
 	inspector: null,
 	plotType: "iv",
+	resource: TEST_RESOURCE,
 	unitControl: null,
 });
 
 const createPlotLegendModel = (): PlotLegendModel => ({
-	fileId: "file-a",
 	plotType: "iv",
+	resource: TEST_RESOURCE,
 	seriesList: createPlotModel().seriesList,
 });
 
@@ -453,16 +461,16 @@ const createPlotPaneDisplayModel = (
 	xAxisTitle: "Vd",
 	xAxisTitleContext: {
 		axis: "x",
-		fileId: "file-a",
 		pane,
 		plotType: "iv",
+		resource: TEST_RESOURCE,
 	},
 	yAxisTitle: "Id",
 	yAxisTitleContext: {
 		axis: "y",
-		fileId: "file-a",
 		pane,
 		plotType: "iv",
+		resource: TEST_RESOURCE,
 	},
 	yScaleMode: "linear",
 });

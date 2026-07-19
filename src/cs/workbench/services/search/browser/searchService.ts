@@ -149,15 +149,15 @@ export class SearchService extends Disposable implements ISearchServiceType {
 	private refreshPointLookupModel(): void {
 		const chartInput = this.chartService.getViewInput();
 		const fileId = normalizeSearchText(chartInput?.activeFileId ?? "").trim();
-		if (!fileId || chartInput?.hasChartData !== true) {
+		const resource = chartInput?.activeResource;
+		if (!fileId || !resource || chartInput?.hasChartData !== true) {
 			this.setPointLookupModel(null);
 			return;
 		}
 
 		const plotDisplayModelInput = this.createPointLookupPlotDisplayModelInput(
-			fileId,
 			chartInput.activePlotType ?? this.plotService.getState().activePlotType,
-			chartInput.activeResource ?? null,
+			resource,
 			chartInput.activeSheetId ?? null,
 		);
 		const plotDisplayModel = this.plotService.getCachedPlotDisplayModel(plotDisplayModelInput);
@@ -214,32 +214,26 @@ export class SearchService extends Disposable implements ISearchServiceType {
 	}
 
 	private createPointLookupPlotDisplayModelInput(
-		fileId: string,
 		plotType: NonNullable<PlotDisplayModelInput["plotType"]>,
 		resource: PlotDisplayModelInput["resource"],
 		sheetId: PlotDisplayModelInput["sheetId"],
 	): PlotDisplayModelInput {
 		const legendModel = this.plotService.getCachedPlotLegendModel({
-			fileId,
 			plotType,
 			resource,
 			sheetId,
 		});
 		const liveLegendKeys = legendModel?.seriesList.map(series => series.id) ?? [];
-		const legendFileId = legendModel?.fileId ?? fileId;
 		const legendResource = legendModel?.resource ?? resource;
 		const legendSheetId = legendModel?.sheetId ?? sheetId;
 		return {
-			fileId,
 			hiddenLegendKeys: liveLegendKeys.length
 				? this.plotService.getHiddenLegendKeys({
-					fileId: legendFileId,
 					resource: legendResource,
 					sheetId: legendSheetId,
 				}, plotType, liveLegendKeys)
 				: [],
 			legendLabels: this.getPointLookupLegendLabels({
-				fileId: legendFileId,
 				resource: legendResource,
 				sheetId: legendSheetId,
 			}, liveLegendKeys),

@@ -10,7 +10,6 @@ export type ChartUnitAxis = "x" | "y";
 export type ChartYScale = "linear" | "log";
 
 export type ChartUnitControlState = {
-  readonly fileId: string;
   readonly xUnit: XUnit;
   readonly xUnitOptions: readonly XUnit[];
   readonly yScale: ChartYScale;
@@ -24,12 +23,8 @@ export const createChartUnitControls = ({
   state,
   store,
 }: {
-  readonly onDidChangeScale: (
-    fileId: string,
-    scale: ChartYScale,
-  ) => void;
+  readonly onDidChangeScale: (scale: ChartYScale) => void;
   readonly onDidChangeUnit: (
-    fileId: string,
     axis: ChartUnitAxis,
     unit: XUnit | YUnit,
   ) => void;
@@ -76,10 +71,7 @@ const createScaleSelect = ({
   state,
   store,
 }: {
-  readonly onDidChangeScale: (
-    fileId: string,
-    scale: ChartYScale,
-  ) => void;
+  readonly onDidChangeScale: (scale: ChartYScale) => void;
   readonly state: ChartUnitControlState;
   readonly store: DisposableStore;
 }): HTMLElement => {
@@ -98,7 +90,7 @@ const createScaleSelect = ({
     ariaLabel: localize("chart.yScale.selectLabel", "Y scale"),
     className: "chart_unit_select chart_scale_select",
     dropdownClassName: "chart_unit_select_surface",
-    onDidSelect: value => onDidChangeScale(state.fileId, value),
+    onDidSelect: value => onDidChangeScale(value),
     options,
     value: state.yScale,
   });
@@ -120,7 +112,6 @@ const createUnitSelect = <T extends XUnit | YUnit>({
   readonly axis: ChartUnitAxis;
   readonly label: string;
   readonly onDidChangeUnit: (
-    fileId: string,
     axis: ChartUnitAxis,
     unit: XUnit | YUnit,
   ) => void;
@@ -142,7 +133,7 @@ const createUnitSelect = <T extends XUnit | YUnit>({
     }),
     className: "chart_unit_select",
     dropdownClassName: "chart_unit_select_surface",
-    onDidSelect: unit => onDidChangeUnit(state.fileId, axis, unit),
+    onDidSelect: unit => onDidChangeUnit(axis, unit),
     options: options.map((optionValue) => ({
       label: optionValue,
       value: optionValue,

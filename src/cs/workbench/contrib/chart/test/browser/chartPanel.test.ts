@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from "assert";
+import { URI } from "src/cs/base/common/uri";
 
 import ChartPanel from "src/cs/workbench/contrib/chart/browser/chartPanel";
 import type { ChartViewProps } from "src/cs/workbench/contrib/chart/browser/views/chartView";
@@ -219,7 +220,6 @@ const createPlotDisplayModel = (
   } = {},
 ): PlotDisplayModel => ({
   chart: createPlotPaneDisplayModel(fileId, "chart", pointsCount, options.plotType),
-  fileId,
   inspector: options.hasInspector
     ? createPlotPaneDisplayModel(
       fileId,
@@ -229,6 +229,7 @@ const createPlotDisplayModel = (
     )
     : null,
   plotType: options.plotType ?? "iv",
+  resource: URI.parse(`file:///${fileId}.csv`),
   unitControl: null,
 });
 
@@ -248,16 +249,16 @@ const createPlotPaneDisplayModel = (
   xAxisTitle: "Vd",
   xAxisTitleContext: {
     axis: "x",
-    fileId,
     pane,
     plotType,
+    resource: URI.parse(`file:///${fileId}.csv`),
   },
   yAxisTitle: "Id",
   yAxisTitleContext: {
     axis: "y",
-    fileId,
     pane,
     plotType,
+    resource: URI.parse(`file:///${fileId}.csv`),
   },
   yScaleMode: "linear",
 });

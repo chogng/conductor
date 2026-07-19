@@ -6,28 +6,28 @@ import { bootstrapWebWorker } from 'src/cs/base/common/worker/webWorker';
 import type { CalculatedData } from 'src/cs/workbench/services/calculation/common/calculationReadModel';
 import { createPlotDisplayModelFromCalculatedData } from 'src/cs/workbench/services/plot/browser/plotDisplayModel';
 import type {
+	PlotAxisSettings,
 	PlotDisplayModel,
-	PlotFileAxisSettings,
 	PlotType,
 } from 'src/cs/workbench/services/plot/common/plot';
 
 export type PlotDisplayModelWorkerRequest = {
-	readonly axisSettings?: PlotFileAxisSettings;
+	readonly axisSettings?: PlotAxisSettings;
 	readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
 	readonly calculatedData: CalculatedData;
-	readonly fileId: string;
 	readonly hiddenLegendKeys?: readonly string[];
 	readonly includeInspector?: boolean;
 	readonly legendLabels?: Readonly<Record<string, string>>;
 	readonly plotType: PlotType;
+	readonly resourceKey: string;
 	readonly requestId: number;
 	readonly dataVersion: number;
 };
 
 export type PlotDisplayModelWorkerOutput = {
 	readonly displayModel: PlotDisplayModel | null;
-	readonly fileId: string;
 	readonly plotType: PlotType;
+	readonly resourceKey: string;
 	readonly requestId: number;
 	readonly dataVersion: number;
 };
@@ -41,10 +41,10 @@ class PlotCalculatedDataWorker implements IPlotCalculatedDataWorker {
 		input: PlotDisplayModelWorkerRequest,
 	): PlotDisplayModelWorkerOutput {
 		const calculatedData = input.calculatedData;
-		const fileId = String(input.fileId ?? calculatedData?.source.fileId ?? '').trim();
+		const resourceKey = String(input.resourceKey ?? '').trim();
 		const plotType = input.plotType ?? calculatedData?.kind;
-		if (!calculatedData || !fileId || !plotType) {
-			throw new Error('Plot worker display request is missing file or plot type.');
+		if (!calculatedData || !resourceKey || !plotType) {
+			throw new Error('Plot worker display request is missing resource or plot type.');
 		}
 
 		return {
@@ -56,8 +56,8 @@ class PlotCalculatedDataWorker implements IPlotCalculatedDataWorker {
 				includeInspector: input.includeInspector,
 				legendLabels: input.legendLabels,
 			}),
-			fileId,
 			plotType,
+			resourceKey,
 			requestId: normalizeInteger(input.requestId),
 			dataVersion: normalizeInteger(input.dataVersion),
 		};

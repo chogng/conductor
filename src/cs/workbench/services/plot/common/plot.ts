@@ -21,7 +21,7 @@ export const PlotTypes = CalculationKinds;
 export const IPlotService = createDecorator<IPlotService>("plotService");
 
 export type PlotType = CalculationKind;
-type FileId = string;
+type PlotResourceKey = string;
 
 export const isPlotType = (value: unknown): value is PlotType =>
   typeof value === "string" && (PlotTypes as readonly string[]).includes(value);
@@ -30,73 +30,61 @@ export type PlotState = {
   readonly axisTitleOverridesByKey: Readonly<Record<string, string>>;
   readonly activePlotType: PlotType;
   readonly hiddenLegendKeysByPlotKey: Readonly<Record<string, readonly SeriesId[]>>;
-  readonly legendLabelsByFileId: Readonly<Record<FileId, Readonly<Record<SeriesId, string>>>>;
+  readonly legendLabelsByResourceKey: Readonly<Record<PlotResourceKey, Readonly<Record<SeriesId, string>>>>;
 };
 
 export type PlotAxisTitlePane = "chart" | "inspector";
 export type PlotAxis = "x" | "y";
 
-export type PlotFileAxisSettings = {
-  readonly xUnitByFileId: Readonly<Record<FileId, string>>;
-  readonly yScaleByFileId: Readonly<Record<FileId, "linear" | "log">>;
-  readonly yUnitByFileId: Readonly<Record<FileId, string>>;
+export type PlotAxisSettings = {
+  readonly xUnitByResourceKey: Readonly<Record<PlotResourceKey, string>>;
+  readonly yScaleByResourceKey: Readonly<Record<PlotResourceKey, "linear" | "log">>;
+  readonly yUnitByResourceKey: Readonly<Record<PlotResourceKey, string>>;
 };
 
 export type PlotAxisTitleContext = {
   readonly axis: PlotAxis;
-  readonly fileId: FileId;
   readonly pane: PlotAxisTitlePane;
   readonly plotType: PlotType;
-  readonly resource?: URI | null;
+  readonly resource: URI;
   readonly sheetId?: string | null;
 };
 
-export type PlotTargetInput = {
-  readonly fileId?: FileId | null;
-  readonly resource?: URI | null;
+export type PlotTarget = {
+  readonly resource: URI;
   readonly sheetId?: string | null;
 };
-
-export type PlotTargetReference = FileId | URI | PlotTargetInput;
 
 export type PlotCalculatedDataInput = {
   readonly plotType?: PlotType;
-} & PlotTargetInput;
+} & PlotTarget;
 
 export type PlotCalculatedDataPrefetchPriority = "active" | "hover" | "visible" | "recent" | "nearby" | "idle";
 
 export type PlotCalculatedDataCacheChangeEvent = {
-  readonly fileId?: FileId;
   readonly plotType: PlotType;
-  readonly resource?: URI | null;
+  readonly resource: URI;
   readonly sheetId?: string | null;
 };
 
 export type PlotDisplayModelCacheChangeEvent = {
-  readonly fileId?: FileId;
   readonly pane?: "chart" | "inspector";
   readonly plotType: PlotType;
-  readonly resource?: URI | null;
+  readonly resource: URI;
   readonly sheetId?: string | null;
 };
-
-export type PlotMainRenderModelInput = PlotCalculatedDataInput;
 
 export type PlotLegendModel = {
-  readonly fileId: FileId;
   readonly plotType: PlotType;
+  readonly resource: URI;
   readonly seriesList: readonly PlotMainSeries[];
-  readonly resource?: URI | null;
   readonly sheetId?: string | null;
 };
 
-export type PlotDisplayModelRequest = {
+export type PlotDisplayModelInput = PlotCalculatedDataInput & {
   readonly hiddenLegendKeys?: readonly string[];
   readonly legendLabels?: Readonly<Record<string, string>>;
 };
-
-export type PlotDisplayModelInput = PlotCalculatedDataInput &
-  PlotDisplayModelRequest;
 
 export type PlotPaneDisplayModel = {
   readonly defaultXAxisTitle: string;
@@ -114,7 +102,8 @@ export type PlotPaneDisplayModel = {
 };
 
 export type PlotUnitControlModel = {
-  readonly fileId: FileId;
+  readonly resource: URI;
+  readonly sheetId?: string | null;
   readonly xUnit: XUnit;
   readonly xUnitOptions: readonly XUnit[];
   readonly yScale: "linear" | "log";
@@ -124,10 +113,9 @@ export type PlotUnitControlModel = {
 
 export type PlotDisplayModel = {
   readonly chart: PlotPaneDisplayModel;
-  readonly fileId: FileId;
   readonly inspector: PlotPaneDisplayModel | null;
   readonly plotType: PlotType;
-  readonly resource?: URI | null;
+  readonly resource: URI;
   readonly sheetId?: string | null;
   readonly unitControl: PlotUnitControlModel | null;
 };
@@ -144,20 +132,20 @@ export interface IPlotService {
   getCachedPlotInspectorDisplayModel(input: PlotDisplayModelInput): PlotPaneDisplayModel | null;
   getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
-  getAxisSettings(): PlotFileAxisSettings;
-  getHiddenLegendKeys(target: PlotTargetReference, plotType: PlotType, liveLegendKeys: readonly SeriesId[]): readonly SeriesId[];
-  getLegendLabels(target: PlotTargetReference): Readonly<Record<SeriesId, string>>;
+  getAxisSettings(): PlotAxisSettings;
+  getHiddenLegendKeys(target: PlotTarget, plotType: PlotType, liveLegendKeys: readonly SeriesId[]): readonly SeriesId[];
+  getLegendLabels(target: PlotTarget): Readonly<Record<SeriesId, string>>;
   getPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
   getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
-  getPlotMainRenderModel(input: PlotMainRenderModelInput): PlotMainRenderModel | null;
+  getPlotMainRenderModel(input: PlotCalculatedDataInput): PlotMainRenderModel | null;
   cancelQueuedPlotInspectorDisplayModelPrefetch(): void;
   prefetchPlotInspectorDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModels(inputs: readonly PlotDisplayModelInput[], priority: PlotCalculatedDataPrefetchPriority): void;
   setAxisTitleOverride(context: PlotAxisTitleContext, title: string, defaultTitle: string): void;
-  setAxisUnit(target: PlotTargetReference, axis: PlotAxis, unit: XUnit | YUnit): Promise<void>;
+  setAxisUnit(target: PlotTarget, axis: PlotAxis, unit: XUnit | YUnit): Promise<void>;
   setActivePlotType(plotType: PlotType): void;
-  setLegendLabel(target: PlotTargetReference, seriesId: SeriesId, label: string | null): void;
-  toggleHiddenLegendKey(target: PlotTargetReference, plotType: PlotType, seriesId: SeriesId, liveLegendKeys: readonly SeriesId[]): void;
-  setYScale(target: PlotTargetReference, scale: "linear" | "log"): Promise<void>;
+  setLegendLabel(target: PlotTarget, seriesId: SeriesId, label: string | null): void;
+  toggleHiddenLegendKey(target: PlotTarget, plotType: PlotType, seriesId: SeriesId, liveLegendKeys: readonly SeriesId[]): void;
+  setYScale(target: PlotTarget, scale: "linear" | "log"): Promise<void>;
 }

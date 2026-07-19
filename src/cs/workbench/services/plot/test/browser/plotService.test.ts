@@ -23,14 +23,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const target = createTarget();
     const service = store.add(createPlotService([createCalculationResult(target)]));
 
-    assert.equal(service.getCalculatedData({ plotType: "iv" }), null);
-    assert.equal(service.getCalculatedData({ fileId: "legacy-file", plotType: "iv" }), null);
-
     const calculated = service.getCalculatedData({ ...target, plotType: "iv" });
 
     assert.ok(calculated);
     assert.equal(calculated.source.inputKind, "calculationResource");
-    assert.equal(calculated.source.fileId, createCalculationResourceId(target.resource, target.sheetId));
     assert.equal(calculated.seriesList[0]?.name, "Drain Current");
     assert.strictEqual(service.getCachedCalculatedData({ ...target, plotType: "iv" }), calculated);
   });

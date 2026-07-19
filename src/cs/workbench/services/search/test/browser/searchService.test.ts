@@ -12,7 +12,7 @@ import { createSearchPointLookupModelFromPlotDisplay } from "src/cs/workbench/se
 import { SearchService } from "src/cs/workbench/services/search/browser/searchService";
 import type { SearchPointLookupModel, SearchState } from "src/cs/workbench/services/search/common/search";
 import type { IChartService } from "src/cs/workbench/services/chart/common/chart";
-import type { IPlotService, PlotDisplayModel, PlotDisplayModelInput, PlotLegendModel } from "src/cs/workbench/services/plot/common/plot";
+import type { IPlotService, PlotDisplayModel, PlotDisplayModelInput, PlotLegendModel, PlotTarget } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
 
 suite("workbench/services/search/test/browser/searchService", () => {
@@ -120,7 +120,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 			activePlotType: "iv",
 			axisTitleOverridesByKey: {},
 			hiddenLegendKeysByPlotKey: {},
-			legendLabelsByFileId: {
+			legendLabelsByResourceKey: {
 				"file-a": legendLabels,
 			},
 		});
@@ -225,9 +225,9 @@ const createIdlePlotServiceForTest = (): IPlotService => ({
 	getCachedPlotLegendModel: () => null,
 	getCalculatedData: () => null,
 	getAxisSettings: () => ({
-		xUnitByFileId: {},
-		yScaleByFileId: {},
-		yUnitByFileId: {},
+		xUnitByResourceKey: {},
+		yScaleByResourceKey: {},
+		yUnitByResourceKey: {},
 	}),
 	getHiddenLegendKeys: () => [],
 	getLegendLabels: () => ({}),
@@ -238,7 +238,7 @@ const createIdlePlotServiceForTest = (): IPlotService => ({
 		activePlotType: "iv",
 		axisTitleOverridesByKey: {},
 		hiddenLegendKeysByPlotKey: {},
-		legendLabelsByFileId: {},
+		legendLabelsByResourceKey: {},
 	}),
 	onDidChangeCalculatedDataCache: Event.None as IPlotService["onDidChangeCalculatedDataCache"],
 	onDidChangePlotDisplayModelCache: Event.None as IPlotService["onDidChangePlotDisplayModelCache"],
@@ -297,6 +297,7 @@ const createPlotDisplayModelForTest = (
 		readonly seriesName?: string;
 	} = {},
 ): PlotDisplayModel => {
+	const resource = URI.parse(`file:///${fileId}.csv`);
 	const chart: PlotDisplayModel["chart"] = {
 		defaultXAxisTitle: "X",
 		defaultYAxisTitle: "Y",
@@ -306,22 +307,21 @@ const createPlotDisplayModelForTest = (
 		xAxisTitle: "X",
 		xAxisTitleContext: {
 			axis: "x",
-			fileId,
 			pane: "chart",
 			plotType: "iv",
+			resource,
 		},
 		yAxisTitle: "Y",
 		yAxisTitleContext: {
 			axis: "y",
-			fileId,
 			pane: "chart",
 			plotType: "iv",
+			resource,
 		},
 		yScaleMode: "linear",
 	};
 	return {
 		chart,
-		fileId,
 		inspector: options.includeInspector
 			? {
 					...chart,
@@ -340,6 +340,7 @@ const createPlotDisplayModelForTest = (
 				}
 			: null,
 		plotType: "iv",
+		resource,
 		unitControl: null,
 	};
 };
@@ -352,6 +353,7 @@ const createChartServiceForPointLookupTest = (): IChartService => ({
 	}),
 	getViewInput: () => ({
 		activeFileId: "file-a",
+		activeResource: URI.parse("file:///file-a.csv"),
 		activePlotType: "iv",
 		chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
 		hasChartData: true,
@@ -376,24 +378,24 @@ const createPlotServiceForPointLookupTest = ({
 	_serviceBrand: undefined,
 	getCachedPlotDisplayModel: (input: PlotDisplayModelInput) => {
 		plotDisplayInputs.push(input);
-		return createPlotDisplayModelForTest(String(input.fileId ?? ""), {
+		return createPlotDisplayModelForTest("file-a", {
 			seriesName: input.legendLabels?.["series-a"] ?? "Series A",
 		});
 	},
 	getCachedPlotLegendModel: (): PlotLegendModel => ({
-		fileId: "file-a",
 		plotType: "iv",
+		resource: URI.parse("file:///file-a.csv"),
 		seriesList: [
 			{ data: [], id: "series-a", name: "Series A" },
 			{ data: [], id: "series-b", name: "Series B" },
 		],
 	}),
 	getHiddenLegendKeys: (
-		target: string | { readonly fileId?: string | null },
+		target: PlotTarget,
 		plotType: NonNullable<PlotDisplayModelInput["plotType"]>,
 		liveLegendKeys: readonly string[],
 	) =>
-		(typeof target === "string" ? target : target.fileId) === "file-a" && plotType === "iv"
+		target.resource.path.endsWith("/file-a.csv") && plotType === "iv"
 			? liveLegendKeys.filter(legendKey => legendKey === "series-b")
 			: [],
 	getLegendLabels: () => legendLabels(),
@@ -401,7 +403,7 @@ const createPlotServiceForPointLookupTest = ({
 		activePlotType: "iv",
 		axisTitleOverridesByKey: {},
 		hiddenLegendKeysByPlotKey: {},
-		legendLabelsByFileId: {
+		legendLabelsByResourceKey: {
 			"file-a": legendLabels(),
 		},
 	}),

@@ -49,7 +49,7 @@ suite("workbench/contrib/chart/browser/chartExplorerSelection", () => {
 					activePlotType: "iv",
 					axisTitleOverridesByKey: {},
 					hiddenLegendKeysByPlotKey: {},
-					legendLabelsByFileId: {},
+					legendLabelsByResourceKey: {},
 				}),
 				prefetchPlotDisplayModel: (input: PlotDisplayModelInput) => {
 					plotPrefetches.push(input.resource?.toString() ?? "");

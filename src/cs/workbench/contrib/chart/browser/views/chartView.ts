@@ -414,7 +414,8 @@ const createChartPaneRenderSignature = (
     .join(",") ?? "";
 
   return [
-    displayModel.fileId,
+    displayModel.resource.toString(),
+    displayModel.sheetId ?? "",
     displayModel.plotType || activePlotType,
     pane,
     model?.pointsCount ?? 0,

@@ -1,4 +1,5 @@
 import assert from "assert";
+import { URI } from "src/cs/base/common/uri";
 
 import {
   createLegendPopover,
@@ -23,8 +24,8 @@ suite("workbench/contrib/chart/test/browser/chartLegend", () => {
   test("renders the editing legend item inline and commits with Enter", async () => {
     const commits: Array<{ legendKey: string; nextLabel: string }> = [];
     const legend = store.add(createLegendPopover({
-      fileId: "file-a",
       plotType: "iv",
+      resource: URI.parse("file:///file-a.csv"),
       seriesList: [createSeries("series-a", "Original")],
     }, {
       editingLegendKey: "series-a",
@@ -53,8 +54,8 @@ suite("workbench/contrib/chart/test/browser/chartLegend", () => {
 
   test("disposes the inline editor when the popover is disposed", () => {
     const legend = store.add(createLegendPopover({
-      fileId: "file-a",
       plotType: "iv",
+      resource: URI.parse("file:///file-a.csv"),
       seriesList: [createSeries("series-a", "Original")],
     }, {
       editingLegendKey: "series-a",
@@ -89,8 +90,8 @@ suite("workbench/contrib/chart/test/browser/chartLegend", () => {
 
   test("leaves legend width to its responsive overlay styles", () => {
     const legend = store.add(createLegendPopover({
-      fileId: "file-a",
       plotType: "iv",
+      resource: URI.parse("file:///file-a.csv"),
       seriesList: [createSeries("series-a", "Detected current")],
     }));
 

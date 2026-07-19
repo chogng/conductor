@@ -19,8 +19,8 @@ import type {
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type {
 	IPlotService,
-	PlotFileAxisSettings,
-	PlotTargetReference,
+	PlotAxisSettings,
+	PlotTarget,
 } from "src/cs/workbench/services/plot/common/plot";
 
 import { BrowserExportService } from "src/cs/workbench/services/export/browser/exportService";
@@ -206,9 +206,9 @@ suite("workbench/services/export/browser/exportService", () => {
 		];
 		const fileBId = createCalculationResourceId(results[1].resource, results[1].sheetId);
 		const service = createExportService(results, {}, {
-			xUnitByFileId: {},
-			yScaleByFileId: { [fileBId]: "log" },
-			yUnitByFileId: {},
+			xUnitByResourceKey: {},
+			yScaleByResourceKey: { [fileBId]: "log" },
+			yUnitByResourceKey: {},
 		});
 
 		service.setCanvasScope("all");
@@ -228,7 +228,7 @@ suite("workbench/services/export/browser/exportService", () => {
 const createExportService = (
 	results: readonly CalculationResourceResult[] = [],
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
-	axisSettings: PlotFileAxisSettings = createEmptyAxisSettings(),
+	axisSettings: PlotAxisSettings = createEmptyAxisSettings(),
 ): BrowserExportService => {
 	const notificationService = exportTestStore.add(new NotificationService());
 	const service = new BrowserExportService(
@@ -258,26 +258,21 @@ const createSettingsServiceStub = (): ISettingsService => ({
 
 const createPlotServiceStub = (
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>>,
-	axisSettings: PlotFileAxisSettings,
+	axisSettings: PlotAxisSettings,
 ): IPlotService => ({
 	getCachedCalculatedData: () => null,
 	getAxisSettings: () => axisSettings,
-	getLegendLabels: (target: PlotTargetReference) => {
-		if (!target || typeof target === "string" || target instanceof URI) {
-			return {};
-		}
-		const fileId = target.resource
-			? createCalculationResourceId(target.resource, target.sheetId)
-			: String(target.fileId ?? "");
+	getLegendLabels: (target: PlotTarget) => {
+		const fileId = createCalculationResourceId(target.resource, target.sheetId);
 		return legendLabelsByFileId[fileId] ?? {};
 	},
 	onDidChangeCalculatedDataCache: BaseEvent.None,
 } as unknown as IPlotService);
 
-const createEmptyAxisSettings = (): PlotFileAxisSettings => ({
-	xUnitByFileId: {},
-	yScaleByFileId: {},
-	yUnitByFileId: {},
+const createEmptyAxisSettings = (): PlotAxisSettings => ({
+	xUnitByResourceKey: {},
+	yScaleByResourceKey: {},
+	yUnitByResourceKey: {},
 });
 
 const createCalculationResult = (

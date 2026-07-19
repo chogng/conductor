@@ -14,8 +14,8 @@ import type {
 	PlotDisplayModelWorkerRequest,
 } from 'src/cs/workbench/services/plot/browser/plotCalculatedDataWorker';
 import type {
+	PlotAxisSettings,
 	PlotCalculatedDataPrefetchPriority,
-	PlotFileAxisSettings,
 	PlotType,
 } from 'src/cs/workbench/services/plot/common/plot';
 const PLOT_CALCULATED_DATA_WORKER_TIMEOUT_MS = 15_000;
@@ -27,15 +27,15 @@ type PlotWorkerResult = PlotDisplayModelWorkerOutput;
 export type PlotDisplayModelWorkerLane = PlotWorkerLane;
 
 export type PlotDisplayModelWorkerInput = {
-	readonly axisSettings?: PlotFileAxisSettings;
+	readonly axisSettings?: PlotAxisSettings;
 	readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
 	readonly calculatedData: CalculatedData;
-	readonly fileId: string;
 	readonly hiddenLegendKeys?: readonly string[];
 	readonly includeInspector?: boolean;
 	readonly legendLabels?: Readonly<Record<string, string>>;
 	readonly plotType: PlotType;
 	readonly priority?: PlotCalculatedDataPrefetchPriority;
+	readonly resourceKey: string;
 	readonly requestId: number;
 	readonly dataVersion: number;
 	readonly workerLane?: PlotDisplayModelWorkerLane;
@@ -79,11 +79,11 @@ export class PlotCalculatedDataWorkerClient extends Disposable {
 			axisSettings: input.axisSettings,
 			axisTitleOverridesByKey: input.axisTitleOverridesByKey,
 			calculatedData: input.calculatedData,
-			fileId: input.fileId,
 			hiddenLegendKeys: input.hiddenLegendKeys,
 			includeInspector: input.includeInspector,
 			legendLabels: input.legendLabels,
 			plotType: input.plotType,
+			resourceKey: input.resourceKey,
 			requestId: input.requestId,
 			dataVersion: input.dataVersion,
 		};

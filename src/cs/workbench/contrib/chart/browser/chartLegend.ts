@@ -11,10 +11,9 @@ import type { URI } from "src/cs/base/common/uri";
 const DEFAULT_LEGEND_FONT_SIZE = 12;
 
 export type LegendContext = {
-  readonly fileId: string;
   readonly plotType: PlotType;
+  readonly resource: URI;
   readonly seriesList: readonly PlotMainSeries[];
-  readonly resource?: URI | null;
   readonly sheetId?: string | null;
 };
 
@@ -32,10 +31,9 @@ export const getLegendContext = (
   }
 
   return {
-    fileId: legendModel.fileId,
     plotType,
+    resource: legendModel.resource,
     seriesList: legendModel.seriesList,
-    resource: legendModel.resource ?? null,
     sheetId: legendModel.sheetId ?? null,
   };
 };
@@ -44,7 +42,6 @@ export const isSameLegendContext = (
   left: LegendContext,
   right: LegendContext,
 ): boolean =>
-  left.fileId === right.fileId &&
   getLegendResourceKey(left.resource) === getLegendResourceKey(right.resource) &&
   String(left.sheetId ?? "") === String(right.sheetId ?? "") &&
   left.plotType === right.plotType &&

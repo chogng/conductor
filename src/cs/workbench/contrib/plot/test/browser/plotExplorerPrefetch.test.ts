@@ -54,7 +54,7 @@ suite("workbench/contrib/plot/browser/plotExplorerPrefetch", () => {
 					activePlotType: "iv",
 					axisTitleOverridesByKey: {},
 					hiddenLegendKeysByPlotKey: {},
-					legendLabelsByFileId: {},
+					legendLabelsByResourceKey: {},
 				}),
 				prefetchPlotDisplayModels: (
 					inputs: readonly PlotDisplayModelInput[],

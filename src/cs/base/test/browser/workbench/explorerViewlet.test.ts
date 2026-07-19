@@ -197,7 +197,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
         activePlotType: "iv",
         axisTitleOverridesByKey: {},
         hiddenLegendKeysByPlotKey: {},
-        legendLabelsByFileId: {},
+        legendLabelsByResourceKey: {},
       }),
     } as unknown as IPlotService,
     {

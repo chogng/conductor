@@ -29,8 +29,9 @@ export type PlotSeriesVisibilityModel = {
   readonly seriesList: readonly PlotSeriesVisibilitySeries[];
   readonly signature: string;
   readonly source?: {
-    readonly fileId?: unknown;
     readonly inputKind?: unknown;
+    readonly resource?: unknown;
+    readonly sheetId?: unknown;
   } | null;
   readonly xDomain: [number, number];
   readonly xUnitLabel: string;
@@ -99,8 +100,9 @@ const createPlotSeriesVisibilitySignature = (
 
   add(model.kind);
   add(model.pointsCount);
-  add(model.source?.fileId);
   add(model.source?.inputKind);
+  add(model.source?.resource);
+  add(model.source?.sheetId);
   add(model.activeFile?.xLabel);
   add(model.activeFile?.yLabel);
   add(model.xDomain[0]);

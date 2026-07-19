@@ -51,7 +51,10 @@ import {
   getOriginOpenPlotOptions,
   ISettingsService,
 } from "src/cs/workbench/services/settings/common/settings";
-import { IPlotService } from "src/cs/workbench/services/plot/common/plot";
+import {
+  IPlotService,
+  type PlotAxisSettings,
+} from "src/cs/workbench/services/plot/common/plot";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 type OriginExportFile = {
@@ -290,7 +293,7 @@ export class BrowserExportService extends Disposable implements IExportService {
     return {
       ...input,
       activeFileId,
-      axisSettings: input.axisSettings ?? this.plotService.getAxisSettings(),
+      axisSettings: input.axisSettings ?? toOriginExportAxisSettings(this.plotService.getAxisSettings()),
       results,
     };
   }
@@ -589,3 +592,11 @@ const areStringArraysEqual = (
   first.every((value, index) => value === second[index]);
 
 registerSingleton(IExportService, BrowserExportService, InstantiationType.Delayed);
+
+const toOriginExportAxisSettings = (
+  settings: PlotAxisSettings,
+): OriginExportAxisSettings => ({
+  xUnitByFileId: settings.xUnitByResourceKey,
+  yScaleByFileId: settings.yScaleByResourceKey,
+  yUnitByFileId: settings.yUnitByResourceKey,
+});
