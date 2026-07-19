@@ -14,7 +14,7 @@ import type {
 	PlotDisplayModelWorkerRequest,
 } from 'src/cs/workbench/services/plot/browser/plotCalculatedDataWorker';
 import type {
-	PlotAxisSettings,
+	PlotAxisOverrides,
 	PlotCalculatedDataPrefetchPriority,
 	PlotType,
 } from 'src/cs/workbench/services/plot/common/plot';
@@ -26,8 +26,8 @@ type PlotWorkerResult = PlotDisplayModelWorkerOutput;
 
 export type PlotDisplayModelWorkerLane = PlotWorkerLane;
 
-export type PlotDisplayModelWorkerInput = {
-	readonly axisSettings?: PlotAxisSettings;
+type PlotDisplayModelWorkerInput = {
+	readonly axisOverrides?: PlotAxisOverrides;
 	readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
 	readonly calculatedData: CalculatedData;
 	readonly hiddenLegendKeys?: readonly string[];
@@ -38,10 +38,6 @@ export type PlotDisplayModelWorkerInput = {
 	readonly requestId: number;
 	readonly dataVersion: number;
 	readonly workerLane?: PlotDisplayModelWorkerLane;
-};
-
-export type {
-	PlotDisplayModelWorkerOutput,
 };
 
 export class PlotCalculatedDataWorkerClient extends Disposable {
@@ -75,7 +71,7 @@ export class PlotCalculatedDataWorkerClient extends Disposable {
 		input: PlotDisplayModelWorkerInput,
 	): Promise<PlotDisplayModelWorkerOutput | null> {
 		const payload: PlotDisplayModelWorkerRequest = {
-			axisSettings: input.axisSettings,
+			axisOverrides: input.axisOverrides,
 			axisTitleOverridesByKey: input.axisTitleOverridesByKey,
 			calculatedData: input.calculatedData,
 			hiddenLegendKeys: input.hiddenLegendKeys,

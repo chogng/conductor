@@ -2,12 +2,12 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 import type {
 	PlotMainRenderModel,
 	PlotMainRenderModelSource,
 	PlotMainSeries,
 } from "src/cs/workbench/services/plot/common/plotModel";
-import { resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 
 export const createPlotMainRenderModel = (
 	source: PlotMainRenderModelSource,

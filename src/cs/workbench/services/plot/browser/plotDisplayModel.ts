@@ -9,7 +9,7 @@ import {
 import { createCalculationResourceId } from "src/cs/workbench/services/calculation/common/calculation";
 import {
   type PlotAxisTitleContext,
-  type PlotAxisSettings,
+  type PlotAxisOverrides,
   type PlotDisplayModel,
   type PlotPaneDisplayModel,
   type PlotType,
@@ -17,7 +17,7 @@ import {
 import { resolveAxisTitleLabel } from "src/cs/workbench/services/plot/common/plotAxisLabels";
 import { filterCalculatedDataSeries } from "src/cs/workbench/services/plot/common/plotSeriesVisibility";
 import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
-import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
+import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotRenderModel";
 import {
   getYUnitValuesForFamily,
   getXUnitValuesForFamily,
@@ -29,8 +29,8 @@ import {
   normalizeYUnitForFamily,
 } from "src/cs/workbench/services/plot/common/units";
 
-export type CreatePlotDisplayModelInput = {
-  readonly axisSettings?: PlotAxisSettings;
+type CreatePlotDisplayModelInput = {
+  readonly axisOverrides?: PlotAxisOverrides;
   readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
   readonly calculatedData: CalculatedData | null;
   readonly hiddenLegendKeys?: readonly string[];
@@ -98,7 +98,7 @@ export const createPlotDisplayModelFromCalculatedData = (
     plotType: parts.chartData.kind as PlotType,
     resource: parts.resource,
     sheetId: parts.sheetId,
-    unitControl: createUnitControlModel(parts.chartData, input.axisSettings),
+    unitControl: createUnitControlModel(parts.chartData, input.axisOverrides),
   };
 };
 
@@ -147,8 +147,8 @@ const createPlotDisplayModelParts = (
     filterCalculatedDataSeries(calculatedData, hiddenLegendKeys),
     input.legendLabels ?? {},
   );
-  const displayUnits = resolveDisplayUnits(chartData, input.axisSettings);
-  const yScaleMode = resolveYScale(chartData, input.axisSettings);
+  const displayUnits = resolveDisplayUnits(chartData, input.axisOverrides);
+  const yScaleMode = resolveYScale(chartData, input.axisOverrides);
   return {
     chartData,
     colorSeriesList: calculatedData.seriesList,
@@ -244,7 +244,7 @@ const createInspectorDisplayModel = ({
 
 const resolveDisplayUnits = (
   data: CalculatedData,
-  axisSettings: PlotAxisSettings | undefined,
+  axisOverrides: PlotAxisOverrides | undefined,
 ): {
   readonly xFactor: number;
   readonly xUnit: string | undefined;
@@ -254,12 +254,12 @@ const resolveDisplayUnits = (
   const sourceXUnit = normalizeXUnit(data.xUnitLabel, "V") || "V";
   const sourceYUnit = normalizeYUnit(data.yUnitLabel);
   const xUnit = normalizeXUnitForFamily(
-    axisSettings?.xUnit,
+    axisOverrides?.xUnit,
     sourceXUnit,
   ) || sourceXUnit;
   const yUnit = sourceYUnit
     ? normalizeYUnitForFamily(
-        axisSettings?.yUnit,
+        axisOverrides?.yUnit,
         sourceYUnit,
       ) || sourceYUnit
     : undefined;
@@ -274,7 +274,7 @@ const resolveDisplayUnits = (
 
 const createUnitControlModel = (
   data: CalculatedData,
-  axisSettings: PlotAxisSettings | undefined,
+  axisOverrides: PlotAxisOverrides | undefined,
 ): PlotDisplayModel["unitControl"] => {
   const resource = data.source.resource;
   if (!resource) {
@@ -286,11 +286,11 @@ const createUnitControlModel = (
   return {
     resource,
     sheetId: data.source.sheetId ?? null,
-    xUnit: normalizeXUnitForFamily(axisSettings?.xUnit, sourceXUnit) || sourceXUnit,
+    xUnit: normalizeXUnitForFamily(axisOverrides?.xUnit, sourceXUnit) || sourceXUnit,
     xUnitOptions: getXUnitValuesForFamily(sourceXUnit),
-    yScale: resolveYScale(data, axisSettings),
+    yScale: resolveYScale(data, axisOverrides),
     yUnit: displayYUnit
-      ? normalizeYUnitForFamily(axisSettings?.yUnit, displayYUnit) || displayYUnit
+      ? normalizeYUnitForFamily(axisOverrides?.yUnit, displayYUnit) || displayYUnit
       : null,
     yUnitOptions: displayYUnit ? getYUnitValuesForFamily(displayYUnit) : [],
   };
@@ -302,9 +302,9 @@ const getPlotAxisTitleIdentityKey = (
 
 const resolveYScale = (
   data: CalculatedData,
-  axisSettings: PlotAxisSettings | undefined,
+  axisOverrides: PlotAxisOverrides | undefined,
 ): "linear" | "log" => {
-  return axisSettings?.yScale === "log" ? "log" : "linear";
+  return axisOverrides?.yScale === "log" ? "log" : "linear";
 };
 
 const applyLegendLabels = (

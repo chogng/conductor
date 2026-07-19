@@ -14,7 +14,7 @@ import {
   DEFAULT_PLOT_AXIS_SETTINGS,
   normalizePlotAxisSettings,
 } from "src/cs/workbench/services/plot/common/plotSettings";
-import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
+import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotRenderModel";
 import type { ThumbnailBitmapOptions } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 
 export type ThumbnailBitmapCache = {

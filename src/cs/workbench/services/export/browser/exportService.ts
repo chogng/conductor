@@ -54,7 +54,7 @@ import {
 } from "src/cs/workbench/services/settings/common/settings";
 import {
   IPlotService,
-  type PlotAxisSettings,
+  type PlotAxisOverrides,
 } from "src/cs/workbench/services/plot/common/plot";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
@@ -296,7 +296,7 @@ export class BrowserExportService extends Disposable implements IExportService {
       activeFileId,
       axisSettings: input.axisSettings ?? toOriginExportAxisSettings(
         input.resources,
-        target => this.plotService.getAxisSettings(target),
+        target => this.plotService.getAxisOverrides(target),
       ),
       results,
     };
@@ -599,7 +599,7 @@ registerSingleton(IExportService, BrowserExportService, InstantiationType.Delaye
 
 const toOriginExportAxisSettings = (
   targets: readonly ExportResourceIdentity[],
-  getSettings: (target: ExportResourceIdentity) => PlotAxisSettings,
+  getSettings: (target: ExportResourceIdentity) => PlotAxisOverrides,
 ): OriginExportAxisSettings => {
   const result: {
     xUnitByFileId: Record<string, string>;

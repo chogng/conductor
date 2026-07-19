@@ -19,7 +19,7 @@ import type {
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type {
 	IPlotService,
-	PlotAxisSettings,
+	PlotAxisOverrides,
 	PlotTarget,
 } from "src/cs/workbench/services/plot/common/plot";
 
@@ -226,7 +226,7 @@ suite("workbench/services/export/browser/exportService", () => {
 const createExportService = (
 	results: readonly CalculationResourceResult[] = [],
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
-	axisSettings: Readonly<Record<string, PlotAxisSettings>> = {},
+	axisSettings: Readonly<Record<string, PlotAxisOverrides>> = {},
 ): BrowserExportService => {
 	const notificationService = exportTestStore.add(new NotificationService());
 	const service = new BrowserExportService(
@@ -256,10 +256,10 @@ const createSettingsServiceStub = (): ISettingsService => ({
 
 const createPlotServiceStub = (
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>>,
-	axisSettings: Readonly<Record<string, PlotAxisSettings>>,
+	axisSettings: Readonly<Record<string, PlotAxisOverrides>>,
 ): IPlotService => ({
 	getCachedCalculatedData: () => null,
-	getAxisSettings: (target: PlotTarget) =>
+	getAxisOverrides: (target: PlotTarget) =>
 		axisSettings[createCalculationResourceId(target.resource, target.sheetId)] ?? {},
 	getLegendLabels: (target: PlotTarget) => {
 		const fileId = createCalculationResourceId(target.resource, target.sheetId);

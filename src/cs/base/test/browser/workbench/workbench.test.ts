@@ -709,7 +709,6 @@ const createWorkbenchOptions = ({
       getCachedPlotLegendModel: () => null,
       getCalculatedData: () => null,
       getLegendLabels: () => ({}),
-      getPlotMainRenderModel: () => null,
       getState: () => ({ activePlotType: "iv" }),
       onDidChangeCalculatedDataCache: Event.None,
       prefetchCalculatedData: () => undefined,

@@ -42,12 +42,10 @@ export const isSameLegendContext = (
   left: LegendContext,
   right: LegendContext,
 ): boolean =>
-  getLegend(left.resource) === getLegend(right.resource) &&
+  URI.revive(left.resource).toString() === URI.revive(right.resource).toString() &&
   String(left.sheetId ?? "") === String(right.sheetId ?? "") &&
   left.plotType === right.plotType &&
   left.seriesList === right.seriesList;
-
-const getLegend = (resource: URI): string => URI.revive(resource).toString();
 
 export const getLegendDefaultLabel = (
   series: PlotMainSeries,

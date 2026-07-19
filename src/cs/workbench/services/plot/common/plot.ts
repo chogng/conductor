@@ -9,10 +9,10 @@ import {
   CalculationKinds,
   type CalculationKind,
 } from "src/cs/workbench/services/calculation/common/calculationTypes";
-import type { CalculatedData } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type { SeriesId } from "src/cs/workbench/services/calculation/common/calculationRecords";
 import type {
   PlotMainRenderModel,
+  PlotMainRenderModelSource,
   PlotMainSeries,
 } from "src/cs/workbench/services/plot/common/plotModel";
 import type { XUnit, YUnit } from "src/cs/workbench/services/plot/common/units";
@@ -32,10 +32,9 @@ export type PlotState = {
   readonly legendLabels: Readonly<Record<string, Readonly<Record<SeriesId, string>>>>;
 };
 
-export type PlotAxisTitlePane = "chart" | "inspector";
 export type PlotAxis = "x" | "y";
 
-export type PlotAxisSettings = {
+export type PlotAxisOverrides = {
   readonly xUnit?: string;
   readonly yScale?: "linear" | "log";
   readonly yUnit?: string;
@@ -43,7 +42,7 @@ export type PlotAxisSettings = {
 
 export type PlotAxisTitleContext = {
   readonly axis: PlotAxis;
-  readonly pane: PlotAxisTitlePane;
+  readonly pane: "chart" | "inspector";
   readonly plotType: PlotType;
   readonly resource: URI;
   readonly sheetId?: string | null;
@@ -57,6 +56,10 @@ export type PlotTarget = {
 export type PlotCalculatedDataInput = {
   readonly plotType?: PlotType;
 } & PlotTarget;
+
+export type PlotSourceModel = PlotMainRenderModelSource & {
+  readonly signature: string;
+};
 
 export type PlotCalculatedDataPrefetchPriority = "active" | "hover" | "visible" | "recent" | "nearby" | "idle";
 
@@ -100,7 +103,7 @@ export type PlotPaneDisplayModel = {
   readonly yScaleMode: "linear" | "log";
 };
 
-export type PlotUnitControlModel = {
+type PlotUnitControlModel = {
   readonly resource: URI;
   readonly sheetId?: string | null;
   readonly xUnit: XUnit;
@@ -126,17 +129,13 @@ export interface IPlotService {
   readonly onDidChangePlotState: Event<PlotState>;
 
   getState(): PlotState;
-  getCachedCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
+  getCachedCalculatedData(input: PlotCalculatedDataInput): PlotSourceModel | null;
   getCachedPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
-  getCachedPlotInspectorDisplayModel(input: PlotDisplayModelInput): PlotPaneDisplayModel | null;
   getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
-  getCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
-  getAxisSettings(target: PlotTarget): PlotAxisSettings;
+  getCalculatedData(input: PlotCalculatedDataInput): PlotSourceModel | null;
+  getAxisOverrides(target: PlotTarget): PlotAxisOverrides;
   getHiddenLegendKeys(target: PlotTarget, plotType: PlotType, liveLegendKeys: readonly SeriesId[]): readonly SeriesId[];
   getLegendLabels(target: PlotTarget): Readonly<Record<SeriesId, string>>;
-  getPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
-  getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
-  getPlotMainRenderModel(input: PlotCalculatedDataInput): PlotMainRenderModel | null;
   cancelQueuedPlotInspectorDisplayModelPrefetch(): void;
   prefetchPlotInspectorDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;

@@ -6,13 +6,13 @@ import { bootstrapWebWorker } from 'src/cs/base/common/worker/webWorker';
 import type { CalculatedData } from 'src/cs/workbench/services/calculation/common/calculationReadModel';
 import { createPlotDisplayModelFromCalculatedData } from 'src/cs/workbench/services/plot/browser/plotDisplayModel';
 import type {
-	PlotAxisSettings,
+	PlotAxisOverrides,
 	PlotDisplayModel,
 	PlotType,
 } from 'src/cs/workbench/services/plot/common/plot';
 
 export type PlotDisplayModelWorkerRequest = {
-	readonly axisSettings?: PlotAxisSettings;
+	readonly axisOverrides?: PlotAxisOverrides;
 	readonly axisTitleOverridesByKey?: Readonly<Record<string, string>>;
 	readonly calculatedData: CalculatedData;
 	readonly hiddenLegendKeys?: readonly string[];
@@ -46,7 +46,7 @@ class PlotCalculatedDataWorker implements IPlotCalculatedDataWorker {
 
 		return {
 			displayModel: createPlotDisplayModelFromCalculatedData({
-				axisSettings: input.axisSettings,
+				axisOverrides: input.axisOverrides,
 				axisTitleOverridesByKey: input.axisTitleOverridesByKey,
 				calculatedData,
 				hiddenLegendKeys: input.hiddenLegendKeys,

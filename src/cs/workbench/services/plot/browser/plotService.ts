@@ -32,7 +32,7 @@ import {
   type PlotDisplayModel,
   type PlotDisplayModelCacheChangeEvent,
   type PlotDisplayModelInput,
-  type PlotAxisSettings,
+  type PlotAxisOverrides,
   type PlotLegendModel,
   type PlotPaneDisplayModel,
   type PlotState,
@@ -40,7 +40,7 @@ import {
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
-import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
+import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotRenderModel";
 import {
   PlotCalculatedDataWorkerClient,
   type PlotDisplayModelWorkerLane,
@@ -58,9 +58,9 @@ import {
 } from "src/cs/workbench/services/plot/common/units";
 import type { SeriesId } from "src/cs/workbench/services/calculation/common/calculationRecords";
 
-const PLOT_AXIS_SETTINGS_STORAGE_KEY = "plot.axisSettings";
+const PLOT_AXIS_OVERRIDES_STORAGE_KEY = "plot.axisOverrides";
 
-type StoredPlotAxisSettings = PlotAxisSettings & PlotTarget;
+type StoredPlotAxisOverrides = PlotAxisOverrides & PlotTarget;
 
 const CALCULATED_DATA_PREFETCH_PRIORITY_ORDER: Readonly<Record<PlotCalculatedDataPrefetchPriority, number>> = {
   active: 0,
@@ -395,12 +395,12 @@ export class PlotService extends Disposable implements IPlotService {
       return null;
     }
 
-    const axisSettings = this.resolveAxisSettings({
+    const axisOverrides = this.resolveAxisOverrides({
       resource: calculatedData.source.resource,
       sheetId: calculatedData.source.sheetId,
     });
     return createPlotDisplayModelFromCalculatedData({
-      axisSettings,
+      axisOverrides,
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
       calculatedData,
       hiddenLegendKeys: input.hiddenLegendKeys,
@@ -417,12 +417,12 @@ export class PlotService extends Disposable implements IPlotService {
       return null;
     }
 
-    const axisSettings = this.resolveAxisSettings({
+    const axisOverrides = this.resolveAxisOverrides({
       resource: calculatedData.source.resource,
       sheetId: calculatedData.source.sheetId,
     });
     return createPlotInspectorDisplayModelFromCalculatedData({
-      axisSettings,
+      axisOverrides,
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
       calculatedData,
       hiddenLegendKeys: input.hiddenLegendKeys,
@@ -836,7 +836,7 @@ export class PlotService extends Disposable implements IPlotService {
     axis: PlotAxis,
     unit: XUnit | YUnit,
   ): Promise<void> {
-    const current = this.resolveAxisSettings(target);
+    const current = this.resolveAxisOverrides(target);
 
     if (axis === "x") {
       const normalizedUnit = normalizeXUnit(unit);
@@ -848,7 +848,7 @@ export class PlotService extends Disposable implements IPlotService {
         return;
       }
 
-      this.storeAxisSettings(target, {
+      this.storeAxisOverrides(target, {
         ...current,
         xUnit: normalizedUnit,
       });
@@ -867,7 +867,7 @@ export class PlotService extends Disposable implements IPlotService {
       return;
     }
 
-    this.storeAxisSettings(target, {
+    this.storeAxisOverrides(target, {
       ...current,
       yUnit: normalizedUnit,
     });
@@ -880,14 +880,14 @@ export class PlotService extends Disposable implements IPlotService {
     target: PlotTarget,
     scale: "linear" | "log",
   ): Promise<void> {
-    const current = this.resolveAxisSettings(target);
+    const current = this.resolveAxisOverrides(target);
 
     const normalizedScale = scale === "log" ? "log" : "linear";
     if (current.yScale === normalizedScale) {
       return;
     }
 
-    this.storeAxisSettings(target, {
+    this.storeAxisOverrides(target, {
       ...current,
       yScale: normalizedScale,
     });
@@ -1567,7 +1567,7 @@ export class PlotService extends Disposable implements IPlotService {
       requestId,
     });
     void this.calculatedDataWorkerClient.calculateDisplayModel({
-      axisSettings: this.resolveAxisSettings(request),
+      axisOverrides: this.resolveAxisOverrides(request),
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
       calculatedData,
       hiddenLegendKeys: request.hiddenLegendKeys,
@@ -1644,7 +1644,7 @@ export class PlotService extends Disposable implements IPlotService {
       requestId,
     });
     void this.calculatedDataWorkerClient.calculateDisplayModel({
-      axisSettings: this.resolveAxisSettings(request),
+      axisOverrides: this.resolveAxisOverrides(request),
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
       calculatedData,
       hiddenLegendKeys: request.hiddenLegendKeys,
@@ -2089,12 +2089,12 @@ export class PlotService extends Disposable implements IPlotService {
   }
 
 
-  public getAxisSettings(target: PlotTarget): PlotAxisSettings {
-    return this.resolveAxisSettings(target);
+  public getAxisOverrides(target: PlotTarget): PlotAxisOverrides {
+    return this.resolveAxisOverrides(target);
   }
 
-  private resolveAxisSettings(target: PlotTarget): PlotAxisSettings {
-    const match = this.getStoredAxisSettings().find(candidate => isSamePlotTarget(candidate, target));
+  private resolveAxisOverrides(target: PlotTarget): PlotAxisOverrides {
+    const match = this.getStoredAxisOverrides().find(candidate => isSamePlotTarget(candidate, target));
     return match
       ? {
           xUnit: match.xUnit,
@@ -2104,19 +2104,19 @@ export class PlotService extends Disposable implements IPlotService {
       : {};
   }
 
-  private getStoredAxisSettings(): readonly StoredPlotAxisSettings[] {
+  private getStoredAxisOverrides(): readonly StoredPlotAxisOverrides[] {
     const stored = this.storageService.getObject<readonly unknown[]>(
-      PLOT_AXIS_SETTINGS_STORAGE_KEY,
+      PLOT_AXIS_OVERRIDES_STORAGE_KEY,
       StorageScope.PROFILE,
       [],
     );
-    return stored.flatMap(createStoredPlotAxisSettings);
+    return stored.flatMap(createStoredPlotAxisOverrides);
   }
 
-  private storeAxisSettings(target: PlotTarget, value: PlotAxisSettings): void {
-    const settings = this.getStoredAxisSettings().filter(candidate => !isSamePlotTarget(candidate, target));
+  private storeAxisOverrides(target: PlotTarget, value: PlotAxisOverrides): void {
+    const settings = this.getStoredAxisOverrides().filter(candidate => !isSamePlotTarget(candidate, target));
     this.storageService.store(
-      PLOT_AXIS_SETTINGS_STORAGE_KEY,
+      PLOT_AXIS_OVERRIDES_STORAGE_KEY,
       [...settings, { ...value, resource: target.resource, sheetId: target.sheetId ?? null }],
       StorageScope.PROFILE,
       StorageTarget.USER,
@@ -2206,7 +2206,7 @@ const createPlotDisplayModelCacheChangeEvent = (
   plotType,
 });
 
-const createStoredPlotAxisSettings = (value: unknown): readonly StoredPlotAxisSettings[] => {
+const createStoredPlotAxisOverrides = (value: unknown): readonly StoredPlotAxisOverrides[] => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return [];
   }
