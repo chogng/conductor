@@ -278,23 +278,6 @@ export class ReviewService extends Disposable implements IReviewService {
     return entry ? createResourceReviewExecutionFromCacheEntry(entry) : null;
   }
 
-  public releaseResource(resource: URI, sheetId?: string | null): void {
-    const resourceIdentity = normalizeResourceIdentity(URI.revive(resource));
-    const normalizedSheetId = normalizeText(sheetId);
-    if (!resourceIdentity) {
-      return;
-    }
-
-    for (const [key, target] of [...this.uriReviewTargetsByKey]) {
-      if (
-        normalizeResourceIdentity(target.resource) === resourceIdentity &&
-        normalizeText(target.sheetId) === normalizedSheetId
-      ) {
-        this.evictUriReviewTarget(key);
-      }
-    }
-  }
-
   private async doReevaluate(
     key: string,
     target: NormalizedUriReviewTarget,

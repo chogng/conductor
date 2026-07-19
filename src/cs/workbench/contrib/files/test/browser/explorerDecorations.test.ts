@@ -315,7 +315,6 @@ const createReviewServiceForTest = (
 		reviewedType: "transfer",
 		reviewedSemanticLabel: "transfer",
 	}),
-	releaseResource: () => undefined,
 	reviewResourceManualTemplate: async () => ({
 		kind: "invalid",
 		diagnostics: [],

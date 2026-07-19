@@ -102,7 +102,6 @@ export interface IReviewService {
     target: ReviewSummaryTarget,
     token?: CancellationToken,
   ): Promise<ReviewReevaluationResult | null>;
-  releaseResource(resource: URI, sheetId?: string | null): void;
   resolveReviewSummary(target: ReviewSummaryTarget): Promise<ReviewSummary | null>;
   reviewResourceForExecution(target: ReviewSummaryTarget): Promise<ResourceReviewExecution | null>;
   reviewResourceManualTemplate(input: ResourceManualTemplateReviewRequest): Promise<ManualTemplateReviewResult>;

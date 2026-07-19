@@ -36,6 +36,10 @@ type RegisteredBrowserFile = {
   readonly path: string;
 };
 
+export type BrowserFileRegistration = IDisposable & {
+  readonly resource: URI;
+};
+
 type BrowserDirectoryInputFile = File & {
   readonly webkitRelativePath?: string;
 };
@@ -285,11 +289,26 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     return this.registerDirectoryHandle(createDirectoryInputHandle(files));
   }
 
-  public registerFile(file: File): URI {
+  public registerFile(file: File): BrowserFileRegistration {
     const id = generateUuid();
     const path = normalizePath(`/${id}/${file.name || "file"}`);
-    this.files.set(path, { file, path });
-    return URI.from({ path, scheme: "file" });
+    const registeredFile = { file, path };
+    const resource = URI.from({ path, scheme: "file" });
+    this.files.set(path, registeredFile);
+    return {
+      resource,
+      dispose: () => {
+        if (this.files.get(path) !== registeredFile) {
+          return;
+        }
+
+        this.files.delete(path);
+        this.onDidFilesChangeEmitter.fire([{
+          resource,
+          type: FileChangeType.DELETED,
+        }]);
+      },
+    };
   }
 
   public registerWritableFileHandle(handle: FileSystemFileHandle): URI {
@@ -297,20 +316,6 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     const path = normalizePath(`/${id}/${handle.name || "file"}`);
     this.files.set(path, { handle, path });
     return URI.from({ path, scheme: "file" });
-  }
-
-  public unregisterFile(resource: URI): boolean {
-    const uri = URI.revive(resource);
-    const path = normalizePath(uri.path);
-    if (!this.files.delete(path)) {
-      return false;
-    }
-
-    this.onDidFilesChangeEmitter.fire([{
-      resource: uri,
-      type: FileChangeType.DELETED,
-    }]);
-    return true;
   }
 
   public async exists(resource: URI): Promise<boolean> {

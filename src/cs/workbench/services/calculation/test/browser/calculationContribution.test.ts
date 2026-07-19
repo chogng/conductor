@@ -117,7 +117,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
 		assert.equal(result.requestSignature, "request-2");
 	});
 
-	test("cancels an active backend calculation when its Slice resource is released", async () => {
+	test("cancels an active backend calculation when its Slice result is removed", async () => {
 		const resource = URI.file("/data/released.csv");
 		const sliceService = store.add(new TestSliceService(
 			createSliceResourceResult(resource, "Sheet 1", 1),
@@ -236,7 +236,6 @@ class TestSliceService extends Disposable implements ISliceService {
 	public markResourceSkipped(): void {}
 	public prioritizeResource(): void {}
 	public cancelResource(): void {}
-	public releaseResource(): void {}
 	public setTemplateSelection(): void {}
 }
 

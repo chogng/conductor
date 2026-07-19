@@ -361,6 +361,5 @@ export interface ISliceService {
   ): void;
   prioritizeResource(resource: URI, sheetId?: SliceSheetId | null): void;
   cancelResource(resources: readonly { readonly resource: URI; readonly sheetId?: SliceSheetId | null }[]): void;
-  releaseResource(resource: URI, sheetId?: SliceSheetId | null): void;
   setTemplateSelection(resource: URI, sheetId: SliceSheetId | null | undefined, selection: TemplateSelection): void;
 }

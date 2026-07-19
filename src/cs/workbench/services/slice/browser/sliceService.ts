@@ -311,26 +311,6 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 	}
 
-	public releaseResource(resource: URI, sheetId?: string | null): void {
-		const cacheKey = createSliceResourceCacheKey(resource, sheetId);
-		if (!cacheKey) {
-			return;
-		}
-
-		let didChange = this.removeQueuedResourceEntries(cacheKey);
-		this.latestRequestSignaturesByCacheKey.delete(cacheKey);
-		didChange = this.deleteResourceResult(cacheKey) || didChange;
-		didChange = this.resourceStatesByCacheKey.delete(cacheKey) || didChange;
-		didChange = this.resourcesByCacheKey.delete(cacheKey) || didChange;
-		if (this.activeQueueKey === cacheKey) {
-			this.activeQueueKey = null;
-			didChange = true;
-		}
-		if (didChange) {
-			this.fireSliceStateChange();
-		}
-	}
-
 	public setTemplateSelection(resource: URI, sheetId: string | null | undefined, selection: TemplateSelection): void {
 		const normalizedResource = normalizeTemplateSelectionResource({ resource, sheetId });
 		if (!normalizedResource) {

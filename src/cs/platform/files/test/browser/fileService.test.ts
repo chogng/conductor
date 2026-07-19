@@ -164,16 +164,17 @@ suite("platform/files/test/browser/fileService", () => {
 
   test("HTMLFileSystemProvider releases directly registered browser files", async () => {
     const { filesService, provider } = createBrowserFileService();
-    const resource = provider.registerFile(new File(
+    const registration = provider.registerFile(new File(
       ["Vg,Id\n0,1"],
       "transfer.csv",
       { lastModified: 1, type: "text/csv" },
     ));
+    const resource = registration.resource;
 
     assert.equal(await filesService.exists(resource), true);
-    assert.equal(provider.unregisterFile(resource), true);
+    registration.dispose();
     assert.equal(await filesService.exists(resource), false);
-    assert.equal(provider.unregisterFile(resource), false);
+    registration.dispose();
   });
 
   test("FileService requests permission before reading browser directory handles", async () => {

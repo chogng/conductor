@@ -22,6 +22,7 @@ import {
 } from "../../../../../platform/progress/common/progress.ts";
 import { UriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentityService";
 import { IMPORT_ERROR_NOTIFICATION_ID } from "../../browser/fileConstants.ts";
+import type { ExplorerFileEntry } from "../../common/explorerModel.ts";
 import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
 import {
   canImportFolderWithFileService,
@@ -37,7 +38,6 @@ import {
   prepareFirstPendingImportFile,
   prepareFileSourcesForImport,
   prepareRemainingPendingImportFiles,
-  releaseBrowserRegisteredExplorerResources,
   type FileImportPrepareFailure,
   type FileSource,
   type PendingImportFile,
@@ -861,8 +861,9 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     let registeredResource: URI | null = null;
     const registerFile = provider.registerFile.bind(provider);
     provider.registerFile = file => {
-      registeredResource = registerFile(file);
-      return registeredResource;
+      const registration = registerFile(file);
+      registeredResource = registration.resource;
+      return registration;
     };
     let applyCheckCount = 0;
 
@@ -885,17 +886,30 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   });
 
   test("keeps a registered browser resource until its last sheet identity is removed", async () => {
-    const failedFiles: FileImportPrepareFailure[] = [];
-    const firstImport = await prepareFirstPendingImportFile({
-      canApplyResult: () => true,
-      failedFiles,
+    let importedFiles: readonly ExplorerFileEntry[] = [];
+    const workflow = store.add(new FileSourceWorkflow({
+      commandService: {
+        executeCommand: async <R,>() => undefined as R | undefined,
+      },
       filesService: browserFilesService,
-      pendingImportFiles: [
-        createDataPendingFile("A.csv", "folder/A.csv"),
-      ],
-      selectedRelativePath: null,
-    });
-    const entry = firstImport.result?.entry;
+      getFiles: () => importedFiles,
+      getSelectedRelativePath: () => null,
+      isDisposed: () => false,
+      notificationService,
+      progressService: createProgressServiceForTest(),
+      uriIdentityService: store.add(new UriIdentityService(browserFilesService)),
+      onAppendExplorerFiles: entries => {
+        importedFiles = [...importedFiles, ...entries];
+      },
+      onDraggingChange: () => undefined,
+      onRemoveSourceItems: () => undefined,
+      onReplaceExplorerFiles: entries => {
+        importedFiles = entries;
+      },
+      syncView: () => undefined,
+    }));
+    await workflow.importGeneratedFiles([createDataFileSource("A.csv")]);
+    const entry = importedFiles[0];
     assert.ok(entry);
     const siblingSheet = {
       ...entry,
@@ -903,15 +917,13 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       sheetId: "sheet-b",
     };
 
-    releaseBrowserRegisteredExplorerResources(
-      browserFilesService,
+    workflow.releaseImportedResources(
       [{ ...entry, sheetId: "sheet-a" }],
       [siblingSheet],
     );
     assert.equal(await browserFilesService.exists(entry.resource), true);
 
-    releaseBrowserRegisteredExplorerResources(
-      browserFilesService,
+    workflow.releaseImportedResources(
       [siblingSheet],
       [],
     );

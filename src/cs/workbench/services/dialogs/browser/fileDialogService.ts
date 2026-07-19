@@ -161,7 +161,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       return undefined;
     }
 
-    return files.map(file => provider.registerFile(file));
+    return files.map(file => this._register(provider.registerFile(file)).resource);
   }
 
   private pickFiles(options: IOpenDialogOptions): Promise<File[]> {
