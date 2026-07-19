@@ -2,6 +2,7 @@ import assert from "assert";
 
 import {
   getFolderImportSupport,
+  WebFileSystemAccess,
 } from "../../browser/webFileSystemAccess.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -32,6 +33,24 @@ suite("platform/files/browser/webFileSystemAccess", () => {
     assert.deepEqual(
       getFolderImportSupport({ canPickFolder: false, hasWebAssembly: false }),
       { reason: "no-webassembly", supported: false },
+    );
+  });
+
+  test("creates a read-only file handle from browser input data", async () => {
+    const file = new File(["Vg,Id\n0,1"], "transfer.csv");
+    const handle = WebFileSystemAccess.createFileHandle(file);
+
+    assert.deepEqual(
+      {
+        file: await handle.getFile(),
+        kind: handle.kind,
+        name: handle.name,
+      },
+      {
+        file,
+        kind: "file",
+        name: "transfer.csv",
+      },
     );
   });
 });

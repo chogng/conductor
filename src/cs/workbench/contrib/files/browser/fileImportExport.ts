@@ -12,16 +12,14 @@ import { URI } from "src/cs/base/common/uri";
 import { localize } from "src/cs/nls";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
-import { getPathForFile } from "src/cs/platform/dnd/browser/dnd";
 import {
-  HTMLFileSystemProvider,
-  type BrowserFileRegistration,
-} from "src/cs/platform/files/browser/htmlFileSystemProvider";
+  extractFileSystemHandles,
+  getPathForFile,
+} from "src/cs/platform/dnd/browser/dnd";
+import { HTMLFileSystemProvider } from "src/cs/platform/files/browser/htmlFileSystemProvider";
 import {
   detectFolderImportSupport,
   WebFileSystemAccess,
-  type FileSystemDirectoryHandle,
-  type FileSystemFileHandle,
   type FileSystemHandle,
   type FolderImportSupport,
 } from "src/cs/platform/files/browser/webFileSystemAccess";
@@ -214,7 +212,6 @@ export type PendingImportFileResult =
   | {
       readonly ok: true;
       readonly entry: ExplorerFileEntry;
-      readonly registration: BrowserFileRegistration | null;
     }
   | { readonly ok: false; readonly error: FileImportPrepareFailure };
 
@@ -222,7 +219,6 @@ export type FirstExplorerFilePreparation = {
   readonly attemptedIndexes: Set<number>;
   readonly result: {
     readonly entry: ExplorerFileEntry;
-    readonly registration: BrowserFileRegistration | null;
   } | null;
 };
 
@@ -342,7 +338,6 @@ export class FileSourceWorkflow implements IDisposable {
   private importErrorNotification: INotificationHandle | null = null;
   private readonly importErrorNotificationListeners = new DisposableStore();
   private readonly excludedSourcePaths = new Set<string>();
-  private readonly browserFileRegistrations = new Map<string, BrowserFileRegistration>();
 
   constructor(
     private readonly options: FileSourceWorkflowOptions,
@@ -364,10 +359,6 @@ export class FileSourceWorkflow implements IDisposable {
     this.clearExternalChanges();
     this.importErrorNotificationListeners.dispose();
     this.externalChangesNotificationListeners.dispose();
-    for (const registration of this.browserFileRegistrations.values()) {
-      registration.dispose();
-    }
-    this.browserFileRegistrations.clear();
   }
 
   public closeImportedSources(): void {
@@ -390,44 +381,6 @@ export class FileSourceWorkflow implements IDisposable {
       if (sourcePath) {
         this.excludedSourcePaths.add(sourcePath);
       }
-    }
-  }
-
-  public releaseImportedResources(
-    removedFiles: readonly ExplorerFileEntry[],
-    retainedFiles: readonly ExplorerFileEntry[],
-  ): void {
-    const retainedResources = new Set(
-      retainedFiles.map(file => URI.revive(file.resource).toString()),
-    );
-    for (const file of removedFiles) {
-      const resourceKey = URI.revive(file.resource).toString();
-      if (retainedResources.has(resourceKey)) {
-        continue;
-      }
-
-      const registration = this.browserFileRegistrations.get(resourceKey);
-      if (!registration) {
-        continue;
-      }
-
-      this.browserFileRegistrations.delete(resourceKey);
-      registration.dispose();
-    }
-  }
-
-  private retainBrowserFileRegistrations(
-    registrations: readonly BrowserFileRegistration[],
-  ): void {
-    for (const registration of registrations) {
-      const resourceKey = registration.resource.toString();
-      const previous = this.browserFileRegistrations.get(resourceKey);
-      if (previous === registration) {
-        continue;
-      }
-
-      previous?.dispose();
-      this.browserFileRegistrations.set(resourceKey, registration);
     }
   }
 
@@ -592,12 +545,8 @@ export class FileSourceWorkflow implements IDisposable {
     let acceptedCount = firstImport.result ? 1 : 0;
 
     if (firstImport.result) {
-      const { entry, registration } = firstImport.result;
       if (canApplyResult()) {
-        this.retainBrowserFileRegistrations(registration ? [registration] : []);
-        this.options.onAppendExplorerFiles([entry]);
-      } else {
-        registration?.dispose();
+        this.options.onAppendExplorerFiles([firstImport.result.entry]);
       }
     }
 
@@ -606,8 +555,6 @@ export class FileSourceWorkflow implements IDisposable {
         canApplyResult,
         failedFiles,
         filesService: this.options.filesService,
-        onBrowserFileRegistrations: registrations =>
-          this.retainBrowserFileRegistrations(registrations),
         onExplorerFiles: entries => this.options.onAppendExplorerFiles(entries),
         pendingImportFiles,
         skippedIndexes: firstImport.attemptedIndexes,
@@ -676,8 +623,6 @@ export class FileSourceWorkflow implements IDisposable {
             canApplyResult,
             failedFiles,
             filesService: this.options.filesService,
-            onBrowserFileRegistrations: registrations =>
-              this.retainBrowserFileRegistrations(registrations),
             onExplorerFiles: entries => {
               if (hasReplacedExplorerFiles) {
                 this.options.onAppendExplorerFiles(entries);
@@ -1012,8 +957,6 @@ export class FileSourceWorkflow implements IDisposable {
         canApplyResult,
         failedFiles,
         filesService: this.options.filesService,
-        onBrowserFileRegistrations: registrations =>
-          this.retainBrowserFileRegistrations(registrations),
         onExplorerFiles: entries => this.options.onAppendExplorerFiles(entries),
         pendingImportFiles,
         skippedIndexes: new Set<number>(),
@@ -1216,7 +1159,6 @@ export const preparePendingImportFile = async (
   let resource: URI;
   let sourcePath: string | null;
   let file: File;
-  let registration: BrowserFileRegistration | null = null;
 
   try {
     markTemplateApplyPerformanceTrace("import.prepare.file.start", {
@@ -1228,10 +1170,8 @@ export const preparePendingImportFile = async (
     const resolvedResource = await resolvePendingImportResource(filesService, pendingImportFile);
     resource = resolvedResource.resource;
     sourcePath = resolvedResource.sourcePath;
-    registration = resolvedResource.registration;
     file = createImportFileFromPendingSource(pendingImportFile, sourceFile);
   } catch (error) {
-    registration?.dispose();
     const failure = toPrepareFailure(
       error,
       relativePath || pendingImportFile.sourceName || localize("files.import.unknownFile", "Unknown file"),
@@ -1279,7 +1219,6 @@ export const preparePendingImportFile = async (
   return {
     entry,
     ok: true,
-    registration,
   };
 };
 
@@ -1327,7 +1266,6 @@ const resolvePendingImportResource = async (
   filesService: IFileService,
   pendingImportFile: PendingImportFile,
 ): Promise<{
-  readonly registration: BrowserFileRegistration | null;
   readonly resource: URI;
   readonly sourcePath: string | null;
 }> => {
@@ -1336,21 +1274,19 @@ const resolvePendingImportResource = async (
     : null;
   if (existingResource && tableFormatService.canHandle(existingResource)) {
     return {
-      registration: null,
       resource: existingResource,
       sourcePath: getTableResourcePath(existingResource),
     };
   }
 
-  const registration = await registerPendingImportFileResource(
+  const resource = await registerPendingImportFileResource(
     filesService,
     pendingImportFile,
   );
-  if (registration) {
+  if (resource) {
     return {
-      registration,
-      resource: registration.resource,
-      sourcePath: getTableResourcePath(registration.resource),
+      resource,
+      sourcePath: getTableResourcePath(resource),
     };
   }
 
@@ -1366,14 +1302,16 @@ const resolvePendingImportResource = async (
 const registerPendingImportFileResource = async (
   filesService: IFileService,
   pendingImportFile: PendingImportFile,
-): Promise<BrowserFileRegistration | null> => {
-  const provider = filesService.getProvider("file");
-  if (!(provider instanceof HTMLFileSystemProvider)) {
+): Promise<URI | null> => {
+  const sourceFile = await getPendingImportBrowserFile(pendingImportFile);
+  if (!sourceFile) {
     return null;
   }
 
-  const sourceFile = await getPendingImportBrowserFile(pendingImportFile);
-  return sourceFile ? provider.registerFile(sourceFile) : null;
+  const provider = filesService.getProvider("file");
+  return provider instanceof HTMLFileSystemProvider
+    ? provider.registerFileHandle(WebFileSystemAccess.createFileHandle(sourceFile))
+    : null;
 };
 
 const getPendingImportBrowserFile = async (
@@ -1457,14 +1395,12 @@ export async function prepareFirstPendingImportFile({
       continue;
     }
     if (!canApplyResult()) {
-      fileResult.registration?.dispose();
       break;
     }
     return {
       attemptedIndexes,
       result: {
         entry: fileResult.entry,
-        registration: fileResult.registration,
       },
     };
   }
@@ -1479,7 +1415,6 @@ export async function prepareRemainingPendingImportFiles({
   canApplyResult,
   failedFiles,
   filesService,
-  onBrowserFileRegistrations,
   onExplorerFiles,
   pendingImportFiles,
   skippedIndexes,
@@ -1487,9 +1422,6 @@ export async function prepareRemainingPendingImportFiles({
   readonly canApplyResult: () => boolean;
   readonly failedFiles: FileImportPrepareFailure[];
   readonly filesService: IFileService;
-  readonly onBrowserFileRegistrations?: (
-    registrations: readonly BrowserFileRegistration[],
-  ) => void;
   readonly onExplorerFiles: (entries: readonly ExplorerFileEntry[]) => void;
   readonly pendingImportFiles: readonly PendingImportFile[];
   readonly skippedIndexes: ReadonlySet<number>;
@@ -1502,7 +1434,6 @@ export async function prepareRemainingPendingImportFiles({
   }
 
   const readyByIndex = new Map<number, ExplorerFileEntry>();
-  const registrationsByIndex = new Map<number, BrowserFileRegistration>();
   const completedIndexes = new Set<number>();
   let nextAppendOffset = 0;
   let nextImportIndex = 0;
@@ -1514,7 +1445,6 @@ export async function prepareRemainingPendingImportFiles({
     }
 
     const entries: ExplorerFileEntry[] = [];
-    const registrations: BrowserFileRegistration[] = [];
     const appendBatchSize = getPendingImportAppendBatchSize(
       remainingIndexes.length,
       acceptedCount,
@@ -1533,11 +1463,6 @@ export async function prepareRemainingPendingImportFiles({
         entries.push(entry);
         readyByIndex.delete(index);
       }
-      const registration = registrationsByIndex.get(index);
-      if (registration) {
-        registrations.push(registration);
-        registrationsByIndex.delete(index);
-      }
       nextAppendOffset += 1;
     }
 
@@ -1546,7 +1471,6 @@ export async function prepareRemainingPendingImportFiles({
     }
 
     const appendStartedAt = getPerfNow();
-    onBrowserFileRegistrations?.(registrations);
     onExplorerFiles(entries);
     markTemplateApplyPerformanceTrace("import.prepare.append", {
       acceptedBeforeAppendCount: acceptedCount,
@@ -1614,17 +1538,11 @@ export async function prepareRemainingPendingImportFiles({
           pendingImportFile,
         );
         if (!canApplyResult()) {
-          if (fileResult.ok) {
-            fileResult.registration?.dispose();
-          }
           return;
         }
 
         if (fileResult.ok) {
           readyByIndex.set(index, fileResult.entry);
-          if (fileResult.registration) {
-            registrationsByIndex.set(index, fileResult.registration);
-          }
         } else {
           failedFiles.push(fileResult.error);
         }
@@ -1644,11 +1562,7 @@ export async function prepareRemainingPendingImportFiles({
     // Drain completed batches larger than the current append window.
   }
   if (!canApplyResult() && readyByIndex.size > 0) {
-    for (const registration of registrationsByIndex.values()) {
-      registration.dispose();
-    }
     readyByIndex.clear();
-    registrationsByIndex.clear();
   }
   markTemplateApplyPerformanceTrace("import.prepare.complete", {
     acceptedCount,
@@ -2085,8 +1999,7 @@ type WebkitFileSystemDirectoryEntry = WebkitFileSystemEntry & {
   };
 };
 
-type DataTransferItemWithFileSystemAccess = DataTransferItem & {
-  getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>;
+type DataTransferItemWithWebkitEntry = DataTransferItem & {
   webkitGetAsEntry?: () => WebkitFileSystemEntry | null;
 };
 
@@ -2097,7 +2010,6 @@ type DroppedBrowserFile = File & {
 type DroppedDataTransferItem = {
   readonly entry: WebkitFileSystemEntry | null;
   readonly file: File | null;
-  readonly handle: Promise<FileSystemHandle | null>;
 };
 
 const isAbsoluteFilePath = (filePath: string): boolean => {
@@ -2157,16 +2069,21 @@ export const collectDroppedFiles = async (
 ): Promise<DroppedFileCollection> => {
   const startedAt = getPerfNow();
   const files = Array.from(dataTransfer.files);
-  const items = Array.from(dataTransfer.items) as DataTransferItemWithFileSystemAccess[];
+  const items = Array.from(dataTransfer.items) as DataTransferItemWithWebkitEntry[];
   const droppedItems = items.map(snapshotDroppedDataTransferItem);
   const nativeCollection = await collectNativeDroppedFiles(
     files,
     filesService,
     resolveFilePath,
   );
+  const transferredHandles = await extractFileSystemHandles(dataTransfer.items);
+  const transferredCollection = transferredHandles.length > 0
+    ? await collectTransferredHandles(transferredHandles, filesService)
+    : null;
   const isHandledNativeFile = (file: File): boolean =>
     nativeCollection.handledFiles.has(file);
   const shouldCollectBrowserSources =
+    Boolean(transferredCollection) ||
     files.some(file => !isHandledNativeFile(file)) ||
     droppedItems.some((item, index) => {
       const itemFile = item.file ?? (
@@ -2175,7 +2092,7 @@ export const collectDroppedFiles = async (
       return !itemFile || !isHandledNativeFile(itemFile);
     });
   const browserSources = shouldCollectBrowserSources
-    ? await collectBrowserDroppedFiles(
+    ? transferredCollection?.sources ?? await collectBrowserDroppedFiles(
         files,
         droppedItems,
         resolveFilePath,
@@ -2186,10 +2103,76 @@ export const collectDroppedFiles = async (
   markDroppedFilesCollected(startedAt, dataTransfer, sources);
 
   return {
-    readFailures: nativeCollection.readFailures,
+    readFailures: [
+      ...nativeCollection.readFailures,
+      ...(transferredCollection?.readFailures ?? []),
+    ],
     sources,
   };
 };
+
+async function collectTransferredHandles(
+  handles: readonly FileSystemHandle[],
+  filesService: IFileService,
+): Promise<DroppedFileCollection | null> {
+  const provider = filesService.getProvider("file");
+  if (!(provider instanceof HTMLFileSystemProvider)) {
+    return null;
+  }
+
+  const sources: FileSource[] = [];
+  const readFailures: FolderFileReadFailure[] = [];
+
+  for (const handle of handles) {
+    if (WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
+      try {
+        const resource = await provider.registerDirectoryHandle(handle);
+        const folder = await collectFolderImportFiles(resource, filesService);
+        sources.push(...folder.files);
+        readFailures.push(...folder.readFailures);
+      } catch (error) {
+        readFailures.push({
+          fileName: handle.name,
+          message: getErrorMessage(error),
+          relativePath: handle.name,
+        });
+      }
+      continue;
+    }
+
+    if (
+      !WebFileSystemAccess.isFileSystemFileHandle(handle) ||
+      !tableFormatService.canHandle(handle.name)
+    ) {
+      continue;
+    }
+
+    try {
+      const resource = await provider.registerFileHandle(handle);
+      const stat = await filesService.stat(resource);
+      sources.push({
+        canUseNativePath: false,
+        fileName: handle.name,
+        kind: "path",
+        lastModified: stat.mtime,
+        relativePath: handle.name,
+        resource,
+        size: stat.size,
+      });
+    } catch (error) {
+      readFailures.push({
+        fileName: handle.name,
+        message: getErrorMessage(error),
+        relativePath: handle.name,
+      });
+    }
+  }
+
+  return {
+    readFailures,
+    sources,
+  };
+}
 
 const collectBrowserDroppedFiles = async (
   files: readonly File[],
@@ -2209,12 +2192,6 @@ const collectBrowserDroppedFiles = async (
       droppedItems.length === files.length ? files[index] : null
     );
     if (itemFile && isHandledNativeFile(itemFile)) {
-      continue;
-    }
-
-    const handle = await item.handle;
-    if (handle) {
-      await collectFileSystemHandleFiles(handle, droppedFiles);
       continue;
     }
 
@@ -2484,102 +2461,12 @@ function getDroppedFileRelativePath(file: File): string {
 }
 
 function snapshotDroppedDataTransferItem(
-  item: DataTransferItemWithFileSystemAccess,
+  item: DataTransferItemWithWebkitEntry,
 ): DroppedDataTransferItem {
   return {
     entry: item.webkitGetAsEntry?.() ?? null,
     file: item.getAsFile?.() ?? null,
-    handle: getDroppedFileSystemHandle(item),
   };
-}
-
-async function getDroppedFileSystemHandle(
-  item: DataTransferItemWithFileSystemAccess,
-): Promise<FileSystemHandle | null> {
-  if (typeof item.getAsFileSystemHandle !== "function") {
-    return null;
-  }
-
-  try {
-    const handle = await item.getAsFileSystemHandle();
-    return WebFileSystemAccess.isFileSystemHandle(handle) ? handle : null;
-  } catch {
-    return null;
-  }
-}
-
-async function collectFileSystemHandleFiles(
-  handle: FileSystemHandle,
-  files: DroppedFile[],
-  parentPath = "",
-): Promise<void> {
-  const relativePath = parentPath ? `${parentPath}/${handle.name}` : handle.name;
-
-  if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
-    if (!tableFormatService.canHandle(handle.name)) {
-      return;
-    }
-
-    const file = await tryReadFileSystemHandleFile(handle);
-    if (file) {
-      files.push({ file, relativePath });
-    }
-    return;
-  }
-
-  if (!WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
-    return;
-  }
-  if (isWorkspaceStorageDirectoryName(handle.name)) {
-    return;
-  }
-
-  for (const child of await readDirectoryHandleChildren(handle)) {
-    await collectFileSystemHandleFiles(child, files, relativePath);
-  }
-}
-
-async function tryReadFileSystemHandleFile(
-  handle: FileSystemFileHandle,
-): Promise<File | null> {
-  try {
-    return await handle.getFile();
-  } catch {
-    return null;
-  }
-}
-
-async function readDirectoryHandleChildren(
-  handle: FileSystemDirectoryHandle,
-): Promise<FileSystemHandle[]> {
-  const children: FileSystemHandle[] = [];
-
-  try {
-    if (typeof handle.entries === "function") {
-      for await (const [, child] of handle.entries()) {
-        children.push(child);
-      }
-      return children;
-    }
-
-    const asyncIterator = handle[Symbol.asyncIterator];
-    if (typeof asyncIterator === "function") {
-      for await (const [, child] of asyncIterator.call(handle)) {
-        children.push(child);
-      }
-      return children;
-    }
-
-    if (typeof handle.values === "function") {
-      for await (const child of handle.values()) {
-        children.push(child);
-      }
-    }
-  } catch {
-    return children;
-  }
-
-  return children;
 }
 
 async function collectWebkitEntryFiles(

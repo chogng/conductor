@@ -4,9 +4,7 @@ import { isLinux } from "src/cs/base/common/platform";
 import { URI } from "src/cs/base/common/uri";
 import { isEqualOrParent, toSlashes } from "src/cs/base/common/extpath";
 import { extname } from "src/cs/base/common/resources";
-import { generateUuid } from "src/cs/base/common/uuid";
 import {
-  FileChangeType,
   FileSystemProviderCapabilities,
   FileType,
   type IFileContent,
@@ -24,21 +22,6 @@ import {
   type FileSystemFileHandle,
   type FileSystemHandle,
 } from "src/cs/platform/files/browser/webFileSystemAccess";
-
-type RegisteredBrowserFileRoot = {
-  readonly handle: FileSystemDirectoryHandle;
-  readonly path: string;
-};
-
-type RegisteredBrowserFile = {
-  readonly file?: File;
-  readonly handle?: FileSystemFileHandle;
-  readonly path: string;
-};
-
-export type BrowserFileRegistration = IDisposable & {
-  readonly resource: URI;
-};
 
 type BrowserDirectoryInputFile = File & {
   readonly webkitRelativePath?: string;
@@ -177,11 +160,7 @@ function toDirectoryHandle(directory: BrowserFileTreeDirectory): FileSystemDirec
 }
 
 function toFileHandle(entry: BrowserFileTreeFile): FileSystemFileHandle {
-  return {
-    kind: "file",
-    name: entry.name,
-    getFile: async () => entry.file,
-  };
+  return WebFileSystemAccess.createFileHandle(entry.file, entry.name);
 }
 
 async function isSameEntry(
@@ -274,14 +253,14 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     FileSystemProviderCapabilities.FileReadRange |
     FileSystemProviderCapabilities.FileWrite |
     (isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : FileSystemProviderCapabilities.None);
-  private readonly roots = new Map<string, RegisteredBrowserFileRoot>();
-  private readonly files = new Map<string, RegisteredBrowserFile>();
+  private readonly roots = new Map<string, FileSystemDirectoryHandle>();
+  private readonly files = new Map<string, FileSystemFileHandle>();
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
   public readonly onDidChangeCapabilities: Event<void> = Event.None as Event<void>;
 
   public async registerDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<URI> {
-    const path = await this.registerHandle(handle);
+    const path = await this.registerHandle(handle, this.roots);
     return URI.from({ path, scheme: "file" });
   }
 
@@ -289,37 +268,13 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     return this.registerDirectoryHandle(createDirectoryInputHandle(files));
   }
 
-  public registerFile(file: File): BrowserFileRegistration {
-    const id = generateUuid();
-    const path = normalizePath(`/${id}/${file.name || "file"}`);
-    const registeredFile = { file, path };
-    const resource = URI.from({ path, scheme: "file" });
-    this.files.set(path, registeredFile);
-    return {
-      resource,
-      dispose: () => {
-        if (this.files.get(path) !== registeredFile) {
-          return;
-        }
-
-        this.files.delete(path);
-        this.onDidFilesChangeEmitter.fire([{
-          resource,
-          type: FileChangeType.DELETED,
-        }]);
-      },
-    };
-  }
-
-  public registerWritableFileHandle(handle: FileSystemFileHandle): URI {
-    const id = generateUuid();
-    const path = normalizePath(`/${id}/${handle.name || "file"}`);
-    this.files.set(path, { handle, path });
+  public async registerFileHandle(handle: FileSystemFileHandle): Promise<URI> {
+    const path = await this.registerHandle(handle, this.files);
     return URI.from({ path, scheme: "file" });
   }
 
   public async exists(resource: URI): Promise<boolean> {
-    if (this.getFile(resource)) {
+    if (this.getFileHandle(resource)) {
       return true;
     }
 
@@ -349,12 +304,9 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     resource: URI,
     options?: IReadFileOptions,
   ): Promise<IFileContent> {
-    const registeredFile = this.getFile(resource);
-    if (registeredFile?.file) {
-      return fileToContent(registeredFile.file, options);
-    }
-    if (registeredFile?.handle) {
-      return fileToContent(await registeredFile.handle.getFile(), options);
+    const fileHandle = this.getFileHandle(resource);
+    if (fileHandle) {
+      return fileToContent(await fileHandle.getFile(), options);
     }
 
     const resolved = await this.resolve(resource);
@@ -366,12 +318,12 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
   }
 
   public async writeFile(resource: URI, content: string, _options?: IWriteFileOptions): Promise<void> {
-    const registeredFile = this.getFile(resource);
-    if (!registeredFile?.handle || typeof registeredFile.handle.createWritable !== "function") {
+    const fileHandle = this.getFileHandle(resource);
+    if (!fileHandle || typeof fileHandle.createWritable !== "function") {
       return Promise.reject(new Error("Browser file handles are read-only."));
     }
 
-    const writable = await registeredFile.handle.createWritable();
+    const writable = await fileHandle.createWritable();
     try {
       await writable.write(content);
       await writable.close();
@@ -390,7 +342,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
   }
 
   public async realpath(resource: URI): Promise<URI> {
-    if (this.getFile(resource)) {
+    if (this.getFileHandle(resource)) {
       return resource;
     }
 
@@ -399,18 +351,9 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
   }
 
   public async stat(resource: URI): Promise<IFileStat> {
-    const registeredFile = this.getFile(resource);
-    if (registeredFile?.file) {
-      return {
-        ctime: registeredFile.file.lastModified,
-        mtime: registeredFile.file.lastModified,
-        path: resource.fsPath,
-        size: registeredFile.file.size,
-        type: FileType.File,
-      };
-    }
-    if (registeredFile?.handle) {
-      const file = await registeredFile.handle.getFile();
+    const fileHandle = this.getFileHandle(resource);
+    if (fileHandle) {
+      const file = await fileHandle.getFile();
       return {
         ctime: file.lastModified,
         mtime: file.lastModified,
@@ -445,16 +388,23 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     return toDisposable(() => undefined);
   }
 
-  private async registerHandle(handle: FileSystemDirectoryHandle): Promise<string> {
-    const handleName = handle.name || "folder";
+  private async registerHandle<T extends FileSystemHandle>(
+    handle: T,
+    handles: Map<string, T>,
+  ): Promise<string> {
+    const handleName = handle.name || (
+      WebFileSystemAccess.isFileSystemDirectoryHandle(handle) ? "folder" : "file"
+    );
     let path = normalizePath(`/${handleName}`);
     if (path === "/") {
-      path = "/folder";
+      path = WebFileSystemAccess.isFileSystemDirectoryHandle(handle)
+        ? "/folder"
+        : "/file";
     }
 
     if (
-      this.roots.has(path) &&
-      !await isSameEntry(this.roots.get(path)?.handle, handle)
+      handles.has(path) &&
+      !await isSameEntry(handles.get(path), handle)
     ) {
       const pathName = path.slice(1);
       const extension = extname(URI.from({ path, scheme: "file" }));
@@ -464,16 +414,16 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
         path = normalizePath(`/${name}-${counter}${extension}`);
         counter += 1;
       } while (
-        this.roots.has(path) &&
-        !await isSameEntry(this.roots.get(path)?.handle, handle)
+        handles.has(path) &&
+        !await isSameEntry(handles.get(path), handle)
       );
     }
 
-    this.roots.set(path, { handle, path });
+    handles.set(path, handle);
     return path;
   }
 
-  private getFile(resource: URI): RegisteredBrowserFile | null {
+  private getFileHandle(resource: URI): FileSystemFileHandle | null {
     const uri = URI.revive(resource);
     return this.files.get(normalizePath(uri.path)) ?? null;
   }
@@ -512,12 +462,12 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     return { handle: current };
   }
 
-  private getRoot(path: string): RegisteredBrowserFileRoot | null {
-    let match: RegisteredBrowserFileRoot | null = null;
-    for (const root of this.roots.values()) {
-      if (isEqualOrParent(path, root.path, false, "/")) {
-        if (!match || root.path.length > match.path.length) {
-          match = root;
+  private getRoot(path: string): { readonly handle: FileSystemDirectoryHandle; readonly path: string } | null {
+    let match: { readonly handle: FileSystemDirectoryHandle; readonly path: string } | null = null;
+    for (const [rootPath, handle] of this.roots) {
+      if (isEqualOrParent(path, rootPath, false, "/")) {
+        if (!match || rootPath.length > match.path.length) {
+          match = { handle, path: rootPath };
         }
       }
     }

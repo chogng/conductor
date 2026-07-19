@@ -162,19 +162,30 @@ suite("platform/files/test/browser/fileService", () => {
     assert.deepEqual(entries, [["transfer.csv", FileType.File]]);
   });
 
-  test("HTMLFileSystemProvider releases directly registered browser files", async () => {
+  test("HTMLFileSystemProvider reads registered browser file handles", async () => {
     const { filesService, provider } = createBrowserFileService();
-    const registration = provider.registerFile(new File(
-      ["Vg,Id\n0,1"],
-      "transfer.csv",
-      { lastModified: 1, type: "text/csv" },
-    ));
-    const resource = registration.resource;
+    const handle = createFileHandle("transfer.csv", "Vg,Id\n0,1");
+    const resource = await provider.registerFileHandle(handle);
+    const sameResource = await provider.registerFileHandle(handle);
+    const collidingResource = await provider.registerFileHandle(
+      createFileHandle("transfer.csv", "Vg,Id\n1,2"),
+    );
 
     assert.equal(await filesService.exists(resource), true);
-    registration.dispose();
-    assert.equal(await filesService.exists(resource), false);
-    registration.dispose();
+    assert.equal(
+      decodeFileContent(await filesService.readFile(resource)),
+      "Vg,Id\n0,1",
+    );
+    assert.deepEqual(
+      {
+        collidingPath: collidingResource.path,
+        samePath: sameResource.path,
+      },
+      {
+        collidingPath: "/transfer-1.csv",
+        samePath: "/transfer.csv",
+      },
+    );
   });
 
   test("FileService requests permission before reading browser directory handles", async () => {
@@ -272,7 +283,7 @@ suite("platform/files/test/browser/fileService", () => {
   test("FileService writes browser writable file handles", async () => {
     const { filesService, provider } = createBrowserFileService();
     const writable = createWritableFileHandle("template.json");
-    const resource = provider.registerWritableFileHandle(writable.handle);
+    const resource = await provider.registerFileHandle(writable.handle);
 
     await filesService.writeFile(resource, "{\"source\":\"conductor.userTemplate\"}\n");
 

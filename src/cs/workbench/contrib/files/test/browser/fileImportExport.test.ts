@@ -853,17 +853,17 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(failedFiles.length, 0);
   });
 
-  test("releases a browser file registered by an import that is canceled during prepare", async () => {
+  test("leaves registered browser handles owned by the file provider when prepare is canceled", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
     const filesService = store.add(new FileService());
     const provider = store.add(new HTMLFileSystemProvider());
     store.add(filesService.registerProvider("file", provider));
     let registeredResource: URI | null = null;
-    const registerFile = provider.registerFile.bind(provider);
-    provider.registerFile = file => {
-      const registration = registerFile(file);
-      registeredResource = registration.resource;
-      return registration;
+    const registerFileHandle = provider.registerFileHandle.bind(provider);
+    provider.registerFileHandle = async handle => {
+      const resource = await registerFileHandle(handle);
+      registeredResource = resource;
+      return resource;
     };
     let applyCheckCount = 0;
 
@@ -882,52 +882,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
     assert.equal(result.result, null);
     assert.ok(registeredResource);
-    assert.equal(await filesService.exists(registeredResource), false);
-  });
-
-  test("keeps a registered browser resource until its last sheet identity is removed", async () => {
-    let importedFiles: readonly ExplorerFileEntry[] = [];
-    const workflow = store.add(new FileSourceWorkflow({
-      commandService: {
-        executeCommand: async <R,>() => undefined as R | undefined,
-      },
-      filesService: browserFilesService,
-      getFiles: () => importedFiles,
-      getSelectedRelativePath: () => null,
-      isDisposed: () => false,
-      notificationService,
-      progressService: createProgressServiceForTest(),
-      uriIdentityService: store.add(new UriIdentityService(browserFilesService)),
-      onAppendExplorerFiles: entries => {
-        importedFiles = [...importedFiles, ...entries];
-      },
-      onDraggingChange: () => undefined,
-      onRemoveSourceItems: () => undefined,
-      onReplaceExplorerFiles: entries => {
-        importedFiles = entries;
-      },
-      syncView: () => undefined,
-    }));
-    await workflow.importGeneratedFiles([createDataFileSource("A.csv")]);
-    const entry = importedFiles[0];
-    assert.ok(entry);
-    const siblingSheet = {
-      ...entry,
-      fileId: "sheet-b",
-      sheetId: "sheet-b",
-    };
-
-    workflow.releaseImportedResources(
-      [{ ...entry, sheetId: "sheet-a" }],
-      [siblingSheet],
-    );
-    assert.equal(await browserFilesService.exists(entry.resource), true);
-
-    workflow.releaseImportedResources(
-      [siblingSheet],
-      [],
-    );
-    assert.equal(await browserFilesService.exists(entry.resource), false);
+    assert.equal(await filesService.exists(registeredResource), true);
   });
 
   test("prepare failures include relative paths in file lists", async () => {

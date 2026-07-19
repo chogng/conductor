@@ -25,6 +25,13 @@ type FilePickerWindow = Window & typeof globalThis & {
     mode?: "read" | "readwrite";
     startIn?: string;
   }) => Promise<FileSystemDirectoryHandle>;
+  showOpenFilePicker?: (options?: {
+    multiple?: boolean;
+    types?: readonly {
+      readonly accept: Record<string, readonly string[]>;
+      readonly description: string;
+    }[];
+  }) => Promise<readonly FileSystemFileHandle[]>;
   showSaveFilePicker?: (options?: {
     suggestedName?: string;
     types?: readonly {
@@ -121,7 +128,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
         types: getSaveFileTypes(options),
       });
       return WebFileSystemAccess.isFileSystemFileHandle(handle)
-        ? provider.registerWritableFileHandle(handle)
+        ? provider.registerFileHandle(handle)
         : undefined;
     } catch (error) {
       if (isPickerCancel(error)) {
@@ -156,12 +163,42 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       return undefined;
     }
 
+    const activeWindow = globalThis.window as FilePickerWindow | undefined;
+    const picker = activeWindow?.showOpenFilePicker;
+    if (typeof picker === "function") {
+      try {
+        const handles = await picker({
+          multiple: Boolean(options.canSelectMany),
+          types: getOpenFileTypes(options),
+        });
+        const resources = await Promise.all(
+          handles
+            .filter(WebFileSystemAccess.isFileSystemFileHandle)
+            .map(handle => provider.registerFileHandle(handle)),
+        );
+        return resources.length ? resources : undefined;
+      } catch (error) {
+        if (isPickerCancel(error)) {
+          return undefined;
+        }
+
+        if (!isInterceptedFileChooserError(error)) {
+          throw error;
+        }
+      }
+    }
+
     const files = await this.pickFiles(options);
     if (!files.length) {
       return undefined;
     }
 
-    return files.map(file => this._register(provider.registerFile(file)).resource);
+    const resources = await Promise.all(
+      files.map(file =>
+        provider.registerFileHandle(WebFileSystemAccess.createFileHandle(file))
+      ),
+    );
+    return resources.length ? resources : undefined;
   }
 
   private pickFiles(options: IOpenDialogOptions): Promise<File[]> {
@@ -235,6 +272,14 @@ const getAcceptAttribute = (options: IOpenDialogOptions): string => {
 
   return extensions || "";
 };
+
+function getOpenFileTypes(
+  options: IOpenDialogOptions,
+): readonly { readonly accept: Record<string, readonly string[]>; readonly description: string }[] | undefined {
+  return getSaveFileTypes({
+    filters: options.filters,
+  });
+}
 
 function getDefaultSaveFileName(options: ISaveDialogOptions): string | undefined {
   const path = options.defaultUri?.path.replace(/\\/g, "/");

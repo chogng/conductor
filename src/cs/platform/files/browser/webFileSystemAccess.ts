@@ -63,6 +63,17 @@ export namespace WebFileSystemAccess {
   export function isFileSystemDirectoryHandle(handle: unknown): handle is FileSystemDirectoryHandle {
     return isFileSystemHandle(handle) && handle.kind === "directory";
   }
+
+  export function createFileHandle(
+    file: File,
+    name = file.name,
+  ): FileSystemFileHandle {
+    return {
+      kind: "file",
+      name,
+      getFile: async () => file,
+    };
+  }
 }
 
 export type FileSystemObserverRecord = {

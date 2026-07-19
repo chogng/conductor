@@ -743,9 +743,8 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       return;
     }
 
-    const removedFiles = this.explorerService.removeFiles(normalizedFileIds);
+    this.explorerService.removeFiles(normalizedFileIds);
     this.selectRawFileAfterRemoval(normalizedFileIds);
-    this.sourceWorkflow.releaseImportedResources(removedFiles, this.committedFiles);
   }
 
   private replaceExplorerFiles(
@@ -758,12 +757,8 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       nextFiles: entries,
       previousFiles,
     });
-    const removedFileIdSet = new Set(removedFileIds);
-    const removedFiles = previousFiles.filter(file =>
-      removedFileIdSet.has(normalizeFileId(file.fileId) ?? ""));
     this.notifyExplorerFilesRemoved(removedFileIds);
     this.explorerService.replaceFiles(entries);
-    this.sourceWorkflow.releaseImportedResources(removedFiles, this.committedFiles);
     this.reviewExplorerEntries(entries);
 
     const selectedEntry = resolveSelectedExplorerImportEntry(entries, selectedImportItemKey);

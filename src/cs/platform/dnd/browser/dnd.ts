@@ -1,4 +1,8 @@
 import { isNative } from "src/cs/base/common/platform";
+import {
+  WebFileSystemAccess,
+  type FileSystemHandle,
+} from "src/cs/platform/files/browser/webFileSystemAccess";
 
 type ElectronWebUtils = {
   conductor?: {
@@ -6,6 +10,10 @@ type ElectronWebUtils = {
       getPathForFile(file: File): string;
     };
   };
+};
+
+type DataTransferItemWithFileSystemAccess = DataTransferItem & {
+  getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>;
 };
 
 export function getPathForFile(file: File): string | undefined {
@@ -17,6 +25,33 @@ export function getPathForFile(file: File): string | undefined {
   }
 
   return undefined;
+}
+
+export async function extractFileSystemHandles(
+  items: DataTransferItemList,
+): Promise<FileSystemHandle[]> {
+  const results = await Promise.all(
+    Array.from(items, async item => {
+      const getAsFileSystemHandle =
+        (item as DataTransferItemWithFileSystemAccess).getAsFileSystemHandle;
+      if (typeof getAsFileSystemHandle !== "function") {
+        return undefined;
+      }
+
+      try {
+        const handle = await getAsFileSystemHandle.call(item);
+        return WebFileSystemAccess.isFileSystemHandle(handle)
+          ? handle
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    }),
+  );
+
+  return results.filter(
+    (result): result is FileSystemHandle => Boolean(result),
+  );
 }
 
 export function containsDragType(event: DragEvent, ...dragTypesToFind: string[]): boolean {
