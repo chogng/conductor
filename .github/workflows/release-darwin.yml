@@ -55,7 +55,7 @@ jobs:
           & build/github/verify-release-tag.ps1 -Tag "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
