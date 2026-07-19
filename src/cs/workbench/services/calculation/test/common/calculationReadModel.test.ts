@@ -240,6 +240,7 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     assert.equal(second.kind, "secondDerivative");
     assert.deepEqual(second.source, { fileId: "file-a", inputKind: "gm" });
     assert.equal(second.seriesList[0].kind, "secondDerivative");
+    assert.equal(second.seriesList[0].id, source.seriesList[0].id);
     assert.deepEqual(
       second.seriesList[0].data.map((point) => point.y),
       [0.5, 0.5, 0.5],

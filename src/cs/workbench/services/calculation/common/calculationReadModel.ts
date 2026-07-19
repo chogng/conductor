@@ -425,7 +425,7 @@ export const createSecondCalculatedData = (
 
       return {
         data,
-        id: `${series.id}:second-derivative`,
+        id: series.id,
         kind: "secondDerivative",
         name: series.name,
       };

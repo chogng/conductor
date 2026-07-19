@@ -14,7 +14,10 @@ import {
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
 import { resolveAxisTitleLabel } from "src/cs/workbench/services/plot/common/plotAxisLabels";
-import { resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
+import {
+  createPlotSeriesColorMap,
+  type PlotSeriesColorMap,
+} from "src/cs/workbench/services/plot/common/plotColors";
 import { filterCalculatedDataSeries } from "src/cs/workbench/services/plot/common/plotSeriesVisibility";
 import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
 import {
@@ -74,7 +77,7 @@ export const createPlotDisplayModelFromCalculatedData = (
     chart: {
       defaultXAxisTitle: chartDefaultXAxisTitle,
       defaultYAxisTitle: chartDefaultYAxisTitle,
-      model: createPlotMainRenderModel(parts.chartData),
+      model: createPlotMainRenderModel(parts.chartData, parts.seriesColors),
       plotXFactor: parts.displayUnits.xFactor,
       plotXUnitLabel: parts.displayUnits.xUnit,
       plotYFactor: parts.displayUnits.yFactor,
@@ -93,8 +96,8 @@ export const createPlotDisplayModelFromCalculatedData = (
         chartData: parts.chartData,
         displayUnits: parts.displayUnits,
         fileId: parts.fileId,
-        hiddenLegendKeys: parts.hiddenLegendKeys,
         resource: parts.resource,
+        seriesColors: parts.seriesColors,
         sheetId: parts.sheetId,
         yScaleMode: parts.yScaleMode,
       }),
@@ -118,8 +121,8 @@ export const createPlotInspectorDisplayModelFromCalculatedData = (
     chartData: parts.chartData,
     displayUnits: parts.displayUnits,
     fileId: parts.fileId,
-    hiddenLegendKeys: parts.hiddenLegendKeys,
     resource: parts.resource,
+    seriesColors: parts.seriesColors,
     sheetId: parts.sheetId,
     yScaleMode: parts.yScaleMode,
   });
@@ -136,8 +139,8 @@ const createPlotDisplayModelParts = (
     readonly yUnit: string | undefined;
   };
   readonly fileId: string;
-  readonly hiddenLegendKeys: readonly string[];
   readonly resource?: PlotDisplayModel["resource"];
+  readonly seriesColors: PlotSeriesColorMap;
   readonly sheetId?: PlotDisplayModel["sheetId"];
   readonly yScaleMode: "linear" | "log";
 } | null => {
@@ -148,8 +151,9 @@ const createPlotDisplayModelParts = (
   }
 
   const hiddenLegendKeys = input.hiddenLegendKeys ?? [];
+  const seriesColors = createPlotSeriesColorMap(calculatedData.seriesList);
   const chartData = applyLegendLabels(
-    filterCalculatedDataSeries(applySeriesPlotColors(calculatedData), hiddenLegendKeys),
+    filterCalculatedDataSeries(calculatedData, hiddenLegendKeys),
     input.legendLabels ?? {},
   );
   const displayUnits = resolveDisplayUnits(chartData, input.axisSettings);
@@ -158,8 +162,8 @@ const createPlotDisplayModelParts = (
     chartData,
     displayUnits,
     fileId,
-    hiddenLegendKeys,
     resource: calculatedData.source.resource ?? null,
+    seriesColors,
     sheetId: calculatedData.source.sheetId ?? null,
     yScaleMode,
   };
@@ -188,8 +192,8 @@ const createInspectorDisplayModel = ({
   chartData,
   displayUnits,
   fileId,
-  hiddenLegendKeys,
   resource,
+  seriesColors,
   sheetId,
   yScaleMode,
 }: {
@@ -202,14 +206,12 @@ const createInspectorDisplayModel = ({
     readonly yUnit: string | undefined;
   };
   readonly fileId: string;
-  readonly hiddenLegendKeys: readonly string[];
   readonly resource?: PlotDisplayModel["resource"];
+  readonly seriesColors: PlotSeriesColorMap;
   readonly sheetId?: PlotDisplayModel["sheetId"];
   readonly yScaleMode: "linear" | "log";
 }): PlotDisplayModel["inspector"] => {
-  const inspectorData = createSecondCalculatedData(
-    filterCalculatedDataSeries(chartData, hiddenLegendKeys),
-  );
+  const inspectorData = createSecondCalculatedData(chartData);
   const inspectorYUnitLabel = displayUnits.yUnit
     ? `d(${displayUnits.yUnit})/dx`
     : undefined;
@@ -241,7 +243,7 @@ const createInspectorDisplayModel = ({
   return {
     defaultXAxisTitle: inspectorDefaultXAxisTitle,
     defaultYAxisTitle: inspectorDefaultYAxisTitle,
-    model: createPlotMainRenderModel(inspectorData),
+    model: createPlotMainRenderModel(inspectorData, seriesColors),
     plotXFactor: displayUnits.xFactor,
     plotXUnitLabel: displayUnits.xUnit,
     plotYFactor: displayUnits.yFactor,
@@ -396,13 +398,3 @@ const applyLegendLabels = (
     })),
   };
 };
-
-const applySeriesPlotColors = (
-  data: CalculatedData,
-): CalculatedData => ({
-  ...data,
-  seriesList: data.seriesList.map((series, seriesIndex) => ({
-    ...series,
-    color: resolveSeriesPlotColor(series, seriesIndex),
-  })),
-});

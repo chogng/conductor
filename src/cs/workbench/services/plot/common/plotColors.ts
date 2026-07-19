@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 // Provides the default plot color palette and series color resolution.
 export const COLORS = [
   "#515151",
@@ -16,9 +20,15 @@ export const COLORS = [
 
 const DEFAULT_PLOT_COLOR = "#8884d8";
 
-type PlotColorSeries = Record<string, unknown> & {
-  color?: unknown;
+type PlotColorSeries = {
+  readonly color?: unknown;
 };
+
+type PlotColorIdentitySeries = PlotColorSeries & {
+  readonly id: string;
+};
+
+export type PlotSeriesColorMap = ReadonlyMap<string, string>;
 
 const clampAlpha = (alpha: unknown): number => {
   const value = Number(alpha);
@@ -62,3 +72,17 @@ export const resolveSeriesPlotColor = (
   const ownColor = String(series?.color ?? "").trim();
   return ownColor || getPlotColor(seriesIndex);
 };
+
+export const createPlotSeriesColorMap = (
+  seriesList: readonly PlotColorIdentitySeries[],
+): PlotSeriesColorMap => new Map(
+  seriesList.map((series, seriesIndex) => [
+    series.id,
+    resolveSeriesPlotColor(series, seriesIndex),
+  ]),
+);
+
+export const getPlotSeriesColor = (
+  seriesColors: PlotSeriesColorMap,
+  series: PlotColorIdentitySeries,
+): string | undefined => seriesColors.get(series.id);

@@ -56,12 +56,22 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const service = store.add(createPlotService([createCalculationResult(target)]));
     const display = service.getPlotDisplayModel({ ...target, plotType: "iv" });
     assert.ok(display);
-    let subscribedSeriesColors: readonly string[] = [];
+    let subscribedSeriesColors: {
+      readonly chart: readonly string[];
+      readonly inspector: readonly string[];
+    } = {
+      chart: [],
+      inspector: [],
+    };
     store.add(service.onDidChangePlotState(() => {
-      subscribedSeriesColors = service.getCachedPlotDisplayModel({
+      const subscribedDisplay = service.getCachedPlotDisplayModel({
         ...target,
         plotType: "iv",
-      })?.chart.model.seriesList.map(series => series.color ?? "") ?? [];
+      });
+      subscribedSeriesColors = {
+        chart: subscribedDisplay?.chart.model.seriesList.map(series => series.color ?? "") ?? [],
+        inspector: subscribedDisplay?.inspector?.model.seriesList.map(series => series.color ?? "") ?? [],
+      };
     }));
 
     service.setAxisTitleOverride(
@@ -81,7 +91,22 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       subscribedSeriesColors,
     }, {
       hiddenLegendKeys: ["series-a"],
-      subscribedSeriesColors: ["#F14040"],
+      subscribedSeriesColors: {
+        chart: ["#F14040"],
+        inspector: ["#F14040"],
+      },
+    });
+
+    service.toggleHiddenLegendKey(target, "iv", "series-a", ["series-a", "series-b"]);
+    assert.deepEqual({
+      hiddenLegendKeys: service.getHiddenLegendKeys(target, "iv", ["series-a", "series-b"]),
+      subscribedSeriesColors,
+    }, {
+      hiddenLegendKeys: [],
+      subscribedSeriesColors: {
+        chart: ["#515151", "#F14040"],
+        inspector: ["#515151", "#F14040"],
+      },
     });
   });
 
