@@ -56,6 +56,13 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     const service = store.add(createPlotService([createCalculationResult(target)]));
     const display = service.getPlotDisplayModel({ ...target, plotType: "iv" });
     assert.ok(display);
+    let subscribedSeriesColors: readonly string[] = [];
+    store.add(service.onDidChangePlotState(() => {
+      subscribedSeriesColors = service.getCachedPlotDisplayModel({
+        ...target,
+        plotType: "iv",
+      })?.chart.model.seriesList.map(series => series.color ?? "") ?? [];
+    }));
 
     service.setAxisTitleOverride(
       display.chart.xAxisTitleContext,
@@ -68,8 +75,14 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(updated?.chart.xAxisTitle, "Gate Bias");
     assert.equal(updated?.chart.model.seriesList[0]?.name, "Renamed");
 
-    service.toggleHiddenLegendKey(target, "iv", "series-a", ["series-a"]);
-    assert.deepEqual(service.getHiddenLegendKeys(target, "iv", ["series-a"]), ["series-a"]);
+    service.toggleHiddenLegendKey(target, "iv", "series-a", ["series-a", "series-b"]);
+    assert.deepEqual({
+      hiddenLegendKeys: service.getHiddenLegendKeys(target, "iv", ["series-a", "series-b"]),
+      subscribedSeriesColors,
+    }, {
+      hiddenLegendKeys: ["series-a"],
+      subscribedSeriesColors: ["#F14040"],
+    });
   });
 
   test("invalidates only the changed calculation resource", () => {
@@ -159,6 +172,22 @@ const createCalculationResult = (
       seriesId: "series-a",
       signature: "curve-a",
     },
+    "base:iv:transfer:series-b": {
+      curveFamily: "iv",
+      curveGeneration: "base",
+      ivMode: "transfer",
+      lineage: {
+        baseFamily: "iv",
+        baseSeries: {
+          seriesId: "series-b",
+        },
+        curveGeneration: "base",
+        ivMode: "transfer",
+      },
+      points: [{ x: 0, y: 0.003 }, { x: 1, y: 0.004 }],
+      seriesId: "series-b",
+      signature: "curve-b",
+    },
   },
   inputSignature: "input-a",
   metricsByKey: {},
@@ -171,8 +200,14 @@ const createCalculationResult = (
       name: "Drain Current",
       y: [0.001, 0.002],
     },
+    "series-b": {
+      groupIndex: 1,
+      id: "series-b",
+      name: "Detected Output",
+      y: [0.003, 0.004],
+    },
   },
-  seriesOrder: ["series-a"],
+  seriesOrder: ["series-a", "series-b"],
   sheetId: target.sheetId,
   sourceModelVersion: 1,
   sourceVersion: 1,

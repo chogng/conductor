@@ -14,6 +14,7 @@ import {
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
 import { resolveAxisTitleLabel } from "src/cs/workbench/services/plot/common/plotAxisLabels";
+import { resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 import { filterCalculatedDataSeries } from "src/cs/workbench/services/plot/common/plotSeriesVisibility";
 import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
 import {
@@ -148,7 +149,7 @@ const createPlotDisplayModelParts = (
 
   const hiddenLegendKeys = input.hiddenLegendKeys ?? [];
   const chartData = applyLegendLabels(
-    filterCalculatedDataSeries(calculatedData, hiddenLegendKeys),
+    filterCalculatedDataSeries(applySeriesPlotColors(calculatedData), hiddenLegendKeys),
     input.legendLabels ?? {},
   );
   const displayUnits = resolveDisplayUnits(chartData, input.axisSettings);
@@ -395,3 +396,13 @@ const applyLegendLabels = (
     })),
   };
 };
+
+const applySeriesPlotColors = (
+  data: CalculatedData,
+): CalculatedData => ({
+  ...data,
+  seriesList: data.seriesList.map((series, seriesIndex) => ({
+    ...series,
+    color: resolveSeriesPlotColor(series, seriesIndex),
+  })),
+});
