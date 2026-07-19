@@ -3,8 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
-import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
-import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
+import type { PlotRenderModel, PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import type { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 
@@ -12,9 +11,7 @@ export type ThumbnailViewFile = {
   readonly title?: string;
 };
 
-export type ThumbnailPlotModel = PlotMainRenderModelSource & {
-  readonly signature: string;
-};
+export type ThumbnailPlotModel = PlotRenderModel;
 
 export type ThumbnailViewProps = {
   file: ThumbnailViewFile;

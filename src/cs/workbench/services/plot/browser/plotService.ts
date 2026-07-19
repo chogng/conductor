@@ -35,12 +35,12 @@ import {
   type PlotAxisOverrides,
   type PlotLegendModel,
   type PlotPaneDisplayModel,
+  type PlotRenderModel,
   type PlotState,
   type PlotTarget,
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
-import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
-import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotRenderModel";
+import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
 import {
   PlotCalculatedDataWorkerClient,
   type PlotDisplayModelWorkerLane,
@@ -207,6 +207,16 @@ export class PlotService extends Disposable implements IPlotService {
 
   public getCachedCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null {
     return this.getCachedCalculatedDataForInput(input);
+  }
+
+  public getCachedPlotRenderModel(input: PlotCalculatedDataInput): PlotRenderModel | null {
+    const calculatedData = this.getCachedCalculatedDataForInput(input);
+    return calculatedData
+      ? {
+          ...createPlotMainRenderModel(calculatedData),
+          signature: calculatedData.signature,
+        }
+      : null;
   }
 
   private getCachedCalculatedDataForInput(
@@ -430,9 +440,14 @@ export class PlotService extends Disposable implements IPlotService {
     });
   }
 
-  public getPlotMainRenderModel(input: PlotCalculatedDataInput): PlotMainRenderModel | null {
+  public getPlotRenderModel(input: PlotCalculatedDataInput): PlotRenderModel | null {
     const calculatedData = this.getCalculatedData(input);
-    return calculatedData ? createPlotMainRenderModel(calculatedData) : null;
+    return calculatedData
+      ? {
+          ...createPlotMainRenderModel(calculatedData),
+          signature: calculatedData.signature,
+        }
+      : null;
   }
 
   public cancelQueuedPlotInspectorDisplayModelPrefetch(): void {

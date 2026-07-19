@@ -14,7 +14,6 @@ import {
   DEFAULT_PLOT_AXIS_SETTINGS,
   normalizePlotAxisSettings,
 } from "src/cs/workbench/services/plot/common/plotSettings";
-import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotRenderModel";
 import type { ThumbnailBitmapOptions } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 
 export type ThumbnailBitmapCache = {
@@ -159,7 +158,7 @@ const createThumbnailRenderOptions = (
   options: ThumbnailBitmapOptions,
 ): ThumbnailRenderOptions => ({
   lineWidth: resolveLineWidth(options.originOpenPlotOptions?.lineWidth),
-  model: createPlotMainRenderModel(options.model),
+  model: options.model,
 });
 
 const createBitmap = (

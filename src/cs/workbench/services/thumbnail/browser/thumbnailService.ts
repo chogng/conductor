@@ -414,23 +414,23 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 	): ThumbnailPreviewState {
 		const plotType = this.plotService.getState().activePlotType;
 		const input = createPlotPreviewInput(target, plotType);
-		const cachedCalculatedData = this.plotService.getCachedCalculatedData(input);
-		const displayModel = cachedCalculatedData
+		const cachedRenderModel = this.plotService.getCachedPlotRenderModel(input);
+		const displayModel = cachedRenderModel
 			? this.plotService.getCachedPlotDisplayModel?.(input)
 			: null;
-		if (cachedCalculatedData && displayModel) {
+		if (cachedRenderModel && displayModel) {
 			return {
 				kind: "fastReady",
 				model: {
 					...displayModel.chart.model,
-					signature: cachedCalculatedData.signature,
+					signature: cachedRenderModel.signature,
 				},
-				signature: cachedCalculatedData.signature,
+				signature: cachedRenderModel.signature,
 			};
 		}
 
-		const model = cachedCalculatedData ?? (options.allowSynchronousCalculation
-			? this.plotService.getCalculatedData(input)
+		const model = cachedRenderModel ?? (options.allowSynchronousCalculation
+			? this.plotService.getPlotRenderModel(input)
 			: null);
 		if (!model) {
 			return { kind: "loading" };

@@ -17,7 +17,7 @@ import {
 import { resolveAxisTitleLabel } from "src/cs/workbench/services/plot/common/plotAxisLabels";
 import { filterCalculatedDataSeries } from "src/cs/workbench/services/plot/common/plotSeriesVisibility";
 import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
-import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotRenderModel";
+import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
 import {
   getYUnitValuesForFamily,
   getXUnitValuesForFamily,

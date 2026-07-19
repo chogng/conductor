@@ -258,7 +258,7 @@ const createPlotServiceStub = (
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>>,
 	axisSettings: Readonly<Record<string, PlotAxisOverrides>>,
 ): IPlotService => ({
-	getCachedCalculatedData: () => null,
+	getCachedPlotRenderModel: () => null,
 	getAxisOverrides: (target: PlotTarget) =>
 		axisSettings[createCalculationResourceId(target.resource, target.sheetId)] ?? {},
 	getLegendLabels: (target: PlotTarget) => {

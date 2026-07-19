@@ -33,8 +33,9 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 
 		const service = store.add(new BrowserThumbnailService());
 
-		service.warmPlotThumbnail({
+			service.warmPlotThumbnail({
 				model: {
+					axisLabels: null,
 					pointsCount: 2,
 					seriesList: [{
 						data: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
@@ -58,11 +59,11 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		let calculatedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (_input: PlotPreviewInput) => {
+				getCachedPlotRenderModel: (_input: PlotPreviewInput) => {
 					cachedCalls += 1;
 					return null;
 				},
-				getCalculatedData: (input: PlotPreviewInput) => {
+				getPlotRenderModel: (input: PlotPreviewInput) => {
 					calculatedCalls += 1;
 					const fileId = getPreviewInputId(input);
 					return {
@@ -97,7 +98,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 	test("hover previews use cached Plot display models as fast thumbnails", () => {
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: PlotPreviewInput) => {
+				getCachedPlotRenderModel: (input: PlotPreviewInput) => {
 					const fileId = getPreviewInputId(input);
 					return {
 						activeFile: null,
@@ -146,7 +147,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 					unitControl: null,
 					};
 				},
-				getCalculatedData: () => {
+				getPlotRenderModel: () => {
 					throw new Error("fast thumbnails should not synchronously calculate when display cache is warm");
 				},
 				getState: () => ({ activePlotType: "iv" }),
@@ -178,8 +179,8 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		}> = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: () => null,
-				getCalculatedData: (input: Parameters<IPlotService["getCalculatedData"]>[0]) => {
+				getCachedPlotRenderModel: () => null,
+				getPlotRenderModel: (input: Parameters<IPlotService["getPlotRenderModel"]>[0]) => {
 					calculatedResources.push({
 						hasFileId: Object.prototype.hasOwnProperty.call(input, "fileId"),
 						resource: input.resource?.toString() ?? null,
@@ -229,14 +230,14 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		const changedResources: string[] = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: PlotPreviewInput) => {
+				getCachedPlotRenderModel: (input: PlotPreviewInput) => {
 					const fileId = getPreviewInputId(input);
 					return {
 						fileId,
 						signature: fileId === "file-a" ? sessionBackedSignature : "plot:uri-a",
 					};
 				},
-				getCalculatedData: () => {
+				getPlotRenderModel: () => {
 					throw new Error("thumbnail previews must not synchronously calculate cached plot data");
 				},
 				getState: () => ({ activePlotType: "iv" }),
@@ -269,10 +270,10 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		let displayCacheWarm = true;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: createCalculatedDataForPreview,
+				getCachedPlotRenderModel: createCalculatedDataForPreview,
 				getCachedPlotDisplayModel: (input: PlotPreviewInput) =>
 					displayCacheWarm ? createDisplayModelForPreview(input) : null,
-				getCalculatedData: () => {
+				getPlotRenderModel: () => {
 					throw new Error("fast thumbnail stability should not synchronously calculate");
 				},
 				getState: () => ({ activePlotType: "iv" }),
@@ -305,10 +306,10 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		let displayCacheWarm = false;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: createCalculatedDataForPreview,
+				getCachedPlotRenderModel: createCalculatedDataForPreview,
 				getCachedPlotDisplayModel: (input: PlotPreviewInput) =>
 					displayCacheWarm ? createDisplayModelForPreview(input) : null,
-				getCalculatedData: () => {
+				getPlotRenderModel: () => {
 					throw new Error("ready thumbnail upgrade should not synchronously calculate");
 				},
 				getState: () => ({ activePlotType: "iv" }),
@@ -337,7 +338,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		let cachedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: PlotPreviewInput) => {
+				getCachedPlotRenderModel: (input: PlotPreviewInput) => {
 					cachedCalls += 1;
 					const fileId = getPreviewInputId(input);
 					return modelReady
@@ -347,7 +348,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 						}
 						: null;
 				},
-				getCalculatedData: () => {
+				getPlotRenderModel: () => {
 					throw new Error("thumbnail previews must not synchronously calculate plot data");
 				},
 				getState: () => ({ activePlotType: "iv" }),
@@ -377,7 +378,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		let cachedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: PlotPreviewInput) => {
+				getCachedPlotRenderModel: (input: PlotPreviewInput) => {
 					cachedCalls += 1;
 					const fileId = getPreviewInputId(input);
 					return modelReady
@@ -387,7 +388,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 						}
 						: null;
 				},
-				getCalculatedData: () => {
+				getPlotRenderModel: () => {
 					throw new Error("thumbnail previews must not synchronously calculate plot data");
 				},
 				getState: () => ({ activePlotType: "iv" }),
@@ -415,7 +416,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		const visibleTarget = { resource: URI.file("/workspace/visible-a.csv") };
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: Parameters<IPlotService["getCachedCalculatedData"]>[0]) => {
+				getCachedPlotRenderModel: (input: Parameters<IPlotService["getCachedPlotRenderModel"]>[0]) => {
 					calculatedResources.push(input.resource?.toString() ?? null);
 					return modelReady
 						? {
@@ -424,7 +425,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 						}
 						: null;
 				},
-				getCalculatedData: () => null,
+				getPlotRenderModel: () => null,
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotState: Event.None,
@@ -457,7 +458,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		const calculatedFileIds: string[] = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: PlotPreviewInput) => {
+				getCachedPlotRenderModel: (input: PlotPreviewInput) => {
 					const fileId = getPreviewInputId(input);
 					calculatedFileIds.push(fileId);
 					return {
@@ -465,7 +466,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 						signature: `plot:${fileId}`,
 					};
 				},
-				getCalculatedData: () => {
+				getPlotRenderModel: () => {
 					throw new Error("thumbnail previews must not synchronously calculate plot data");
 				},
 				getState: () => ({ activePlotType: "iv" }),
@@ -491,7 +492,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		const calculatedFileIds: string[] = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: PlotPreviewInput) => {
+				getCachedPlotRenderModel: (input: PlotPreviewInput) => {
 					const fileId = getPreviewInputId(input);
 					calculatedFileIds.push(fileId);
 					return {
@@ -499,7 +500,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 						signature: `plot:${fileId}`,
 					};
 				},
-				getCalculatedData: () => {
+				getPlotRenderModel: () => {
 					throw new Error("thumbnail previews must not synchronously calculate plot data");
 				},
 				getState: () => ({ activePlotType: "iv" }),
@@ -530,7 +531,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		let cachedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: PlotPreviewInput) => {
+				getCachedPlotRenderModel: (input: PlotPreviewInput) => {
 					cachedCalls += 1;
 					const fileId = getPreviewInputId(input);
 					return modelReady
@@ -540,7 +541,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 						}
 						: null;
 				},
-				getCalculatedData: () => {
+				getPlotRenderModel: () => {
 					throw new Error("thumbnail previews must not synchronously calculate plot data");
 				},
 				getState: () => ({ activePlotType: "iv" }),
@@ -570,7 +571,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		let cachedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: PlotPreviewInput) => {
+				getCachedPlotRenderModel: (input: PlotPreviewInput) => {
 					cachedCalls += 1;
 					const fileId = getPreviewInputId(input);
 					return modelReady
@@ -580,7 +581,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 						}
 						: null;
 				},
-				getCalculatedData: () => null,
+				getPlotRenderModel: () => null,
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: cacheEmitter.event,
 				onDidChangePlotState: Event.None,
@@ -615,14 +616,14 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		};
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
-				getCachedCalculatedData: (input: PlotPreviewInput) => {
+				getCachedPlotRenderModel: (input: PlotPreviewInput) => {
 					const fileId = getPreviewInputId(input);
 					return {
 						fileId,
 						signature: signaturesByFileId[fileId] ?? `plot:${fileId}`,
 					};
 				},
-				getCalculatedData: () => {
+				getPlotRenderModel: () => {
 					throw new Error("thumbnail previews must not synchronously calculate plot data");
 				},
 				getState: () => ({ activePlotType: "iv" }),
@@ -662,6 +663,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			canvas,
 				options: {
 					model: {
+						axisLabels: null,
 						pointsCount: 0,
 						seriesList: [],
 					signature: "detached",
@@ -682,7 +684,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 const timeout = async (): Promise<void> =>
 	new Promise(resolve => setTimeout(resolve, 0));
 
-type PlotPreviewInput = Parameters<IPlotService["getCachedCalculatedData"]>[0];
+type PlotPreviewInput = Parameters<IPlotService["getCachedPlotRenderModel"]>[0];
 
 type ThumbnailPlotCacheEventForTest = {
 	readonly plotType: "iv";
@@ -705,6 +707,7 @@ const createCalculatedDataForPreview = (input: PlotPreviewInput) => {
 	const fileId = getPreviewInputId(input);
 	return {
 		activeFile: null,
+		axisLabels: null,
 		fileId,
 		kind: "iv" as const,
 		pointsCount: 1,

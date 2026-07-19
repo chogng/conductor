@@ -219,10 +219,10 @@ const createIdleChartServiceForTest = (): IChartService => ({
 const createIdlePlotServiceForTest = (): IPlotService => ({
 	_serviceBrand: undefined,
 	cancelQueuedPlotInspectorDisplayModelPrefetch: () => undefined,
-	getCachedCalculatedData: () => null,
+	getCachedPlotRenderModel: () => null,
 	getCachedPlotDisplayModel: () => null,
 	getCachedPlotLegendModel: () => null,
-	getCalculatedData: () => null,
+	getPlotRenderModel: () => null,
 	getAxisOverrides: () => ({}),
 	getHiddenLegendKeys: () => [],
 	getLegendLabels: () => ({}),

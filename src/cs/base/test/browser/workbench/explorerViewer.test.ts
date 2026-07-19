@@ -1373,6 +1373,7 @@ const getThumbnailPreviewResourceFileId = (target: ThumbnailPreviewTarget): stri
 };
 
 const createThumbnailPlotModel = (fileId: string): ThumbnailPreviewPlotModel => ({
+  axisLabels: null,
   pointsCount: 0,
   seriesList: [],
   signature: `plot:${fileId}`,

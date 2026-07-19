@@ -22,6 +22,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
     const node = createThumbnailView({
       file: { title: "File A" },
       plotModel: {
+        axisLabels: null,
         pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a",
@@ -68,6 +69,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
     const node = createThumbnailView({
       file: { title: "file-a" },
       plotModel: {
+        axisLabels: null,
         pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a",
@@ -116,6 +118,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
       drawStrategy: "eager",
       file: { title: "file-a" },
       plotModel: {
+        axisLabels: null,
         pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a",
@@ -195,6 +198,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
       drawStrategy: "eager",
       file: { title: "File A" },
       plotModel: {
+        axisLabels: null,
         pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a:1",
@@ -229,6 +233,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
         drawStrategy: "eager",
         file: { title: "File A" },
         plotModel: {
+          axisLabels: null,
           pointsCount: 0,
           seriesList: [],
           signature: "plot:file-a:2",
@@ -269,6 +274,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
       drawStrategy: "eager",
       file: { title: "File A" },
       plotModel: {
+        axisLabels: null,
         pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a:1",
@@ -300,6 +306,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
         drawStrategy: "eager",
         file: { title: "File A" },
         plotModel: {
+          axisLabels: null,
           pointsCount: 0,
           seriesList: [],
           signature: "plot:file-a:2",
@@ -331,6 +338,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
       drawStrategy: "eager",
       file: { title: "file-a" },
       plotModel: {
+        axisLabels: null,
         pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a",
@@ -386,6 +394,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
       file: { title: "file-a" },
       isActive: false,
       plotModel: {
+        axisLabels: null,
         pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a",
@@ -420,6 +429,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
         file: { title: "file-a" },
         isActive: true,
         plotModel: {
+          axisLabels: null,
           pointsCount: 0,
           seriesList: [],
           signature: "plot:file-a",

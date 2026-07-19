@@ -704,10 +704,10 @@ const createWorkbenchOptions = ({
     plotService: {
       onDidChangePlotState: Event.None,
       onDidChangePlotDisplayModelCache: Event.None,
-      getCachedCalculatedData: () => null,
+      getCachedPlotRenderModel: () => null,
       getCachedPlotDisplayModel: () => null,
       getCachedPlotLegendModel: () => null,
-      getCalculatedData: () => null,
+      getPlotRenderModel: () => null,
       getLegendLabels: () => ({}),
       getState: () => ({ activePlotType: "iv" }),
       onDidChangeCalculatedDataCache: Event.None,

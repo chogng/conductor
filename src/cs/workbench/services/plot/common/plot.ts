@@ -12,7 +12,6 @@ import {
 import type { SeriesId } from "src/cs/workbench/services/calculation/common/calculationRecords";
 import type {
   PlotMainRenderModel,
-  PlotMainRenderModelSource,
   PlotMainSeries,
 } from "src/cs/workbench/services/plot/common/plotModel";
 import type { XUnit, YUnit } from "src/cs/workbench/services/plot/common/units";
@@ -57,7 +56,7 @@ export type PlotCalculatedDataInput = {
   readonly plotType?: PlotType;
 } & PlotTarget;
 
-export type PlotSourceModel = PlotMainRenderModelSource & {
+export type PlotRenderModel = PlotMainRenderModel & {
   readonly signature: string;
 };
 
@@ -129,10 +128,10 @@ export interface IPlotService {
   readonly onDidChangePlotState: Event<PlotState>;
 
   getState(): PlotState;
-  getCachedCalculatedData(input: PlotCalculatedDataInput): PlotSourceModel | null;
+  getCachedPlotRenderModel(input: PlotCalculatedDataInput): PlotRenderModel | null;
   getCachedPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
   getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
-  getCalculatedData(input: PlotCalculatedDataInput): PlotSourceModel | null;
+  getPlotRenderModel(input: PlotCalculatedDataInput): PlotRenderModel | null;
   getAxisOverrides(target: PlotTarget): PlotAxisOverrides;
   getHiddenLegendKeys(target: PlotTarget, plotType: PlotType, liveLegendKeys: readonly SeriesId[]): readonly SeriesId[];
   getLegendLabels(target: PlotTarget): Readonly<Record<SeriesId, string>>;

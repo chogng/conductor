@@ -5,8 +5,7 @@
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { Event } from "src/cs/base/common/event";
 import type { URI } from "src/cs/base/common/uri";
-import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
-import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
+import type { PlotRenderModel, PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 
 export const IThumbnailService = createDecorator<IThumbnailService>("thumbnailService");
@@ -15,9 +14,7 @@ export const ThumbnailContributionId = "workbench.contrib.thumbnail";
 
 export type ThumbnailPreviewPriority = "hover" | "visible" | "recent" | "nearby" | "idle";
 
-export type ThumbnailPreviewPlotModel = PlotMainRenderModelSource & {
-	readonly signature: string;
-};
+export type ThumbnailPreviewPlotModel = PlotRenderModel;
 
 export type ThumbnailPreviewState =
 	| { readonly kind: "idle" }
@@ -40,9 +37,7 @@ export type ThumbnailPreviewChangeEvent = {
 };
 
 export type ThumbnailBitmapOptions = {
-	readonly model: PlotMainRenderModelSource & {
-		readonly signature: string;
-	};
+	readonly model: ThumbnailPreviewPlotModel;
 	readonly originOpenPlotOptions?: {
 		readonly lineWidth?: unknown;
 		readonly type?: unknown;
