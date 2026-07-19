@@ -14,11 +14,8 @@ import {
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
 import { resolveAxisTitleLabel } from "src/cs/workbench/services/plot/common/plotAxisLabels";
-import {
-  createPlotSeriesColorMap,
-  type PlotSeriesColorMap,
-} from "src/cs/workbench/services/plot/common/plotColors";
 import { filterCalculatedDataSeries } from "src/cs/workbench/services/plot/common/plotSeriesVisibility";
+import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
 import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
 import {
   getYUnitValuesForFamily,
@@ -77,7 +74,7 @@ export const createPlotDisplayModelFromCalculatedData = (
     chart: {
       defaultXAxisTitle: chartDefaultXAxisTitle,
       defaultYAxisTitle: chartDefaultYAxisTitle,
-      model: createPlotMainRenderModel(parts.chartData, parts.seriesColors),
+      model: createPlotMainRenderModel(parts.chartData, parts.colorSeriesList),
       plotXFactor: parts.displayUnits.xFactor,
       plotXUnitLabel: parts.displayUnits.xUnit,
       plotYFactor: parts.displayUnits.yFactor,
@@ -96,8 +93,8 @@ export const createPlotDisplayModelFromCalculatedData = (
         chartData: parts.chartData,
         displayUnits: parts.displayUnits,
         fileId: parts.fileId,
+        colorSeriesList: parts.colorSeriesList,
         resource: parts.resource,
-        seriesColors: parts.seriesColors,
         sheetId: parts.sheetId,
         yScaleMode: parts.yScaleMode,
       }),
@@ -119,10 +116,10 @@ export const createPlotInspectorDisplayModelFromCalculatedData = (
   return createInspectorDisplayModel({
     axisTitleOverridesByKey: input.axisTitleOverridesByKey,
     chartData: parts.chartData,
+    colorSeriesList: parts.colorSeriesList,
     displayUnits: parts.displayUnits,
     fileId: parts.fileId,
     resource: parts.resource,
-    seriesColors: parts.seriesColors,
     sheetId: parts.sheetId,
     yScaleMode: parts.yScaleMode,
   });
@@ -132,6 +129,7 @@ const createPlotDisplayModelParts = (
   input: CreatePlotDisplayModelInput,
 ): {
   readonly chartData: CalculatedData;
+  readonly colorSeriesList: readonly PlotMainSeries[];
   readonly displayUnits: {
     readonly xFactor: number;
     readonly xUnit: string | undefined;
@@ -140,7 +138,6 @@ const createPlotDisplayModelParts = (
   };
   readonly fileId: string;
   readonly resource?: PlotDisplayModel["resource"];
-  readonly seriesColors: PlotSeriesColorMap;
   readonly sheetId?: PlotDisplayModel["sheetId"];
   readonly yScaleMode: "linear" | "log";
 } | null => {
@@ -151,7 +148,6 @@ const createPlotDisplayModelParts = (
   }
 
   const hiddenLegendKeys = input.hiddenLegendKeys ?? [];
-  const seriesColors = createPlotSeriesColorMap(calculatedData.seriesList);
   const chartData = applyLegendLabels(
     filterCalculatedDataSeries(calculatedData, hiddenLegendKeys),
     input.legendLabels ?? {},
@@ -160,10 +156,10 @@ const createPlotDisplayModelParts = (
   const yScaleMode = resolveYScale(chartData, input.axisSettings);
   return {
     chartData,
+    colorSeriesList: calculatedData.seriesList,
     displayUnits,
     fileId,
     resource: calculatedData.source.resource ?? null,
-    seriesColors,
     sheetId: calculatedData.source.sheetId ?? null,
     yScaleMode,
   };
@@ -190,15 +186,16 @@ const getAxisTitle = (
 const createInspectorDisplayModel = ({
   axisTitleOverridesByKey,
   chartData,
+  colorSeriesList,
   displayUnits,
   fileId,
   resource,
-  seriesColors,
   sheetId,
   yScaleMode,
 }: {
   readonly axisTitleOverridesByKey: Readonly<Record<string, string>> | undefined;
   readonly chartData: CalculatedData;
+  readonly colorSeriesList: readonly PlotMainSeries[];
   readonly displayUnits: {
     readonly xFactor: number;
     readonly xUnit: string | undefined;
@@ -207,7 +204,6 @@ const createInspectorDisplayModel = ({
   };
   readonly fileId: string;
   readonly resource?: PlotDisplayModel["resource"];
-  readonly seriesColors: PlotSeriesColorMap;
   readonly sheetId?: PlotDisplayModel["sheetId"];
   readonly yScaleMode: "linear" | "log";
 }): PlotDisplayModel["inspector"] => {
@@ -243,7 +239,7 @@ const createInspectorDisplayModel = ({
   return {
     defaultXAxisTitle: inspectorDefaultXAxisTitle,
     defaultYAxisTitle: inspectorDefaultYAxisTitle,
-    model: createPlotMainRenderModel(inspectorData, seriesColors),
+    model: createPlotMainRenderModel(inspectorData, colorSeriesList),
     plotXFactor: displayUnits.xFactor,
     plotXUnitLabel: displayUnits.xUnit,
     plotYFactor: displayUnits.yFactor,

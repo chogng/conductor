@@ -41,7 +41,6 @@ import {
   type PlotTargetReference,
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
-import { createPlotSeriesColorMap } from "src/cs/workbench/services/plot/common/plotColors";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
 import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
 import {
@@ -368,10 +367,7 @@ export class PlotService extends Disposable implements IPlotService {
     return {
       fileId,
       plotType: calculatedData.kind as PlotType,
-      seriesList: createPlotMainRenderModel(
-        calculatedData,
-        createPlotSeriesColorMap(calculatedData.seriesList),
-      ).seriesList,
+      seriesList: createPlotMainRenderModel(calculatedData).seriesList,
       resource: calculatedData.source.resource ?? null,
       sheetId: calculatedData.source.sheetId ?? null,
     };
@@ -466,12 +462,7 @@ export class PlotService extends Disposable implements IPlotService {
 
   public getPlotMainRenderModel(input: PlotMainRenderModelInput): PlotMainRenderModel | null {
     const calculatedData = this.getCalculatedData(input);
-    return calculatedData
-      ? createPlotMainRenderModel(
-        calculatedData,
-        createPlotSeriesColorMap(calculatedData.seriesList),
-      )
-      : null;
+    return calculatedData ? createPlotMainRenderModel(calculatedData) : null;
   }
 
   public cancelQueuedPlotInspectorDisplayModelPrefetch(): void {

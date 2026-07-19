@@ -5,34 +5,44 @@
 import type {
 	PlotMainRenderModel,
 	PlotMainRenderModelSource,
+	PlotMainSeries,
 } from "src/cs/workbench/services/plot/common/plotModel";
-import {
-	getPlotSeriesColor,
-	type PlotSeriesColorMap,
-} from "src/cs/workbench/services/plot/common/plotColors";
+import { resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 
 export const createPlotMainRenderModel = (
 	source: PlotMainRenderModelSource,
-	seriesColors: PlotSeriesColorMap,
-): PlotMainRenderModel => ({
-	axisLabels: source.activeFile
-		? {
-			xLabel: source.activeFile.xLabel,
-			yLabel: source.activeFile.yLabel,
-		}
-		: null,
-	pointsCount: source.pointsCount,
-	seriesList: source.seriesList.map(series => {
-		const color = getPlotSeriesColor(seriesColors, series);
-		return color
+	colorSeriesList: readonly PlotMainSeries[] = source.seriesList,
+): PlotMainRenderModel => {
+	const seriesColors = createPlotSeriesColorMap(colorSeriesList);
+	return {
+		axisLabels: source.activeFile
 			? {
-				...series,
-				color,
+				xLabel: source.activeFile.xLabel,
+				yLabel: source.activeFile.yLabel,
 			}
-			: series;
-	}),
-	xDomain: source.xDomain,
-	xUnitLabel: source.xUnitLabel,
-	yDomain: source.yDomain,
-	yUnitLabel: source.yUnitLabel,
-});
+			: null,
+		pointsCount: source.pointsCount,
+		seriesList: source.seriesList.map(series => {
+			const color = seriesColors.get(series.id);
+			return color
+				? {
+					...series,
+					color,
+				}
+				: series;
+		}),
+		xDomain: source.xDomain,
+		xUnitLabel: source.xUnitLabel,
+		yDomain: source.yDomain,
+		yUnitLabel: source.yUnitLabel,
+	};
+};
+
+const createPlotSeriesColorMap = (
+	seriesList: readonly PlotMainSeries[],
+): ReadonlyMap<string, string> => new Map(
+	seriesList.map((series, seriesIndex) => [
+		series.id,
+		resolveSeriesPlotColor(series, seriesIndex),
+	]),
+);

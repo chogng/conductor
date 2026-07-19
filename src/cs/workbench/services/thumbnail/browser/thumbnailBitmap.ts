@@ -6,7 +6,6 @@ import {
   createPlotMainLayout,
   type ChartScale,
 } from "src/cs/workbench/services/plot/common/plotMainLayout";
-import { createPlotSeriesColorMap } from "src/cs/workbench/services/plot/common/plotColors";
 import type {
   PlotMainPoint,
   PlotMainRenderModel,
@@ -160,10 +159,7 @@ const createThumbnailRenderOptions = (
   options: ThumbnailBitmapOptions,
 ): ThumbnailRenderOptions => ({
   lineWidth: resolveLineWidth(options.originOpenPlotOptions?.lineWidth),
-  model: createPlotMainRenderModel(
-    options.model,
-    createPlotSeriesColorMap(options.model.seriesList),
-  ),
+  model: createPlotMainRenderModel(options.model),
 });
 
 const createBitmap = (

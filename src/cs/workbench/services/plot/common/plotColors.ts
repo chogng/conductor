@@ -24,12 +24,6 @@ type PlotColorSeries = {
   readonly color?: unknown;
 };
 
-type PlotColorIdentitySeries = PlotColorSeries & {
-  readonly id: string;
-};
-
-export type PlotSeriesColorMap = ReadonlyMap<string, string>;
-
 const clampAlpha = (alpha: unknown): number => {
   const value = Number(alpha);
   if (!Number.isFinite(value)) return 1;
@@ -72,17 +66,3 @@ export const resolveSeriesPlotColor = (
   const ownColor = String(series?.color ?? "").trim();
   return ownColor || getPlotColor(seriesIndex);
 };
-
-export const createPlotSeriesColorMap = (
-  seriesList: readonly PlotColorIdentitySeries[],
-): PlotSeriesColorMap => new Map(
-  seriesList.map((series, seriesIndex) => [
-    series.id,
-    resolveSeriesPlotColor(series, seriesIndex),
-  ]),
-);
-
-export const getPlotSeriesColor = (
-  seriesColors: PlotSeriesColorMap,
-  series: PlotColorIdentitySeries,
-): string | undefined => seriesColors.get(series.id);
