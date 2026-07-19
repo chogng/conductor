@@ -334,7 +334,7 @@ const createPlotServiceForTest = (
 		activePlotType: "iv",
 		axisTitleOverridesByKey: {},
 		hiddenLegendKeysByPlotKey: {},
-		legendLabelsByResourceKey: {},
+		legendLabels: {},
 	}),
 	onDidChangeCalculatedDataCache: Event.None,
 	onDidChangePlotDisplayModelCache: Event.None,
@@ -357,12 +357,12 @@ const createPlotServiceForTest = (
 
 const createPlotServiceForLegendEditTest = (): IPlotService => {
 	const onDidChangePlotStateEmitter = new Emitter<ReturnType<IPlotService["getState"]>>();
-	let legendLabelsByResourceKey: Readonly<Record<string, Readonly<Record<string, string>>>> = {};
+	let legendLabels: Readonly<Record<string, Readonly<Record<string, string>>>> = {};
 	const getState = () => ({
 		activePlotType: "iv" as const,
 		axisTitleOverridesByKey: {},
 		hiddenLegendKeysByPlotKey: {},
-		legendLabelsByResourceKey,
+		legendLabels,
 	});
 	return {
 		_serviceBrand: undefined,
@@ -370,7 +370,7 @@ const createPlotServiceForLegendEditTest = (): IPlotService => {
 		getCachedPlotDisplayModel: () => createPlotDisplayModel(),
 		getCachedPlotLegendModel: () => createPlotLegendModel(),
 		getHiddenLegendKeys: () => [],
-		getLegendLabels: () => legendLabelsByResourceKey[TEST_RESOURCE.toString()] ?? {},
+		getLegendLabels: () => legendLabels[TEST_RESOURCE.toString()] ?? {},
 		getState,
 		onDidChangeCalculatedDataCache: Event.None,
 		onDidChangePlotDisplayModelCache: Event.None,
@@ -381,11 +381,11 @@ const createPlotServiceForLegendEditTest = (): IPlotService => {
 		setAxisTitleOverride: () => undefined,
 		setActivePlotType: () => undefined,
 		setLegendLabel: (_target: PlotTarget, seriesId: string, label: string | null) => {
-			legendLabelsByResourceKey = label
+			legendLabels = label
 				? {
-					...legendLabelsByResourceKey,
+					...legendLabels,
 					[TEST_RESOURCE.toString()]: {
-						...(legendLabelsByResourceKey[TEST_RESOURCE.toString()] ?? {}),
+						...(legendLabels[TEST_RESOURCE.toString()] ?? {}),
 						[seriesId]: label,
 					},
 				}
@@ -406,7 +406,7 @@ const createPlotServiceForHeaderStabilityTest = (): IPlotService & {
 		activePlotType: "iv" as const,
 		axisTitleOverridesByKey: {},
 		hiddenLegendKeysByPlotKey: {},
-		legendLabelsByResourceKey: {},
+		legendLabels: {},
 	});
 	return {
 		_serviceBrand: undefined,

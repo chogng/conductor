@@ -6,7 +6,7 @@ import { localize } from "src/cs/nls";
 import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 import type { PlotLegendModel, PlotType } from "src/cs/workbench/services/plot/common/plot";
-import type { URI } from "src/cs/base/common/uri";
+import { URI } from "src/cs/base/common/uri";
 
 const DEFAULT_LEGEND_FONT_SIZE = 12;
 
@@ -42,61 +42,12 @@ export const isSameLegendContext = (
   left: LegendContext,
   right: LegendContext,
 ): boolean =>
-  getLegendResourceKey(left.resource) === getLegendResourceKey(right.resource) &&
+  getLegend(left.resource) === getLegend(right.resource) &&
   String(left.sheetId ?? "") === String(right.sheetId ?? "") &&
   left.plotType === right.plotType &&
   left.seriesList === right.seriesList;
 
-const getLegendResourceKey = (resource: unknown): string => {
-  const text = getLegendResourceString(resource);
-  if (text) {
-    return text.replace(/\\/g, "/");
-  }
-
-  const components = resource as {
-    readonly authority?: unknown;
-    readonly fragment?: unknown;
-    readonly path?: unknown;
-    readonly query?: unknown;
-    readonly scheme?: unknown;
-  } | null | undefined;
-  const path = String(components?.path ?? "").trim();
-  if (!path) {
-    return "";
-  }
-
-  const scheme = String(components?.scheme ?? "").trim();
-  const authority = String(components?.authority ?? "").trim();
-  const query = String(components?.query ?? "").trim();
-  const fragment = String(components?.fragment ?? "").trim();
-  if (scheme === "file") {
-    return [
-      "file://",
-      authority,
-      path,
-      query ? `?${query}` : "",
-      fragment ? `#${fragment}` : "",
-    ].join("").replace(/\\/g, "/");
-  }
-
-  return [
-    scheme ? `${scheme}:` : "",
-    authority ? `//${authority}` : "",
-    path,
-    query ? `?${query}` : "",
-    fragment ? `#${fragment}` : "",
-  ].join("").replace(/\\/g, "/");
-};
-
-const getLegendResourceString = (resource: unknown): string => {
-  const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
-  if (typeof toString !== "function") {
-    return "";
-  }
-
-  const text = String(toString.call(resource) ?? "").trim();
-  return text === "[object Object]" ? "" : text;
-};
+const getLegend = (resource: URI): string => URI.revive(resource).toString();
 
 export const getLegendDefaultLabel = (
   series: PlotMainSeries,

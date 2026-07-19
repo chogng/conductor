@@ -19,7 +19,6 @@ export type PlotDisplayModelWorkerRequest = {
 	readonly includeInspector?: boolean;
 	readonly legendLabels?: Readonly<Record<string, string>>;
 	readonly plotType: PlotType;
-	readonly resourceKey: string;
 	readonly requestId: number;
 	readonly dataVersion: number;
 };
@@ -27,7 +26,6 @@ export type PlotDisplayModelWorkerRequest = {
 export type PlotDisplayModelWorkerOutput = {
 	readonly displayModel: PlotDisplayModel | null;
 	readonly plotType: PlotType;
-	readonly resourceKey: string;
 	readonly requestId: number;
 	readonly dataVersion: number;
 };
@@ -41,9 +39,8 @@ class PlotCalculatedDataWorker implements IPlotCalculatedDataWorker {
 		input: PlotDisplayModelWorkerRequest,
 	): PlotDisplayModelWorkerOutput {
 		const calculatedData = input.calculatedData;
-		const resourceKey = String(input.resourceKey ?? '').trim();
 		const plotType = input.plotType ?? calculatedData?.kind;
-		if (!calculatedData || !resourceKey || !plotType) {
+		if (!calculatedData || !plotType) {
 			throw new Error('Plot worker display request is missing resource or plot type.');
 		}
 
@@ -57,7 +54,6 @@ class PlotCalculatedDataWorker implements IPlotCalculatedDataWorker {
 				legendLabels: input.legendLabels,
 			}),
 			plotType,
-			resourceKey,
 			requestId: normalizeInteger(input.requestId),
 			dataVersion: normalizeInteger(input.dataVersion),
 		};

@@ -206,9 +206,7 @@ suite("workbench/services/export/browser/exportService", () => {
 		];
 		const fileBId = createCalculationResourceId(results[1].resource, results[1].sheetId);
 		const service = createExportService(results, {}, {
-			xUnitByResourceKey: {},
-			yScaleByResourceKey: { [fileBId]: "log" },
-			yUnitByResourceKey: {},
+			[fileBId]: { yScale: "log" },
 		});
 
 		service.setCanvasScope("all");
@@ -228,7 +226,7 @@ suite("workbench/services/export/browser/exportService", () => {
 const createExportService = (
 	results: readonly CalculationResourceResult[] = [],
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
-	axisSettings: PlotAxisSettings = createEmptyAxisSettings(),
+	axisSettings: Readonly<Record<string, PlotAxisSettings>> = {},
 ): BrowserExportService => {
 	const notificationService = exportTestStore.add(new NotificationService());
 	const service = new BrowserExportService(
@@ -258,22 +256,17 @@ const createSettingsServiceStub = (): ISettingsService => ({
 
 const createPlotServiceStub = (
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>>,
-	axisSettings: PlotAxisSettings,
+	axisSettings: Readonly<Record<string, PlotAxisSettings>>,
 ): IPlotService => ({
 	getCachedCalculatedData: () => null,
-	getAxisSettings: () => axisSettings,
+	getAxisSettings: (target: PlotTarget) =>
+		axisSettings[createCalculationResourceId(target.resource, target.sheetId)] ?? {},
 	getLegendLabels: (target: PlotTarget) => {
 		const fileId = createCalculationResourceId(target.resource, target.sheetId);
 		return legendLabelsByFileId[fileId] ?? {};
 	},
 	onDidChangeCalculatedDataCache: BaseEvent.None,
 } as unknown as IPlotService);
-
-const createEmptyAxisSettings = (): PlotAxisSettings => ({
-	xUnitByResourceKey: {},
-	yScaleByResourceKey: {},
-	yUnitByResourceKey: {},
-});
 
 const createCalculationResult = (
 	fileId = "file-a",

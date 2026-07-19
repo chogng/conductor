@@ -19,6 +19,7 @@ import {
 } from "src/cs/workbench/services/export/browser/originExportService";
 import {
   IExportService,
+  type ExportResourceIdentity,
   type ExportState,
   type ExportViewState,
   type ExportViewStateInput,
@@ -293,7 +294,10 @@ export class BrowserExportService extends Disposable implements IExportService {
     return {
       ...input,
       activeFileId,
-      axisSettings: input.axisSettings ?? toOriginExportAxisSettings(this.plotService.getAxisSettings()),
+      axisSettings: input.axisSettings ?? toOriginExportAxisSettings(
+        input.resources,
+        target => this.plotService.getAxisSettings(target),
+      ),
       results,
     };
   }
@@ -594,9 +598,31 @@ const areStringArraysEqual = (
 registerSingleton(IExportService, BrowserExportService, InstantiationType.Delayed);
 
 const toOriginExportAxisSettings = (
-  settings: PlotAxisSettings,
-): OriginExportAxisSettings => ({
-  xUnitByFileId: settings.xUnitByResourceKey,
-  yScaleByFileId: settings.yScaleByResourceKey,
-  yUnitByFileId: settings.yUnitByResourceKey,
-});
+  targets: readonly ExportResourceIdentity[],
+  getSettings: (target: ExportResourceIdentity) => PlotAxisSettings,
+): OriginExportAxisSettings => {
+  const result: {
+    xUnitByFileId: Record<string, string>;
+    yScaleByFileId: Record<string, "linear" | "log">;
+    yUnitByFileId: Record<string, string>;
+  } = {
+    xUnitByFileId: {},
+    yScaleByFileId: {},
+    yUnitByFileId: {},
+  };
+
+  for (const target of targets) {
+    const fileId = createCalculationResourceId(target.resource, target.sheetId);
+    const settings = getSettings(target);
+    if (settings.xUnit) {
+      result.xUnitByFileId[fileId] = settings.xUnit;
+    }
+    if (settings.yScale) {
+      result.yScaleByFileId[fileId] = settings.yScale;
+    }
+    if (settings.yUnit) {
+      result.yUnitByFileId[fileId] = settings.yUnit;
+    }
+  }
+  return result;
+};

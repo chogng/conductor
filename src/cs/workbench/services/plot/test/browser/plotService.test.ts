@@ -14,7 +14,6 @@ import {
 } from "src/cs/workbench/services/calculation/common/calculation";
 import type { PlotCalculatedDataWorkerClient } from "src/cs/workbench/services/plot/browser/plotCalculatedDataWorkerClient";
 import { PlotService } from "src/cs/workbench/services/plot/browser/plotService";
-import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 
 suite("workbench/services/plot/test/browser/plotService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -142,10 +141,6 @@ const createPlotService = (
     calculateDisplayModel: async () => null,
     dispose: () => undefined,
   } as unknown as PlotCalculatedDataWorkerClient,
-  {
-    getConductorSettings: () => null,
-    onDidChangeConductorSettings: Event.None,
-  } as ISettingsService,
   createStorageServiceStub(),
   {
     getResourceResult: (resource: URI, sheetId?: string | null) => results.find(result =>

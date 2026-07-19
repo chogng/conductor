@@ -35,7 +35,6 @@ export type PlotDisplayModelWorkerInput = {
 	readonly legendLabels?: Readonly<Record<string, string>>;
 	readonly plotType: PlotType;
 	readonly priority?: PlotCalculatedDataPrefetchPriority;
-	readonly resourceKey: string;
 	readonly requestId: number;
 	readonly dataVersion: number;
 	readonly workerLane?: PlotDisplayModelWorkerLane;
@@ -83,7 +82,6 @@ export class PlotCalculatedDataWorkerClient extends Disposable {
 			includeInspector: input.includeInspector,
 			legendLabels: input.legendLabels,
 			plotType: input.plotType,
-			resourceKey: input.resourceKey,
 			requestId: input.requestId,
 			dataVersion: input.dataVersion,
 		};

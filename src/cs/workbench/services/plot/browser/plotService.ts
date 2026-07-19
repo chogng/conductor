@@ -4,7 +4,7 @@
 
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import type { URI } from "src/cs/base/common/uri";
+import { URI } from "src/cs/base/common/uri";
 import { logPerf, startPerf } from "src/cs/workbench/common/perf";
 import {
   IStorageService,
@@ -57,24 +57,10 @@ import {
   type YUnit,
 } from "src/cs/workbench/services/plot/common/units";
 import type { SeriesId } from "src/cs/workbench/services/calculation/common/calculationRecords";
-import { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 
-type PlotResourceKey = string;
+const PLOT_AXIS_SETTINGS_STORAGE_KEY = "plot.axisSettings";
 
-type StoredPlotAxisSettings = {
-  readonly xUnitByResourceKey?: Readonly<Record<string, string>>;
-  readonly yScaleByResourceKey?: Readonly<Record<string, "linear" | "log" | string>>;
-  readonly yUnitByResourceKey?: Readonly<Record<string, string>>;
-};
-
-// Persistence boundary: these profile keys predate resource-backed Plot identity,
-// but their map entries are now calculation resource keys. Rename or remove them
-// only when profile storage can migrate these keys atomically.
-const PLOT_AXIS_STORAGE_KEYS = {
-  xUnitByFileId: "plot.xUnitByFileId",
-  yScaleByFileId: "plot.yScaleByFileId",
-  yUnitByFileId: "plot.yUnitByFileId",
-} as const;
+type StoredPlotAxisSettings = PlotAxisSettings & PlotTarget;
 
 const CALCULATED_DATA_PREFETCH_PRIORITY_ORDER: Readonly<Record<PlotCalculatedDataPrefetchPriority, number>> = {
   active: 0,
@@ -114,7 +100,6 @@ type PlotInspectorDisplayModelCacheEntry = {
 };
 
 type QueuedCalculatedDataPrefetch = {
-  readonly resourceKey: PlotResourceKey;
   readonly plotType: PlotType;
   readonly priority: PlotCalculatedDataPrefetchPriority;
   readonly resource: URI;
@@ -127,7 +112,6 @@ type QueuedPlotDisplayModelPrefetch = {
   readonly plotType: PlotType;
   readonly priority: PlotCalculatedDataPrefetchPriority;
   readonly resource: URI;
-  readonly resourceKey: PlotResourceKey;
   readonly stage: PlotDisplayModelPrefetchStage;
   readonly sheetId?: string | null;
   readonly workerLane?: PlotDisplayModelWorkerLane;
@@ -139,11 +123,10 @@ type PlotDisplayModelPrefetchResult = {
   readonly cacheHit?: boolean;
   readonly immediate?: boolean;
   readonly inFlight?: boolean;
-  readonly missingCalculatedDataResourceKey?: PlotResourceKey;
+  readonly missingCalculatedData?: PlotTarget;
   readonly plotType?: PlotType;
   readonly queued?: boolean;
   readonly result: string;
-  readonly resourceKey?: PlotResourceKey;
   readonly stage?: PlotDisplayModelPrefetchStage;
 };
 
@@ -151,7 +134,6 @@ type ResolvedPlotDisplayModelInput = PlotDisplayModelInput & {
   readonly hiddenLegendKeys: readonly SeriesId[];
   readonly legendLabels: Readonly<Record<SeriesId, string>>;
   readonly plotType: PlotType;
-  readonly resourceKey: PlotResourceKey;
 };
 
 type InFlightPlotPrefetch = {
@@ -160,13 +142,8 @@ type InFlightPlotPrefetch = {
   readonly requestId: number;
 };
 
-type PlotCacheChangeMap = Map<PlotResourceKey, Set<PlotType>>;
-type PlotCacheResourceMap = ReadonlyMap<PlotResourceKey, PlotResourceIdentity>;
-
-type PlotResourceIdentity = {
-  readonly resource: URI;
-  readonly sheetId?: string | null;
-};
+type PlotCacheChangeMap = Map<string, Set<PlotType>>;
+type PlotCacheResourceMap = ReadonlyMap<string, PlotTarget>;
 
 type PlotStateUpdateOptions = {
   readonly afterStateAssigned?: () => void;
@@ -189,10 +166,10 @@ export class PlotService extends Disposable implements IPlotService {
     axisTitleOverridesByKey: {},
     activePlotType: "iv",
     hiddenLegendKeysByPlotKey: {},
-    legendLabelsByResourceKey: {},
+    legendLabels: {},
   };
   private readonly calculatedDataCacheKeys = new Set<string>();
-  private readonly calculatedDataCacheByResourceKey = new Map<string, CalculatedData>();
+  private readonly calculatedDataCache = new Map<string, CalculatedData>();
   private readonly unavailableCalculatedDataCacheKeys = new Set<string>();
   private readonly queuedCalculatedDataPrefetchByKey = new Map<string, QueuedCalculatedDataPrefetch>();
   private readonly inFlightCalculatedDataPrefetchByKey = new Map<string, InFlightPlotPrefetch>();
@@ -211,18 +188,12 @@ export class PlotService extends Disposable implements IPlotService {
 
   constructor(
     private readonly calculatedDataWorkerClient: PlotCalculatedDataWorkerClient,
-    @ISettingsService private readonly settingsService: ISettingsService,
     @IStorageService private readonly storageService: IStorageService,
     @ICalculationService private readonly calculationService: ICalculationServiceType,
   ) {
     super();
 
     this._register(this.calculatedDataWorkerClient);
-    this._register(this.settingsService.onDidChangeConductorSettings(() => {
-      this.clearPlotDisplayModelCache();
-      this.clearQueuedPlotDisplayModelPrefetch();
-      this.onDidChangePlotStateEmitter.fire(this.state);
-    }));
     this._register(this.calculationService.onDidChangeResourceCalculationResult(resource => {
       this.invalidatePlotModelsForResourceChange(resource.resource, resource.sheetId);
     }));
@@ -244,7 +215,7 @@ export class PlotService extends Disposable implements IPlotService {
     const plotType = input.plotType && isPlotType(input.plotType)
       ? input.plotType
       : this.state.activePlotType;
-    return this.getCachedCalculatedDataForResource(getPlotResourceKey(input), plotType);
+    return this.getCachedCalculatedDataForResource(getPlot(input), plotType);
   }
 
   public getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null {
@@ -314,7 +285,7 @@ export class PlotService extends Disposable implements IPlotService {
       : this.state.activePlotType;
     const calculatedData = this.getCalculatedDataForResource(input, plotType);
     logPerf("plotService.getCalculatedData", {
-      resourceKey: getPlotResourceKey(input),
+      id: getPlot(input),
       plotType,
       resultPointsCount: calculatedData?.pointsCount ?? 0,
       source: "calculationResource",
@@ -325,7 +296,7 @@ export class PlotService extends Disposable implements IPlotService {
   public getLegendLabels(target: PlotTarget): Readonly<Record<SeriesId, string>> {
     const key = getPlotTargetStateKey(target);
     return key
-      ? this.state.legendLabelsByResourceKey[key] ?? {}
+      ? this.state.legendLabels[key] ?? {}
       : {};
   }
 
@@ -374,13 +345,13 @@ export class PlotService extends Disposable implements IPlotService {
     input: PlotDisplayModelInput,
     calculatedData?: CalculatedData | null,
   ): ResolvedPlotDisplayModelInput | null {
-    const resourceKey = getPlotResourceKey(input);
+    const id = getPlot(input);
     const plotType = isPlotType(calculatedData?.kind)
       ? calculatedData.kind
       : input.plotType && isPlotType(input.plotType)
         ? input.plotType
         : this.state.activePlotType;
-    if (!resourceKey || !isPlotType(plotType)) {
+    if (!id || !isPlotType(plotType)) {
       return null;
     }
 
@@ -393,7 +364,6 @@ export class PlotService extends Disposable implements IPlotService {
         ? normalizeLegendLabelMap(input.legendLabels)
         : this.getLegendLabels(input),
       plotType,
-      resourceKey,
     };
   }
 
@@ -425,7 +395,10 @@ export class PlotService extends Disposable implements IPlotService {
       return null;
     }
 
-    const axisSettings = this.resolveAxisSettings();
+    const axisSettings = this.resolveAxisSettings({
+      resource: calculatedData.source.resource,
+      sheetId: calculatedData.source.sheetId,
+    });
     return createPlotDisplayModelFromCalculatedData({
       axisSettings,
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
@@ -444,7 +417,10 @@ export class PlotService extends Disposable implements IPlotService {
       return null;
     }
 
-    const axisSettings = this.resolveAxisSettings();
+    const axisSettings = this.resolveAxisSettings({
+      resource: calculatedData.source.resource,
+      sheetId: calculatedData.source.sheetId,
+    });
     return createPlotInspectorDisplayModelFromCalculatedData({
       axisSettings,
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
@@ -471,7 +447,7 @@ export class PlotService extends Disposable implements IPlotService {
     priority: PlotCalculatedDataPrefetchPriority,
   ): void {
     const endPerf = startPerf("plotService.prefetchPlotDisplayModel", {
-      resourceKey: getPlotResourceKey(input),
+      id: getPlot(input),
       priority,
       requestedPlotType: input.plotType ?? null,
     });
@@ -496,7 +472,7 @@ export class PlotService extends Disposable implements IPlotService {
       priority,
     });
     const seenKeys = new Set<string>();
-    const missingCalculatedResourceKeysByPlotType = new Map<PlotType, Set<PlotResourceKey>>();
+    const missingCalculatedByPlotType = new Map<PlotType, Set<string>>();
     const resultCounts = new Map<string, number>();
     let calculatedDataReadyCount = 0;
     let calculatedDataWarmedCount = 0;
@@ -536,18 +512,19 @@ export class PlotService extends Disposable implements IPlotService {
         queuedCount += 1;
         shouldSchedulePlotDisplayPrefetch = true;
       }
-      if (result.missingCalculatedDataResourceKey && result.plotType) {
-        let resourceKeys = missingCalculatedResourceKeysByPlotType.get(result.plotType);
-        if (!resourceKeys) {
-          resourceKeys = new Set<PlotResourceKey>();
-          missingCalculatedResourceKeysByPlotType.set(result.plotType, resourceKeys);
+      if (result.missingCalculatedData && result.plotType) {
+        const id = getPlot(result.missingCalculatedData);
+        let ids = missingCalculatedByPlotType.get(result.plotType);
+        if (!ids) {
+          ids = new Set<string>();
+          missingCalculatedByPlotType.set(result.plotType, ids);
         }
-        resourceKeys.add(result.missingCalculatedDataResourceKey);
+        ids.add(id);
       }
     }
 
-    const missingCalculatedDataCount = [...missingCalculatedResourceKeysByPlotType.values()]
-      .reduce((count, resourceKeys) => count + resourceKeys.size, 0);
+    const missingCalculatedDataCount = [...missingCalculatedByPlotType.values()]
+      .reduce((count, ids) => count + ids.size, 0);
     if (shouldSchedulePlotDisplayPrefetch) {
       this.schedulePlotDisplayModelPrefetch();
     }
@@ -571,7 +548,7 @@ export class PlotService extends Disposable implements IPlotService {
     input: PlotDisplayModelInput,
     priority: PlotCalculatedDataPrefetchPriority,
   ): QueuedPlotDisplayModelPrefetch {
-    const resourceKey = getPlotResourceKey(input);
+    const id = getPlot(input);
     const plotType = input.plotType && isPlotType(input.plotType)
       ? input.plotType
       : this.state.activePlotType;
@@ -586,7 +563,6 @@ export class PlotService extends Disposable implements IPlotService {
       plotType,
       priority,
       resource: input.resource,
-      resourceKey,
       stage: "chart",
       sheetId: input.sheetId,
     };
@@ -601,10 +577,9 @@ export class PlotService extends Disposable implements IPlotService {
       sheetId: request.sheetId,
     });
     let calculatedDataWarmed = false;
-    if (!calculatedData && this.isCalculatedDataUnavailable(request.resourceKey, request.plotType)) {
+    if (!calculatedData && this.isCalculatedDataUnavailable(getPlot(request), request.plotType)) {
       return {
         plotType: request.plotType,
-        resourceKey: request.resourceKey,
         result: "calculatedDataUnavailable",
         stage: request.stage,
       };
@@ -630,7 +605,6 @@ export class PlotService extends Disposable implements IPlotService {
         calculatedDataReady: true,
         calculatedDataWarmed,
         plotType: request.plotType,
-        resourceKey: request.resourceKey,
         result: "chartCacheHit",
         stage: request.stage,
       };
@@ -644,7 +618,6 @@ export class PlotService extends Disposable implements IPlotService {
         calculatedDataWarmed,
         immediate: true,
         plotType: request.plotType,
-        resourceKey: request.resourceKey,
         queued: false,
         result: "chartCached",
         stage: request.stage,
@@ -673,7 +646,6 @@ export class PlotService extends Disposable implements IPlotService {
         calculatedDataReady: Boolean(calculatedData),
         inFlight: true,
         plotType: request.plotType,
-        resourceKey: request.resourceKey,
         result: "inFlightPromoted",
         stage: request.stage,
       };
@@ -691,10 +663,9 @@ export class PlotService extends Disposable implements IPlotService {
     return {
       calculatedDataReady: Boolean(calculatedData),
       calculatedDataWarmed,
-      missingCalculatedDataResourceKey: calculatedData ? undefined : request.resourceKey,
+      missingCalculatedData: calculatedData ? undefined : request,
       plotType: request.plotType,
       queued: true,
-      resourceKey: request.resourceKey,
       result: "queued",
       stage: request.stage,
     };
@@ -705,14 +676,14 @@ export class PlotService extends Disposable implements IPlotService {
     priority: PlotCalculatedDataPrefetchPriority,
   ): void {
     const endPerf = startPerf("plotService.prefetchPlotInspectorDisplayModel", {
-      resourceKey: getPlotResourceKey(input),
+      id: getPlot(input),
       priority,
       requestedPlotType: input.plotType ?? null,
     });
     const plotType = input.plotType && isPlotType(input.plotType)
       ? input.plotType
       : this.state.activePlotType;
-    const resourceKey = getPlotResourceKey(input);
+    const id = getPlot(input);
     const resolvedInput = this.resolvePlotDisplayModelInput({
       ...input,
       plotType,
@@ -728,7 +699,7 @@ export class PlotService extends Disposable implements IPlotService {
       sheetId: input.sheetId,
     });
     let calculatedDataWarmed = false;
-    if (!calculatedData && this.isCalculatedDataUnavailable(resourceKey, plotType)) {
+    if (!calculatedData && this.isCalculatedDataUnavailable(id, plotType)) {
       endPerf({
         plotType,
         result: "calculatedDataUnavailable",
@@ -765,7 +736,6 @@ export class PlotService extends Disposable implements IPlotService {
       plotType,
       priority: getInspectorPlotDisplayModelPrefetchPriority(priority),
       resource: input.resource,
-      resourceKey,
       stage: "inspector",
       sheetId: input.sheetId,
       workerLane: priority === "active" ? "detail" : undefined,
@@ -866,7 +836,7 @@ export class PlotService extends Disposable implements IPlotService {
     axis: PlotAxis,
     unit: XUnit | YUnit,
   ): Promise<void> {
-    const stateKey = getPlotResourceKey(target);
+    const current = this.resolveAxisSettings(target);
 
     if (axis === "x") {
       const normalizedUnit = normalizeXUnit(unit);
@@ -874,14 +844,13 @@ export class PlotService extends Disposable implements IPlotService {
         return;
       }
 
-      const current = this.getStoredAxisSettings().xUnitByResourceKey ?? {};
-      if (current[stateKey] === normalizedUnit) {
+      if (current.xUnit === normalizedUnit) {
         return;
       }
 
-      this.storeAxisSettings(PLOT_AXIS_STORAGE_KEYS.xUnitByFileId, {
+      this.storeAxisSettings(target, {
         ...current,
-        [stateKey]: normalizedUnit,
+        xUnit: normalizedUnit,
       });
       this.clearPlotDisplayModelCache();
       this.clearQueuedPlotDisplayModelPrefetch();
@@ -894,14 +863,13 @@ export class PlotService extends Disposable implements IPlotService {
       return;
     }
 
-    const current = this.getStoredAxisSettings().yUnitByResourceKey ?? {};
-    if (current[stateKey] === normalizedUnit) {
+    if (current.yUnit === normalizedUnit) {
       return;
     }
 
-    this.storeAxisSettings(PLOT_AXIS_STORAGE_KEYS.yUnitByFileId, {
+    this.storeAxisSettings(target, {
       ...current,
-      [stateKey]: normalizedUnit,
+      yUnit: normalizedUnit,
     });
     this.clearPlotDisplayModelCache();
     this.clearQueuedPlotDisplayModelPrefetch();
@@ -912,17 +880,16 @@ export class PlotService extends Disposable implements IPlotService {
     target: PlotTarget,
     scale: "linear" | "log",
   ): Promise<void> {
-    const stateKey = getPlotResourceKey(target);
+    const current = this.resolveAxisSettings(target);
 
     const normalizedScale = scale === "log" ? "log" : "linear";
-    const current = this.getStoredAxisSettings().yScaleByResourceKey ?? {};
-    if (current[stateKey] === normalizedScale) {
+    if (current.yScale === normalizedScale) {
       return;
     }
 
-    this.storeAxisSettings(PLOT_AXIS_STORAGE_KEYS.yScaleByFileId, {
+    this.storeAxisSettings(target, {
       ...current,
-      [stateKey]: normalizedScale,
+      yScale: normalizedScale,
     });
     this.clearPlotDisplayModelCache();
     this.clearQueuedPlotDisplayModelPrefetch();
@@ -934,14 +901,14 @@ export class PlotService extends Disposable implements IPlotService {
     seriesId: SeriesId,
     label: string | null,
   ): void {
-    const resourceKey = getPlotResourceKey(target);
+    const id = getPlot(target);
     const normalizedSeriesId = normalizeStateKey(seriesId);
     if (!normalizedSeriesId) {
       return;
     }
 
     const normalizedLabel = String(label ?? "").trim();
-    const currentLabels = this.state.legendLabelsByResourceKey[resourceKey] ?? {};
+    const currentLabels = this.state.legendLabels[id] ?? {};
     if ((currentLabels[normalizedSeriesId] ?? "") === normalizedLabel) {
       return;
     }
@@ -954,16 +921,16 @@ export class PlotService extends Disposable implements IPlotService {
       delete nextLabels[normalizedSeriesId];
     }
 
-    const legendLabelsByResourceKey = {
-      ...this.state.legendLabelsByResourceKey,
-      [resourceKey]: nextLabels,
+    const legendLabels = {
+      ...this.state.legendLabels,
+      [id]: nextLabels,
     };
     if (Object.keys(nextLabels).length === 0) {
-      delete legendLabelsByResourceKey[resourceKey];
+      delete legendLabels[id];
     }
 
     this.updateState({
-      legendLabelsByResourceKey,
+      legendLabels,
     }, {
       afterStateAssigned: () => this.cacheCurrentLegendDisplayModels(target, previousLegendInputs),
       clearDisplayModelCache: false,
@@ -1024,7 +991,7 @@ export class PlotService extends Disposable implements IPlotService {
       this.state.activePlotType === nextState.activePlotType &&
       areRecordMapsEqual(this.state.axisTitleOverridesByKey, nextState.axisTitleOverridesByKey) &&
       areStringArrayMapsEqual(this.state.hiddenLegendKeysByPlotKey, nextState.hiddenLegendKeysByPlotKey) &&
-      areNestedRecordMapsEqual(this.state.legendLabelsByResourceKey, nextState.legendLabelsByResourceKey)
+      areNestedRecordMapsEqual(this.state.legendLabels, nextState.legendLabels)
     ) {
       return;
     }
@@ -1107,18 +1074,18 @@ export class PlotService extends Disposable implements IPlotService {
   }
 
   private invalidatePlotModelsForResourceChange(resource: URI, sheetId?: string | null): void {
-    const resourceKey = createCalculationResourceId(resource, sheetId);
-    this.clearPlotModelsForResourceKeys(
-      new Set([resourceKey]),
-      new Map([[resourceKey, { resource, sheetId: sheetId ?? null }]]),
+    const id = createCalculationResourceId(resource, sheetId);
+    this.clearPlotModels(
+      new Set([id]),
+      new Map([[id, { resource, sheetId: sheetId ?? null }]]),
     );
   }
 
-  private clearPlotModelsForResourceKeys(
-    resourceKeys: ReadonlySet<PlotResourceKey>,
-    resourceByKey: PlotCacheResourceMap = new Map(),
+  private clearPlotModels(
+    ids: ReadonlySet<string>,
+    resources: PlotCacheResourceMap = new Map(),
   ): void {
-    if (!resourceKeys.size) {
+    if (!ids.size) {
       return;
     }
 
@@ -1127,62 +1094,64 @@ export class PlotService extends Disposable implements IPlotService {
 
     for (const key of [...this.calculatedDataCacheKeys]) {
       const keyContext = getCalculatedDataPrefetchContext(key);
-      if (keyContext && resourceKeys.has(keyContext.resourceKey)) {
+      if (keyContext && ids.has(keyContext.id)) {
         this.calculatedDataCacheKeys.delete(key);
-        this.calculatedDataCacheByResourceKey.delete(key);
+        this.calculatedDataCache.delete(key);
         addPlotCacheChange(calculatedDataChanges, keyContext);
       }
     }
-    for (const key of [...this.calculatedDataCacheByResourceKey.keys()]) {
+    for (const key of [...this.calculatedDataCache.keys()]) {
       const keyContext = getCalculatedDataPrefetchContext(key);
-      if (keyContext && resourceKeys.has(keyContext.resourceKey)) {
-        this.calculatedDataCacheByResourceKey.delete(key);
+      if (keyContext && ids.has(keyContext.id)) {
+        this.calculatedDataCache.delete(key);
         addPlotCacheChange(calculatedDataChanges, keyContext);
       }
     }
     for (const key of [...this.unavailableCalculatedDataCacheKeys]) {
       const keyContext = getCalculatedDataPrefetchContext(key);
-      if (keyContext && resourceKeys.has(keyContext.resourceKey)) {
+      if (keyContext && ids.has(keyContext.id)) {
         this.unavailableCalculatedDataCacheKeys.delete(key);
         addPlotCacheChange(calculatedDataChanges, keyContext);
       }
     }
     for (const [key, request] of [...this.queuedCalculatedDataPrefetchByKey]) {
-      if (resourceKeys.has(request.resourceKey)) {
+      const id = getPlot(request);
+      if (ids.has(id)) {
         this.queuedCalculatedDataPrefetchByKey.delete(key);
-        addPlotCacheChange(calculatedDataChanges, request);
+        addPlotCacheChange(calculatedDataChanges, { plotType: request.plotType, id: id });
       }
     }
     for (const key of [...this.inFlightCalculatedDataPrefetchByKey.keys()]) {
       const keyContext = getCalculatedDataPrefetchContext(key);
-      if (keyContext && resourceKeys.has(keyContext.resourceKey)) {
+      if (keyContext && ids.has(keyContext.id)) {
         this.inFlightCalculatedDataPrefetchByKey.delete(key);
         addPlotCacheChange(calculatedDataChanges, keyContext);
       }
     }
     for (const key of [...this.plotDisplayModelCacheByKey.keys()]) {
       const keyContext = getPlotDisplayModelContextFromKey(key);
-      if (keyContext && resourceKeys.has(keyContext.resourceKey)) {
+      if (keyContext && ids.has(keyContext.id)) {
         this.plotDisplayModelCacheByKey.delete(key);
         addPlotCacheChange(plotDisplayModelChanges, keyContext);
       }
     }
     for (const key of [...this.plotInspectorDisplayModelCacheByKey.keys()]) {
       const keyContext = getPlotDisplayModelContextFromKey(key);
-      if (keyContext && resourceKeys.has(keyContext.resourceKey)) {
+      if (keyContext && ids.has(keyContext.id)) {
         this.plotInspectorDisplayModelCacheByKey.delete(key);
         addPlotCacheChange(plotDisplayModelChanges, keyContext);
       }
     }
     for (const [key, request] of [...this.queuedPlotDisplayModelPrefetchByKey]) {
-      if (resourceKeys.has(request.resourceKey)) {
+      const id = getPlot(request);
+      if (ids.has(id)) {
         this.queuedPlotDisplayModelPrefetchByKey.delete(key);
-        addPlotCacheChange(plotDisplayModelChanges, request);
+        addPlotCacheChange(plotDisplayModelChanges, { plotType: request.plotType, id: id });
       }
     }
     for (const key of [...this.inFlightPlotDisplayModelPrefetchByKey.keys()]) {
       const keyContext = getPlotDisplayModelContextFromKey(key);
-      if (keyContext && resourceKeys.has(keyContext.resourceKey)) {
+      if (keyContext && ids.has(keyContext.id)) {
         this.inFlightPlotDisplayModelPrefetchByKey.delete(key);
         addPlotCacheChange(plotDisplayModelChanges, keyContext);
       }
@@ -1195,16 +1164,16 @@ export class PlotService extends Disposable implements IPlotService {
       this.cancelScheduledPlotDisplayModelPrefetch();
     }
 
-    this.fireCalculatedDataCacheChanges(calculatedDataChanges, resourceByKey);
-    this.firePlotDisplayModelCacheChanges(plotDisplayModelChanges, resourceByKey);
+    this.fireCalculatedDataCacheChanges(calculatedDataChanges, resources);
+    this.firePlotDisplayModelCacheChanges(plotDisplayModelChanges, resources);
   }
 
   private fireCalculatedDataCacheChanges(
     changes: PlotCacheChangeMap,
-    resourceByKey: PlotCacheResourceMap = new Map(),
+    resources: PlotCacheResourceMap = new Map(),
   ): void {
-    for (const [resourceKey, plotTypes] of changes) {
-      const resource = resourceByKey.get(resourceKey);
+    for (const [id, plotTypes] of changes) {
+      const resource = resources.get(id);
       if (!resource) {
         continue;
       }
@@ -1218,10 +1187,10 @@ export class PlotService extends Disposable implements IPlotService {
 
   private firePlotDisplayModelCacheChanges(
     changes: PlotCacheChangeMap,
-    resourceByKey: PlotCacheResourceMap = new Map(),
+    resources: PlotCacheResourceMap = new Map(),
   ): void {
-    for (const [resourceKey, plotTypes] of changes) {
-      const resource = resourceByKey.get(resourceKey);
+    for (const [id, plotTypes] of changes) {
+      const resource = resources.get(id);
       if (!resource) {
         continue;
       }
@@ -1233,13 +1202,13 @@ export class PlotService extends Disposable implements IPlotService {
     }
   }
 
-  private getCachedCalculatedDataForResource(resourceKey: PlotResourceKey, plotType: PlotType): CalculatedData | null {
-    const normalizedResourceKey = normalizeStateKey(resourceKey);
-    if (!normalizedResourceKey) {
+  private getCachedCalculatedDataForResource(id: string, plotType: PlotType): CalculatedData | null {
+    const normalizedId = normalizeStateKey(id);
+    if (!normalizedId) {
       return null;
     }
 
-    return this.calculatedDataCacheByResourceKey.get(getCalculatedDataPrefetchKey(normalizedResourceKey, plotType)) ?? null;
+    return this.calculatedDataCache.get(getCalculatedDataPrefetchKey(normalizedId, plotType)) ?? null;
   }
 
   private getCalculatedDataForResource(input: PlotCalculatedDataInput, plotType: PlotType): CalculatedData | null {
@@ -1249,16 +1218,16 @@ export class PlotService extends Disposable implements IPlotService {
       return null;
     }
 
-    const resourceKey = createCalculationResourceId(result.resource, result.sheetId);
+    const id = createCalculationResourceId(result.resource, result.sheetId);
 
-    const key = getCalculatedDataPrefetchKey(resourceKey, plotType);
-    const cached = this.calculatedDataCacheByResourceKey.get(key);
+    const key = getCalculatedDataPrefetchKey(id, plotType);
+    const cached = this.calculatedDataCache.get(key);
     if (cached) {
       return cached;
     }
 
     return this.cacheCalculatedDataForResource(
-      resourceKey,
+      id,
       plotType,
       createCalculatedDataForCalculationResourceResult({ plotType, result }),
       { resource: result.resource, sheetId: result.sheetId ?? null },
@@ -1266,16 +1235,16 @@ export class PlotService extends Disposable implements IPlotService {
   }
 
   private prefetchCalculatedDataForResource(
-    resourceKey: PlotResourceKey,
+    id: string,
     plotType: PlotType,
-    resource: PlotResourceIdentity,
+    resource: PlotTarget,
   ): void {
-    const normalizedResourceKey = normalizeStateKey(resourceKey);
-    if (!normalizedResourceKey) {
+    const normalizedId = normalizeStateKey(id);
+    if (!normalizedId) {
       return;
     }
 
-    const key = getCalculatedDataPrefetchKey(normalizedResourceKey, plotType);
+    const key = getCalculatedDataPrefetchKey(normalizedId, plotType);
     if (this.hasCompletedCalculatedDataPrefetch(key)) {
       return;
     }
@@ -1285,23 +1254,23 @@ export class PlotService extends Disposable implements IPlotService {
       sheetId: resource.sheetId,
     }, plotType);
     if (!calculatedData) {
-      this.markCalculatedDataUnavailable(normalizedResourceKey, plotType, resource);
+      this.markCalculatedDataUnavailable(normalizedId, plotType, resource);
     }
   }
 
   private cacheCalculatedDataForResource(
-    resourceKey: PlotResourceKey,
+    id: string,
     plotType: PlotType,
     calculatedData: CalculatedData,
-    resource: PlotResourceIdentity,
+    resource: PlotTarget,
   ): CalculatedData {
-    const key = getCalculatedDataPrefetchKey(resourceKey, plotType);
-    const cached = this.calculatedDataCacheByResourceKey.get(key);
+    const key = getCalculatedDataPrefetchKey(id, plotType);
+    const cached = this.calculatedDataCache.get(key);
     if (cached) {
       return cached;
     }
 
-    this.calculatedDataCacheByResourceKey.set(key, calculatedData);
+    this.calculatedDataCache.set(key, calculatedData);
     this.unavailableCalculatedDataCacheKeys.delete(key);
     this.calculatedDataCacheKeys.add(key);
     this.onDidChangeCalculatedDataCacheEmitter.fire(
@@ -1361,15 +1330,16 @@ export class PlotService extends Disposable implements IPlotService {
       }
 
       if (!this.canStartPlotPrefetch(next.priority)) {
+        const id = getPlot(next);
         this.queuedCalculatedDataPrefetchByKey.set(
-          getCalculatedDataPrefetchKey(next.resourceKey, next.plotType),
+          getCalculatedDataPrefetchKey(id, next.plotType),
           next,
         );
         blockedOnCapacity = true;
         break;
       }
 
-      this.prefetchCalculatedDataForResource(next.resourceKey, next.plotType, {
+      this.prefetchCalculatedDataForResource(getPlot(next), next.plotType, {
         resource: next.resource,
         sheetId: next.sheetId ?? null,
       });
@@ -1475,7 +1445,7 @@ export class PlotService extends Disposable implements IPlotService {
         resource: next.resource,
         sheetId: next.sheetId,
       });
-      if (!calculatedData && this.isCalculatedDataUnavailable(next.resourceKey, next.plotType)) {
+      if (!calculatedData && this.isCalculatedDataUnavailable(getPlot(next), next.plotType)) {
         processed += 1;
         continue;
       }
@@ -1597,7 +1567,7 @@ export class PlotService extends Disposable implements IPlotService {
       requestId,
     });
     void this.calculatedDataWorkerClient.calculateDisplayModel({
-      axisSettings: this.resolveAxisSettings(),
+      axisSettings: this.resolveAxisSettings(request),
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
       calculatedData,
       hiddenLegendKeys: request.hiddenLegendKeys,
@@ -1605,7 +1575,6 @@ export class PlotService extends Disposable implements IPlotService {
       legendLabels: request.legendLabels,
       plotType: request.plotType,
       priority: request.priority,
-      resourceKey: request.resourceKey,
       requestId,
       dataVersion: generation,
       workerLane: request.workerLane,
@@ -1640,7 +1609,6 @@ export class PlotService extends Disposable implements IPlotService {
       if (
         result.requestId !== requestId ||
         result.dataVersion !== generation ||
-        result.resourceKey !== request.resourceKey ||
         result.plotType !== request.plotType
       ) {
         this.scheduleCalculatedDataPrefetch();
@@ -1676,7 +1644,7 @@ export class PlotService extends Disposable implements IPlotService {
       requestId,
     });
     void this.calculatedDataWorkerClient.calculateDisplayModel({
-      axisSettings: this.resolveAxisSettings(),
+      axisSettings: this.resolveAxisSettings(request),
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
       calculatedData,
       hiddenLegendKeys: request.hiddenLegendKeys,
@@ -1684,7 +1652,6 @@ export class PlotService extends Disposable implements IPlotService {
       legendLabels: request.legendLabels,
       plotType: request.plotType,
       priority: request.priority,
-      resourceKey: request.resourceKey,
       requestId,
       dataVersion: generation,
       workerLane: request.workerLane,
@@ -1712,7 +1679,6 @@ export class PlotService extends Disposable implements IPlotService {
         (
           result.requestId !== requestId ||
           result.dataVersion !== generation ||
-          result.resourceKey !== request.resourceKey ||
           result.plotType !== request.plotType
         )
       ) {
@@ -1753,16 +1719,16 @@ export class PlotService extends Disposable implements IPlotService {
       this.unavailableCalculatedDataCacheKeys.has(key);
   }
 
-  private isCalculatedDataUnavailable(resourceKey: PlotResourceKey, plotType: PlotType): boolean {
-    return this.unavailableCalculatedDataCacheKeys.has(getCalculatedDataPrefetchKey(resourceKey, plotType));
+  private isCalculatedDataUnavailable(id: string, plotType: PlotType): boolean {
+    return this.unavailableCalculatedDataCacheKeys.has(getCalculatedDataPrefetchKey(id, plotType));
   }
 
   private markCalculatedDataUnavailable(
-    resourceKey: PlotResourceKey,
+    id: string,
     plotType: PlotType,
-    resource: PlotResourceIdentity,
+    resource: PlotTarget,
   ): void {
-    const key = getCalculatedDataPrefetchKey(resourceKey, plotType);
+    const key = getCalculatedDataPrefetchKey(id, plotType);
     if (this.unavailableCalculatedDataCacheKeys.has(key)) {
       return;
     }
@@ -1864,7 +1830,7 @@ export class PlotService extends Disposable implements IPlotService {
         previousRetentionPriority,
         result: cachedEntry.retentionPriority === previousRetentionPriority ? "kept" : "upgraded",
         retentionPriority: cachedEntry.retentionPriority,
-        resourceKey: createCalculationResourceId(chartModel.resource, chartModel.sheetId),
+        id: createCalculationResourceId(chartModel.resource, chartModel.sheetId),
         signature: calculatedData.signature,
       });
       return cached;
@@ -1891,7 +1857,7 @@ export class PlotService extends Disposable implements IPlotService {
       plotType: chartModel.plotType,
       retentionPriority,
       result: "created",
-      resourceKey: createCalculationResourceId(chartModel.resource, chartModel.sheetId),
+      id: createCalculationResourceId(chartModel.resource, chartModel.sheetId),
       signature: calculatedData.signature,
     });
     return chartModel;
@@ -1907,7 +1873,7 @@ export class PlotService extends Disposable implements IPlotService {
     if (!resource || !isPlotType(calculatedData.kind)) {
       return model;
     }
-    const resourceKey = createCalculationResourceId(resource, calculatedData.source.sheetId);
+    const id = createCalculationResourceId(resource, calculatedData.source.sheetId);
     const cachedEntry = this.plotInspectorDisplayModelCacheByKey.get(key);
     if (cachedEntry) {
       cachedEntry.lastUsed = ++this.plotInspectorDisplayModelCacheUse;
@@ -1916,7 +1882,7 @@ export class PlotService extends Disposable implements IPlotService {
         limit: PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT,
         plotType: calculatedData.kind,
         result: "kept",
-        resourceKey,
+        id,
         signature: calculatedData.signature,
       });
       return cachedEntry.model;
@@ -1939,7 +1905,7 @@ export class PlotService extends Disposable implements IPlotService {
       limit: PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT,
       plotType: calculatedData.kind,
       result: "created",
-      resourceKey,
+      id,
       signature: calculatedData.signature,
     });
     return model;
@@ -2112,8 +2078,7 @@ export class PlotService extends Disposable implements IPlotService {
       return false;
     }
 
-    const resourceKey = createCalculationResourceId(result.resource, result.sheetId);
-    if (resourceKey !== request.resourceKey) {
+    if (!isSamePlotTarget(result, request)) {
       return false;
     }
 
@@ -2124,71 +2089,64 @@ export class PlotService extends Disposable implements IPlotService {
   }
 
 
-  public getAxisSettings(): PlotAxisSettings {
-    return this.resolveAxisSettings();
+  public getAxisSettings(target: PlotTarget): PlotAxisSettings {
+    return this.resolveAxisSettings(target);
   }
 
-  private resolveAxisSettings(): PlotAxisSettings {
-    return createPlotAxisSettings(this.getStoredAxisSettings());
+  private resolveAxisSettings(target: PlotTarget): PlotAxisSettings {
+    const match = this.getStoredAxisSettings().find(candidate => isSamePlotTarget(candidate, target));
+    return match
+      ? {
+          xUnit: match.xUnit,
+          yScale: match.yScale,
+          yUnit: match.yUnit,
+        }
+      : {};
   }
 
-  private getStoredAxisSettings(): StoredPlotAxisSettings {
-    return {
-      xUnitByResourceKey: {
-        ...readRetiredSettingsStringMap(this.settingsService.getConductorSettings()?.xUnitByFileId),
-        ...this.storageService.getObject<Record<string, string>>(
-          PLOT_AXIS_STORAGE_KEYS.xUnitByFileId,
-          StorageScope.PROFILE,
-          {},
-        ),
-      },
-      yScaleByResourceKey: {
-        ...readRetiredSettingsStringMap(this.settingsService.getConductorSettings()?.yScaleByFileId),
-        ...this.storageService.getObject<Record<string, string>>(
-          PLOT_AXIS_STORAGE_KEYS.yScaleByFileId,
-          StorageScope.PROFILE,
-          {},
-        ),
-      },
-      yUnitByResourceKey: {
-        ...readRetiredSettingsStringMap(this.settingsService.getConductorSettings()?.yUnitByFileId),
-        ...this.storageService.getObject<Record<string, string>>(
-          PLOT_AXIS_STORAGE_KEYS.yUnitByFileId,
-          StorageScope.PROFILE,
-          {},
-        ),
-      },
-    };
+  private getStoredAxisSettings(): readonly StoredPlotAxisSettings[] {
+    const stored = this.storageService.getObject<readonly unknown[]>(
+      PLOT_AXIS_SETTINGS_STORAGE_KEY,
+      StorageScope.PROFILE,
+      [],
+    );
+    return stored.flatMap(createStoredPlotAxisSettings);
   }
 
-  private storeAxisSettings(key: string, value: Record<string, string>): void {
-    this.storageService.store(key, value, StorageScope.PROFILE, StorageTarget.USER);
+  private storeAxisSettings(target: PlotTarget, value: PlotAxisSettings): void {
+    const settings = this.getStoredAxisSettings().filter(candidate => !isSamePlotTarget(candidate, target));
+    this.storageService.store(
+      PLOT_AXIS_SETTINGS_STORAGE_KEY,
+      [...settings, { ...value, resource: target.resource, sheetId: target.sheetId ?? null }],
+      StorageScope.PROFILE,
+      StorageTarget.USER,
+    );
   }
 }
 
-const getCalculatedDataPrefetchKey = (resourceKey: PlotResourceKey, plotType: PlotType): string =>
-  `${plotType}:${resourceKey}`;
+const getCalculatedDataPrefetchKey = (id: string, plotType: PlotType): string =>
+  `${plotType}:${id}`;
 
 const getCalculatedDataPrefetchContext = (
   key: string,
-): { readonly plotType: PlotType; readonly resourceKey: PlotResourceKey } | null => {
+): { readonly plotType: PlotType; readonly id: string } | null => {
   const separatorIndex = key.indexOf(":");
   const plotType = separatorIndex >= 0 ? key.slice(0, separatorIndex) : "";
   if (!isPlotType(plotType)) {
     return null;
   }
 
-  const resourceKey = normalizeStateKey(separatorIndex >= 0 ? key.slice(separatorIndex + 1) : key);
-  return resourceKey ? { plotType, resourceKey } : null;
+  const id = normalizeStateKey(separatorIndex >= 0 ? key.slice(separatorIndex + 1) : key);
+  return id ? { plotType, id } : null;
 };
 
 const getPlotDisplayModelContextFromKey = (
   key: string,
-): { readonly plotType: PlotType; readonly resourceKey: PlotResourceKey } | null => {
-  const [resourceKeyRaw, plotTypeRaw] = key.split("|");
-  const resourceKey = normalizeStateKey(resourceKeyRaw);
-  return resourceKey && isPlotType(plotTypeRaw)
-    ? { plotType: plotTypeRaw, resourceKey }
+): { readonly plotType: PlotType; readonly id: string } | null => {
+  const [idRaw, plotTypeRaw] = key.split("|");
+  const id = normalizeStateKey(idRaw);
+  return id && isPlotType(plotTypeRaw)
+    ? { plotType: plotTypeRaw, id }
     : null;
 };
 
@@ -2204,33 +2162,33 @@ const getPlotLegendStateKey = (
 
 const getPlotTargetStateKey = (
   target: PlotTarget,
-): PlotResourceKey => getPlotResourceKey(target);
+): string => getPlot(target);
 
-const getPlotResourceKey = (
+const getPlot = (
   input: Pick<PlotCalculatedDataInput, "resource" | "sheetId">,
-): PlotResourceKey => createCalculationResourceId(input.resource, input.sheetId);
+): string => createCalculationResourceId(input.resource, input.sheetId);
 
 const addPlotCacheChange = (
   changes: PlotCacheChangeMap,
-  context: { readonly plotType: PlotType; readonly resourceKey: PlotResourceKey },
+  context: { readonly plotType: PlotType; readonly id: string },
 ): void => {
-  const resourceKey = normalizeStateKey(context.resourceKey);
+  const id = normalizeStateKey(context.id);
   const plotType = context.plotType;
-  if (!resourceKey || !isPlotType(plotType)) {
+  if (!id || !isPlotType(plotType)) {
     return;
   }
 
-  let plotTypes = changes.get(resourceKey);
+  let plotTypes = changes.get(id);
   if (!plotTypes) {
     plotTypes = new Set();
-    changes.set(resourceKey, plotTypes);
+    changes.set(id, plotTypes);
   }
   plotTypes.add(plotType);
 };
 
 const createPlotCalculatedDataCacheChangeEvent = (
   plotType: PlotType,
-  resource: PlotResourceIdentity,
+  resource: PlotTarget,
 ): PlotCalculatedDataCacheChangeEvent => ({
   plotType,
   resource: resource.resource,
@@ -2239,7 +2197,7 @@ const createPlotCalculatedDataCacheChangeEvent = (
 
 const createPlotDisplayModelCacheChangeEvent = (
   plotType: PlotType,
-  resource: PlotResourceIdentity,
+  resource: PlotTarget,
   pane?: PlotDisplayModelCacheChangeEvent["pane"],
 ): PlotDisplayModelCacheChangeEvent => ({
   resource: resource.resource,
@@ -2248,32 +2206,35 @@ const createPlotDisplayModelCacheChangeEvent = (
   plotType,
 });
 
-const createPlotAxisSettings = (
-  axisSettings: StoredPlotAxisSettings,
-): PlotAxisSettings => {
-  const yScaleByResourceKey: Record<string, "linear" | "log"> = {};
-  for (const [resourceKey, scale] of Object.entries(axisSettings.yScaleByResourceKey ?? {})) {
-    if (scale === "linear" || scale === "log") {
-      yScaleByResourceKey[resourceKey] = scale;
-    }
+const createStoredPlotAxisSettings = (value: unknown): readonly StoredPlotAxisSettings[] => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
   }
-
-  return {
-    xUnitByResourceKey: {
-      ...(axisSettings.xUnitByResourceKey ?? {}),
-    },
-    yScaleByResourceKey,
-    yUnitByResourceKey: {
-      ...(axisSettings.yUnitByResourceKey ?? {}),
-    },
-  };
+  const candidate = value as Record<string, unknown>;
+  if (!candidate.resource) {
+    return [];
+  }
+  const yScale = candidate.yScale === "linear" || candidate.yScale === "log"
+    ? candidate.yScale
+    : undefined;
+  return [{
+    resource: URI.revive(candidate.resource as URI),
+    sheetId: typeof candidate.sheetId === "string" ? candidate.sheetId : null,
+    xUnit: typeof candidate.xUnit === "string" ? candidate.xUnit : undefined,
+    yScale,
+    yUnit: typeof candidate.yUnit === "string" ? candidate.yUnit : undefined,
+  }];
 };
 
+const isSamePlotTarget = (left: PlotTarget, right: PlotTarget): boolean =>
+  URI.revive(left.resource).toString() === URI.revive(right.resource).toString() &&
+  String(left.sheetId ?? "") === String(right.sheetId ?? "");
+
 const getQueuedPlotDisplayModelPrefetchKey = (
-  input: Pick<QueuedPlotDisplayModelPrefetch, "hiddenLegendKeys" | "legendLabels" | "plotType" | "resourceKey" | "stage">,
+  input: Pick<QueuedPlotDisplayModelPrefetch, "hiddenLegendKeys" | "legendLabels" | "plotType" | "resource" | "sheetId" | "stage">,
 ): string =>
   [
-    input.resourceKey,
+    getPlot(input),
     input.plotType,
     input.stage,
     stableStringList(input.hiddenLegendKeys),
@@ -2413,21 +2374,6 @@ const normalizeLegendLabelMap = (
     const normalizedLabel = String(label ?? "").trim();
     if (normalizedKey && normalizedLabel) {
       result[normalizedKey] = normalizedLabel;
-    }
-  }
-  return result;
-};
-
-const readRetiredSettingsStringMap = (value: unknown): Record<string, string> => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  const result: Record<string, string> = {};
-  for (const [key, item] of Object.entries(value)) {
-    const normalizedKey = normalizeStateKey(key);
-    if (normalizedKey && typeof item === "string") {
-      result[normalizedKey] = item;
     }
   }
   return result;

@@ -21,7 +21,6 @@ export const PlotTypes = CalculationKinds;
 export const IPlotService = createDecorator<IPlotService>("plotService");
 
 export type PlotType = CalculationKind;
-type PlotResourceKey = string;
 
 export const isPlotType = (value: unknown): value is PlotType =>
   typeof value === "string" && (PlotTypes as readonly string[]).includes(value);
@@ -30,16 +29,16 @@ export type PlotState = {
   readonly axisTitleOverridesByKey: Readonly<Record<string, string>>;
   readonly activePlotType: PlotType;
   readonly hiddenLegendKeysByPlotKey: Readonly<Record<string, readonly SeriesId[]>>;
-  readonly legendLabelsByResourceKey: Readonly<Record<PlotResourceKey, Readonly<Record<SeriesId, string>>>>;
+  readonly legendLabels: Readonly<Record<string, Readonly<Record<SeriesId, string>>>>;
 };
 
 export type PlotAxisTitlePane = "chart" | "inspector";
 export type PlotAxis = "x" | "y";
 
 export type PlotAxisSettings = {
-  readonly xUnitByResourceKey: Readonly<Record<PlotResourceKey, string>>;
-  readonly yScaleByResourceKey: Readonly<Record<PlotResourceKey, "linear" | "log">>;
-  readonly yUnitByResourceKey: Readonly<Record<PlotResourceKey, string>>;
+  readonly xUnit?: string;
+  readonly yScale?: "linear" | "log";
+  readonly yUnit?: string;
 };
 
 export type PlotAxisTitleContext = {
@@ -132,7 +131,7 @@ export interface IPlotService {
   getCachedPlotInspectorDisplayModel(input: PlotDisplayModelInput): PlotPaneDisplayModel | null;
   getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
-  getAxisSettings(): PlotAxisSettings;
+  getAxisSettings(target: PlotTarget): PlotAxisSettings;
   getHiddenLegendKeys(target: PlotTarget, plotType: PlotType, liveLegendKeys: readonly SeriesId[]): readonly SeriesId[];
   getLegendLabels(target: PlotTarget): Readonly<Record<SeriesId, string>>;
   getPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;

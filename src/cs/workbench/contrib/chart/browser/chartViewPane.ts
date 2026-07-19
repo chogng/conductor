@@ -7,7 +7,7 @@ import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { Action } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import type { URI } from "src/cs/base/common/uri";
+import { URI } from "src/cs/base/common/uri";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
 import { logPerf } from "src/cs/workbench/common/perf";
@@ -825,60 +825,10 @@ const getResourceSheetIdentity = (
 ): string =>
   resource
     ? [
-        getResourceKey(resource),
+        URI.revive(resource).toString(),
         String(sheetId ?? "").trim(),
       ].join("\u0000")
     : "";
 
-const getResourceKey = (resource: unknown): string => {
-  const text = getResourceString(resource);
-  if (text) {
-    return text.replace(/\\/g, "/");
-  }
-
-  const components = resource as {
-    readonly authority?: unknown;
-    readonly fragment?: unknown;
-    readonly path?: unknown;
-    readonly query?: unknown;
-    readonly scheme?: unknown;
-  } | null | undefined;
-  const path = String(components?.path ?? "").trim();
-  if (!path) {
-    return "";
-  }
-
-  const scheme = String(components?.scheme ?? "").trim();
-  const authority = String(components?.authority ?? "").trim();
-  const query = String(components?.query ?? "").trim();
-  const fragment = String(components?.fragment ?? "").trim();
-  if (scheme === "file") {
-    return [
-      "file://",
-      authority,
-      path,
-      query ? `?${query}` : "",
-      fragment ? `#${fragment}` : "",
-    ].join("").replace(/\\/g, "/");
-  }
-
-  return [
-    scheme ? `${scheme}:` : "",
-    authority ? `//${authority}` : "",
-    path,
-    query ? `?${query}` : "",
-    fragment ? `#${fragment}` : "",
-  ].join("").replace(/\\/g, "/");
-};
-
-const getResourceString = (resource: unknown): string => {
-  const toString = (resource as { readonly toString?: unknown } | null | undefined)?.toString;
-  if (typeof toString !== "function") {
-    return "";
-  }
-
-  const text = String(toString.call(resource) ?? "").trim();
-  return text === "[object Object]" ? "" : text;
-};
 
 export default ChartViewPane;

@@ -120,7 +120,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 			activePlotType: "iv",
 			axisTitleOverridesByKey: {},
 			hiddenLegendKeysByPlotKey: {},
-			legendLabelsByResourceKey: {
+			legendLabels: {
 				"file-a": legendLabels,
 			},
 		});
@@ -224,11 +224,7 @@ const createIdlePlotServiceForTest = (): IPlotService => ({
 	getCachedPlotInspectorDisplayModel: () => null,
 	getCachedPlotLegendModel: () => null,
 	getCalculatedData: () => null,
-	getAxisSettings: () => ({
-		xUnitByResourceKey: {},
-		yScaleByResourceKey: {},
-		yUnitByResourceKey: {},
-	}),
+	getAxisSettings: () => ({}),
 	getHiddenLegendKeys: () => [],
 	getLegendLabels: () => ({}),
 	getPlotDisplayModel: () => null,
@@ -238,7 +234,7 @@ const createIdlePlotServiceForTest = (): IPlotService => ({
 		activePlotType: "iv",
 		axisTitleOverridesByKey: {},
 		hiddenLegendKeysByPlotKey: {},
-		legendLabelsByResourceKey: {},
+		legendLabels: {},
 	}),
 	onDidChangeCalculatedDataCache: Event.None as IPlotService["onDidChangeCalculatedDataCache"],
 	onDidChangePlotDisplayModelCache: Event.None as IPlotService["onDidChangePlotDisplayModelCache"],
@@ -403,7 +399,7 @@ const createPlotServiceForPointLookupTest = ({
 		activePlotType: "iv",
 		axisTitleOverridesByKey: {},
 		hiddenLegendKeysByPlotKey: {},
-		legendLabelsByResourceKey: {
+		legendLabels: {
 			"file-a": legendLabels(),
 		},
 	}),

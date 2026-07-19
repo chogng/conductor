@@ -251,16 +251,15 @@ const resolveDisplayUnits = (
   readonly yFactor: number;
   readonly yUnit: string | undefined;
 } => {
-  const resourceKey = getCalculatedDataResourceKey(data);
   const sourceXUnit = normalizeXUnit(data.xUnitLabel, "V") || "V";
   const sourceYUnit = normalizeYUnit(data.yUnitLabel);
   const xUnit = normalizeXUnitForFamily(
-    resourceKey ? axisSettings?.xUnitByResourceKey?.[resourceKey] : undefined,
+    axisSettings?.xUnit,
     sourceXUnit,
   ) || sourceXUnit;
   const yUnit = sourceYUnit
     ? normalizeYUnitForFamily(
-        resourceKey ? axisSettings?.yUnitByResourceKey?.[resourceKey] : undefined,
+        axisSettings?.yUnit,
         sourceYUnit,
       ) || sourceYUnit
     : undefined;
@@ -278,8 +277,7 @@ const createUnitControlModel = (
   axisSettings: PlotAxisSettings | undefined,
 ): PlotDisplayModel["unitControl"] => {
   const resource = data.source.resource;
-  const resourceKey = getCalculatedDataResourceKey(data);
-  if (!resource || !resourceKey) {
+  if (!resource) {
     return null;
   }
 
@@ -288,11 +286,11 @@ const createUnitControlModel = (
   return {
     resource,
     sheetId: data.source.sheetId ?? null,
-    xUnit: normalizeXUnitForFamily(axisSettings?.xUnitByResourceKey?.[resourceKey], sourceXUnit) || sourceXUnit,
+    xUnit: normalizeXUnitForFamily(axisSettings?.xUnit, sourceXUnit) || sourceXUnit,
     xUnitOptions: getXUnitValuesForFamily(sourceXUnit),
     yScale: resolveYScale(data, axisSettings),
     yUnit: displayYUnit
-      ? normalizeYUnitForFamily(axisSettings?.yUnitByResourceKey?.[resourceKey], displayYUnit) || displayYUnit
+      ? normalizeYUnitForFamily(axisSettings?.yUnit, displayYUnit) || displayYUnit
       : null,
     yUnitOptions: displayYUnit ? getYUnitValuesForFamily(displayYUnit) : [],
   };
@@ -306,14 +304,8 @@ const resolveYScale = (
   data: CalculatedData,
   axisSettings: PlotAxisSettings | undefined,
 ): "linear" | "log" => {
-  const resourceKey = getCalculatedDataResourceKey(data);
-  return resourceKey && axisSettings?.yScaleByResourceKey?.[resourceKey] === "log" ? "log" : "linear";
+  return axisSettings?.yScale === "log" ? "log" : "linear";
 };
-
-const getCalculatedDataResourceKey = (data: CalculatedData): string | null =>
-  data.source.resource
-    ? createCalculationResourceId(data.source.resource, data.source.sheetId)
-    : null;
 
 const applyLegendLabels = (
   data: CalculatedData,
