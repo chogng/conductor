@@ -144,6 +144,63 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       pane.dispose();
     }
   });
+
+  test("releases a resource only after its last exact Explorer identity is removed", () => {
+    const resource = URI.file("/workspace/source.xlsx");
+    const releasedSliceTargets: ReviewSummaryTarget[] = [];
+    const releasedReviewTargets: ReviewSummaryTarget[] = [];
+    const pane = createExplorerViewPane({
+      files: [
+        {
+          ...createExplorerImportEntry({
+            fileName: "source.xlsx",
+            itemKey: "source-a",
+            relativePath: "source.xlsx",
+            resource,
+            sheetId: "sheet-a",
+          }),
+          fileId: "sheet-a-primary",
+        },
+        {
+          ...createExplorerImportEntry({
+            fileName: "source-copy.xlsx",
+            itemKey: "source-copy",
+            relativePath: "source-copy.xlsx",
+            resource,
+            sheetId: "sheet-a",
+          }),
+          fileId: "duplicate-sheet-a",
+        },
+        {
+          ...createExplorerImportEntry({
+            fileName: "source-sheet-b.xlsx",
+            itemKey: "source-b",
+            relativePath: "source-sheet-b.xlsx",
+            resource,
+            sheetId: "sheet-b",
+          }),
+          fileId: "sheet-b",
+        },
+      ],
+      onReleaseReviewResource: target => releasedReviewTargets.push(target),
+      onReleaseSliceResource: target => releasedSliceTargets.push(target),
+    });
+    const removeFiles = (fileIds: readonly string[]) => (
+      pane as unknown as { removeFiles(fileIds: readonly string[]): void }
+    ).removeFiles(fileIds);
+
+    try {
+      removeFiles(["sheet-a-primary"]);
+      assert.deepEqual(releasedSliceTargets, []);
+      assert.deepEqual(releasedReviewTargets, []);
+
+      removeFiles(["duplicate-sheet-a"]);
+      assert.deepEqual(releasedSliceTargets.map(target => target.sheetId), ["sheet-a"]);
+      assert.deepEqual(releasedReviewTargets.map(target => target.sheetId), ["sheet-a"]);
+    } finally {
+      pane.dispose();
+    }
+  });
 });
 
 type CreateExplorerViewPaneOptions = {
@@ -151,6 +208,8 @@ type CreateExplorerViewPaneOptions = {
   readonly files?: readonly ExplorerFileEntry[];
   readonly moveFileToTrash?: (resource: URI) => Promise<void>;
   readonly onFilesChange?: (files: readonly ExplorerFileEntry[]) => void;
+  readonly onReleaseReviewResource?: (target: ReviewSummaryTarget) => void;
+  readonly onReleaseSliceResource?: (target: ReviewSummaryTarget) => void;
   readonly onResolveReviewSummary?: (target: ReviewSummaryTarget) => void;
 };
 
@@ -158,7 +217,10 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
   const uriFileService = new FileService();
   const uriIdentityService = new UriIdentityService(uriFileService);
   const decorationsService = createDecorationsService();
-  const reviewService = createReviewService(options.onResolveReviewSummary);
+  const reviewService = createReviewService(
+    options.onResolveReviewSummary,
+    options.onReleaseReviewResource,
+  );
   const pane = new ExplorerViewPane(
     {
       executeCommand: async () => undefined,
@@ -203,7 +265,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       onDidChangeConductorSettings: Event.None,
       getConductorSettings: () => null,
     } as unknown as ISettingsService,
-    createSliceService(),
+    createSliceService(options.onReleaseSliceResource),
     {
       onDidChangePreview: Event.None,
       get: () => ({ kind: "idle" }),
@@ -395,11 +457,13 @@ const createExplorerImportEntry = ({
   itemKey,
   relativePath,
   resource,
+  sheetId,
 }: {
   readonly fileName: string;
   readonly itemKey: string;
   readonly relativePath: string;
   readonly resource: URI;
+  readonly sheetId?: string;
 }): ExplorerFileEntry => {
   const file = new File(["A,B\n1,2"], fileName, {
     lastModified: 1,
@@ -414,11 +478,14 @@ const createExplorerImportEntry = ({
     localImport: true,
     relativePath,
     resource,
+    ...(sheetId ? { sheetId } : {}),
     sourcePath,
   };
 };
 
-const createSliceService = (): ISliceService => ({
+const createSliceService = (
+  onReleaseResource?: (target: ReviewSummaryTarget) => void,
+): ISliceService => ({
   _serviceBrand: undefined,
   onDidChangeResourceSliceResult: Event.None as ISliceService["onDidChangeResourceSliceResult"],
   onDidChangeSliceState: Event.None as ISliceService["onDidChangeSliceState"],
@@ -434,6 +501,9 @@ const createSliceService = (): ISliceService => ({
   getTemplateSelection: () => ({ kind: "auto" }),
   markResourceSkipped: () => undefined,
   prioritizeResource: () => undefined,
+  releaseResource: (resource: URI, sheetId?: string | null) => {
+    onReleaseResource?.({ resource, sheetId });
+  },
   setTemplateSelection: () => undefined,
   submitResource: () => undefined,
 });
@@ -483,6 +553,7 @@ const createDecorationsService = (): IDecorationsService => ({
 
 const createReviewService = (
   onResolveReviewSummary?: (target: ReviewSummaryTarget) => void,
+  onReleaseResource?: (target: ReviewSummaryTarget) => void,
 ): IReviewService => ({
   _serviceBrand: undefined,
   onDidChangeReview: Event.None,
@@ -503,6 +574,9 @@ const createReviewService = (
   },
   reviewResourceManualTemplate: async () => {
     throw new Error("Unexpected URI manual review in explorer viewlet test.");
+  },
+  releaseResource: (resource: URI, sheetId?: string | null) => {
+    onReleaseResource?.({ resource, sheetId });
   },
   reviewResourceForExecution: async () => null,
 } as unknown as IReviewService);

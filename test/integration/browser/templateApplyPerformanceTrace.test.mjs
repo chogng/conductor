@@ -115,6 +115,7 @@ const parseArgs = () => {
     ),
     outputRoot: path.resolve(args.get("out") || defaultOutputRoot),
     profile: args.get("profile") || scenarioDefaults.profile || "healthy",
+    releaseAfterApply: flags.has("release-after-apply"),
     rowCount: readPositiveInteger(args.get("rows"), scenarioDefaults.rowCount ?? 4000),
     runtime: args.get("runtime") || scenarioDefaults.runtime || "browser",
     sampleMs: readPositiveInteger(args.get("sample-ms"), 100),
@@ -606,6 +607,32 @@ const main = async () => {
         scrollChangedCount: tableInteraction.scroll?.changedCount ?? null,
       }, null, 2)}`);
     }
+    let releaseProbe = null;
+    if (options.releaseAfterApply) {
+      if (!thumbnailApply) {
+        console.log("[template-apply-performance-trace] Applying template before resource release probe...");
+        await waitForApplyAllReady(runtime.page, options.timeoutMs);
+        const applyStartedAt = Date.now();
+        await phaseRecorder.mark("apply.click.start", {
+          reason: "release-probe",
+        });
+        await getApplyAllButton(runtime.page).click();
+        await phaseRecorder.mark("apply.click.end", {
+          reason: "release-probe",
+        });
+        await waitForTemplateApplyProcessingVisible(runtime.page, options.timeoutMs);
+        await phaseRecorder.mark("apply.processing-visible", {
+          reason: "release-probe",
+        });
+        await waitForTemplateProcessingBatch(runtime.page, options.timeoutMs);
+        await phaseRecorder.mark("processing.done", {
+          processingBatchMs: Date.now() - applyStartedAt,
+          reason: "release-probe",
+        });
+      }
+      releaseProbe = await runResourceReleaseProbe(runtime.page, options.timeoutMs);
+      console.log(`[template-apply-performance-trace] releaseProbe=${JSON.stringify(releaseProbe, null, 2)}`);
+    }
     sampler.stop();
     const analysisPerfReport = options.analysisPerf
       ? await readAnalysisPerfReport(runtime.page)
@@ -681,6 +708,7 @@ const main = async () => {
       fileSwitchLive,
       modeSwitch,
       modeSwitchAfterApply,
+      releaseProbe,
       tableInteraction,
       traceEvents: reportTraceState.events,
     };
@@ -738,6 +766,50 @@ const main = async () => {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }
   }
+};
+
+const runResourceReleaseProbe = async (page, timeoutMs) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("HeapProfiler.enable");
+  const collectHeap = async () => {
+    await cdp.send("HeapProfiler.collectGarbage");
+    await page.waitForTimeout(250);
+    return page.evaluate(() => performance.memory?.usedJSHeapSize ?? null);
+  };
+  const beforeTargetCount = await page.evaluate(() =>
+    window.__conductorTemplateApplyPerformanceTrace?.targetApi?.getChartTargets?.().length ?? 0
+  );
+  const beforeUsedJsHeapBytes = await collectHeap();
+  const startedAt = Date.now();
+  let releasedCount = 0;
+  while (releasedCount < 10_000) {
+    const closeButton = page.locator("button.file-list-item-remove").first();
+    if (await closeButton.count() === 0) {
+      break;
+    }
+    await closeButton.click();
+    releasedCount += 1;
+  }
+  await page.waitForFunction(
+    () => (
+      window.__conductorTemplateApplyPerformanceTrace?.targetApi
+        ?.getChartTargets?.().length ?? 0
+    ) === 0,
+    undefined,
+    { timeout: timeoutMs },
+  );
+  const afterUsedJsHeapBytes = await collectHeap();
+  await cdp.detach();
+  return {
+    afterUsedJsHeapBytes,
+    beforeTargetCount,
+    beforeUsedJsHeapBytes,
+    durationMs: Date.now() - startedAt,
+    releasedCount,
+    reclaimedJsHeapBytes: beforeUsedJsHeapBytes !== null && afterUsedJsHeapBytes !== null
+      ? beforeUsedJsHeapBytes - afterUsedJsHeapBytes
+      : null,
+  };
 };
 
 await main();

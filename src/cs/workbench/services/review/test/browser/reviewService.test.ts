@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import { CancellationTokenSource } from "src/cs/base/common/cancellation";
+import { type CancellationToken, CancellationTokenSource } from "src/cs/base/common/cancellation";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
@@ -1394,6 +1394,30 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		await review;
 	});
 
+	test("cancels and does not resurrect an active Review after its resource is released", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const dataResourceService = store.add(new ControlledDataResourceService());
+		const service = createReviewServiceForTest(
+			userTemplateService,
+			dataResourceService,
+		);
+		const target = {
+			resource: URI.file("/workspace/Released.csv"),
+			sheetId: "table-a",
+		};
+
+		const review = service.resolveReviewSummary(target);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
+		assert.equal(dataResourceService.latestStructuredEvidenceToken?.isCancellationRequested, false);
+
+		service.releaseResource(target.resource, target.sheetId);
+		assert.equal(dataResourceService.latestStructuredEvidenceToken?.isCancellationRequested, true);
+		dataResourceService.resolveNext({ kind: "missingContent" });
+
+		assert.equal(await review, null);
+		assert.equal(service.getLatestReviewSummary(target).state, "missing");
+	});
+
 	test("refreshes an uncached active URI review after its resource changes", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Transfer.csv");
@@ -1932,6 +1956,7 @@ class ControlledDataResourceService extends Disposable implements IDataResourceS
 	private readonly onDidChangeResourceEmitter = this._register(new Emitter<URI>());
 	public readonly onDidChangeResource = this.onDidChangeResourceEmitter.event;
 	public resolveStructuredContentCalls = 0;
+	public latestStructuredEvidenceToken: CancellationToken | undefined;
 	private readonly pendingResolvers: Array<(reference: IDataResourceStructuredEvidenceReference) => void> = [];
 
 	public canHandleResource(): boolean {
@@ -1948,8 +1973,12 @@ class ControlledDataResourceService extends Disposable implements IDataResourceS
 		});
 	}
 
-	public resolveStructuredEvidence(): Promise<IDataResourceStructuredEvidenceReference> {
+	public resolveStructuredEvidence(
+		_target: Parameters<IDataResourceService["resolveStructuredEvidence"]>[0],
+		token?: CancellationToken,
+	): Promise<IDataResourceStructuredEvidenceReference> {
 		this.resolveStructuredContentCalls += 1;
+		this.latestStructuredEvidenceToken = token;
 		return new Promise(resolve => {
 			this.pendingResolvers.push(resolve);
 		});

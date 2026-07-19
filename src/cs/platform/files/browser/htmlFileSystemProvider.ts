@@ -6,6 +6,7 @@ import { isEqualOrParent, toSlashes } from "src/cs/base/common/extpath";
 import { extname } from "src/cs/base/common/resources";
 import { generateUuid } from "src/cs/base/common/uuid";
 import {
+  FileChangeType,
   FileSystemProviderCapabilities,
   FileType,
   type IFileContent,
@@ -296,6 +297,20 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     const path = normalizePath(`/${id}/${handle.name || "file"}`);
     this.files.set(path, { handle, path });
     return URI.from({ path, scheme: "file" });
+  }
+
+  public unregisterFile(resource: URI): boolean {
+    const uri = URI.revive(resource);
+    const path = normalizePath(uri.path);
+    if (!this.files.delete(path)) {
+      return false;
+    }
+
+    this.onDidFilesChangeEmitter.fire([{
+      resource: uri,
+      type: FileChangeType.DELETED,
+    }]);
+    return true;
   }
 
   public async exists(resource: URI): Promise<boolean> {

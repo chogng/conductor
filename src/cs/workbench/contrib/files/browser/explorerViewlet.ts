@@ -743,8 +743,9 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.explorerService.removeFiles(normalizedFileIds);
+    const removedFiles = this.explorerService.removeFiles(normalizedFileIds);
     this.selectRawFileAfterRemoval(normalizedFileIds);
+    this.releaseRemovedExplorerResources(removedFiles);
   }
 
   private replaceExplorerFiles(
@@ -752,12 +753,17 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     selectedImportItemKey: string | null,
   ): void {
     assertSupportedExplorerImportEntries(entries);
+    const previousFiles = this.committedFiles;
     const removedFileIds = resolveExplorerSourceReplaceRemovedFileIds({
       nextFiles: entries,
-      previousFiles: this.committedFiles,
+      previousFiles,
     });
+    const removedFileIdSet = new Set(removedFileIds);
+    const removedFiles = previousFiles.filter(file =>
+      removedFileIdSet.has(normalizeFileId(file.fileId) ?? ""));
     this.notifyExplorerFilesRemoved(removedFileIds);
     this.explorerService.replaceFiles(entries);
+    this.releaseRemovedExplorerResources(removedFiles);
     this.reviewExplorerEntries(entries);
 
     const selectedEntry = resolveSelectedExplorerImportEntry(entries, selectedImportItemKey);
@@ -775,6 +781,38 @@ export abstract class BaseExplorerViewPane extends ViewPane {
 
     this.navigateToTableAfterImport();
     this.syncView();
+  }
+
+  private releaseRemovedExplorerResources(
+    removedFiles: readonly ExplorerFileEntry[],
+  ): void {
+    if (!removedFiles.length) {
+      return;
+    }
+
+    const retainedResourceKeys = new Set(
+      this.committedFiles
+        .map(file => getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(file)))
+        .filter((key): key is string => Boolean(key)),
+    );
+    const releasedResourceKeys = new Set<string>();
+    for (const file of removedFiles) {
+      const resourceIdentity = getExplorerFileResourceIdentity(file);
+      const resourceKey = getExplorerResourceIdentityKey(resourceIdentity);
+      if (
+        !resourceIdentity ||
+        !resourceKey ||
+        retainedResourceKeys.has(resourceKey) ||
+        releasedResourceKeys.has(resourceKey)
+      ) {
+        continue;
+      }
+
+      releasedResourceKeys.add(resourceKey);
+      this.sliceService.releaseResource(resourceIdentity.resource, resourceIdentity.sheetId);
+      this.reviewService.releaseResource(resourceIdentity.resource, resourceIdentity.sheetId);
+    }
+    this.sourceWorkflow.releaseImportedResources(removedFiles, this.committedFiles);
   }
 
   private appendExplorerFiles(entries: readonly ExplorerFileEntry[]): void {

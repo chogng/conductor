@@ -114,6 +114,7 @@ class TestSliceService implements ISliceService {
 	}
 
 	public cancelResource(_resources: readonly ResourceSheetIdentity[]): void {}
+	public releaseResource(_resource: URI, _sheetId?: string | null): void {}
 	public setTemplateSelection(_resource: URI, _sheetId: string | null | undefined, _selection: TemplateSelection): void {}
 }
 

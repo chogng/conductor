@@ -451,6 +451,75 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		});
 	});
 
+	test("releases a completed resource result without deleting its template selection", async () => {
+		const resource = URI.file("/workspace/released.xlsx");
+		const content: TableModelContentSnapshot = {
+			columnCount: 2,
+			maxCellLengths: [2, 2],
+			rowCount: 3,
+			rows: [
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			],
+		};
+		const sliceService = store.add(new SliceService(
+			createDataResourceServiceForTest(store.add(new StaticTableModelService(
+				createTableSnapshot(resource, content),
+			))),
+		));
+		const target = { resource, sheetId: "sheet-a" };
+		const changedResources: ResourceSheetIdentity[] = [];
+		store.add(sliceService.onDidChangeResourceSliceResult(changedResource => {
+			changedResources.push(changedResource);
+		}));
+		sliceService.setTemplateSelection(resource, target.sheetId, {
+			kind: "saved",
+			templateId: "template-a",
+		});
+		sliceService.submitResource([createResourceSliceRequest(target)]);
+		await waitUntil(() => sliceService.getResourceState(resource, target.sheetId)?.state === "ready");
+
+		sliceService.releaseResource(resource, target.sheetId);
+
+		assert.equal(sliceService.getResourceResult(resource, target.sheetId), null);
+		assert.equal(sliceService.getResourceState(resource, target.sheetId), undefined);
+		assert.deepEqual(sliceService.getTemplateSelection(resource, target.sheetId), {
+			kind: "saved",
+			templateId: "template-a",
+		});
+		assert.deepEqual(changedResources.map(change => change.sheetId), ["sheet-a", "sheet-a"]);
+	});
+
+	test("does not resurrect a resource released while Slice is resolving it", async () => {
+		const resource = URI.file("/workspace/released-active.csv");
+		const target = { resource, sheetId: "sheet-a" };
+		const content: TableModelContentSnapshot = {
+			columnCount: 2,
+			maxCellLengths: [2, 2],
+			rowCount: 3,
+			rows: [
+				["Vg", "Id"],
+				["0", "1"],
+				["1", "2"],
+			],
+		};
+		const tableModelService = store.add(new DeferredTableModelService());
+		const sliceService = store.add(new SliceService(
+			createDataResourceServiceForTest(tableModelService),
+		));
+		sliceService.submitResource([createResourceSliceRequest(target)]);
+		await waitUntil(() => sliceService.getResourceState(resource, target.sheetId)?.state === "processing");
+
+		sliceService.releaseResource(resource, target.sheetId);
+		assert.equal(sliceService.getResourceState(resource, target.sheetId), undefined);
+		tableModelService.resolveNextReference(createTableSnapshot(resource, content));
+		await waitUntil(() => !sliceService.getState().isRunning);
+
+		assert.equal(sliceService.getResourceState(resource, target.sheetId), undefined);
+		assert.equal(sliceService.getResourceResult(resource, target.sheetId), null);
+	});
+
 	test("does not fall back to the default sheet when a resource slice sheet target is missing", async () => {
 		const resource = URI.file("/workspace/source.xlsx");
 		const content: TableModelContentSnapshot = {

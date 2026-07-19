@@ -525,6 +525,7 @@ class TestSliceService implements ISliceService {
 	}
 	public prioritizeResource(_resource: URI, _sheetId?: string | null): void {}
 	public cancelResource(_resources: readonly ResourceSheetIdentity[]): void {}
+	public releaseResource(_resource: URI, _sheetId?: string | null): void {}
 	public setTemplateSelection(resource: URI, sheetId: string | null | undefined, selection: TemplateSelection): void {
 		const key = createResourceSheetKey(resource, sheetId);
 		if (selection.kind === "auto") {
@@ -656,6 +657,7 @@ const createReviewServiceForTest = (
 			findingCodes: [],
 		},
 	}),
+	releaseResource: () => undefined,
 	resolveReviewSummary: async target => ({
 		resource: target.resource,
 		...(target.sheetId ? { sheetId: target.sheetId } : {}),

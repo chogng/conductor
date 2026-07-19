@@ -380,6 +380,17 @@ export class FileSourceWorkflow implements IDisposable {
     }
   }
 
+  public releaseImportedResources(
+    removedFiles: readonly ExplorerFileEntry[],
+    retainedFiles: readonly ExplorerFileEntry[],
+  ): void {
+    releaseBrowserRegisteredExplorerResources(
+      this.options.filesService,
+      removedFiles,
+      retainedFiles,
+    );
+  }
+
   public importDroppedFiles(dataTransfer: DataTransfer | null): void {
     void this.doImportDroppedFiles(dataTransfer);
   }
@@ -1154,6 +1165,7 @@ export const preparePendingImportFile = async (
   let resource: URI;
   let sourcePath: string | null;
   let file: File;
+  let registeredBrowserResource: URI | null = null;
 
   try {
     markTemplateApplyPerformanceTrace("import.prepare.file.start", {
@@ -1165,8 +1177,14 @@ export const preparePendingImportFile = async (
     const resolvedResource = await resolvePendingImportResource(filesService, pendingImportFile);
     resource = resolvedResource.resource;
     sourcePath = resolvedResource.sourcePath;
+    registeredBrowserResource = resolvedResource.registeredBrowserResource
+      ? resource
+      : null;
     file = createImportFileFromPendingSource(pendingImportFile, sourceFile);
   } catch (error) {
+    if (registeredBrowserResource) {
+      unregisterBrowserFileResource(filesService, registeredBrowserResource);
+    }
     const failure = toPrepareFailure(
       error,
       relativePath || pendingImportFile.sourceName || localize("files.import.unknownFile", "Unknown file"),
@@ -1260,12 +1278,17 @@ class ImportPrepareError extends Error {
 const resolvePendingImportResource = async (
   filesService: IFileService,
   pendingImportFile: PendingImportFile,
-): Promise<{ readonly resource: URI; readonly sourcePath: string | null }> => {
+): Promise<{
+  readonly registeredBrowserResource: boolean;
+  readonly resource: URI;
+  readonly sourcePath: string | null;
+}> => {
   const existingResource = pendingImportFile.resource
     ? URI.revive(pendingImportFile.resource)
     : null;
   if (existingResource && tableFormatService.canHandle(existingResource)) {
     return {
+      registeredBrowserResource: false,
       resource: existingResource,
       sourcePath: getTableResourcePath(existingResource),
     };
@@ -1277,6 +1300,7 @@ const resolvePendingImportResource = async (
   );
   if (registeredFileResource) {
     return {
+      registeredBrowserResource: true,
       resource: registeredFileResource,
       sourcePath: getTableResourcePath(registeredFileResource),
     };
@@ -1384,6 +1408,10 @@ export async function prepareFirstPendingImportFile({
       failedFiles.push(fileResult.error);
       continue;
     }
+    if (!canApplyResult()) {
+      releaseBrowserRegisteredExplorerResources(filesService, [fileResult.entry], []);
+      break;
+    }
     return {
       attemptedIndexes,
       result: {
@@ -1448,6 +1476,7 @@ export async function prepareRemainingPendingImportFiles({
       const entry = readyByIndex.get(index);
       if (entry) {
         entries.push(entry);
+        readyByIndex.delete(index);
       }
       nextAppendOffset += 1;
     }
@@ -1524,6 +1553,9 @@ export async function prepareRemainingPendingImportFiles({
           pendingImportFile,
         );
         if (!canApplyResult()) {
+          if (fileResult.ok) {
+            releaseBrowserRegisteredExplorerResources(filesService, [fileResult.entry], []);
+          }
           return;
         }
 
@@ -1547,6 +1579,14 @@ export async function prepareRemainingPendingImportFiles({
   while (flushReadyImports() > 0) {
     // Drain completed batches larger than the current append window.
   }
+  if (!canApplyResult() && readyByIndex.size > 0) {
+    releaseBrowserRegisteredExplorerResources(
+      filesService,
+      [...readyByIndex.values()],
+      [],
+    );
+    readyByIndex.clear();
+  }
   markTemplateApplyPerformanceTrace("import.prepare.complete", {
     acceptedCount,
     completedCount: completedIndexes.size,
@@ -1556,6 +1596,46 @@ export async function prepareRemainingPendingImportFiles({
 
   return acceptedCount;
 }
+
+export const releaseBrowserRegisteredExplorerResources = (
+  filesService: IFileService,
+  removedFiles: readonly ExplorerFileEntry[],
+  retainedFiles: readonly ExplorerFileEntry[],
+): void => {
+  const provider = filesService.getProvider("file");
+  if (!(provider instanceof HTMLFileSystemProvider)) {
+    return;
+  }
+
+  const retainedResources = new Set(
+    retainedFiles.map(file => URI.revive(file.resource).toString()),
+  );
+  const releasedResources = new Set<string>();
+  for (const file of removedFiles) {
+    const resource = URI.revive(file.resource);
+    const resourceKey = resource.toString();
+    if (
+      !resourceKey ||
+      retainedResources.has(resourceKey) ||
+      releasedResources.has(resourceKey)
+    ) {
+      continue;
+    }
+
+    releasedResources.add(resourceKey);
+    provider.unregisterFile(resource);
+  }
+};
+
+const unregisterBrowserFileResource = (
+  filesService: IFileService,
+  resource: URI,
+): void => {
+  const provider = filesService.getProvider("file");
+  if (provider instanceof HTMLFileSystemProvider) {
+    provider.unregisterFile(resource);
+  }
+};
 
 export const buildImportErrorMessage = ({
   failedFiles,

@@ -37,6 +37,7 @@ import {
   prepareFirstPendingImportFile,
   prepareFileSourcesForImport,
   prepareRemainingPendingImportFiles,
+  releaseBrowserRegisteredExplorerResources,
   type FileImportPrepareFailure,
   type FileSource,
   type PendingImportFile,
@@ -850,6 +851,71 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.deepEqual([...result.attemptedIndexes], [1]);
     assert.equal(result.result?.entry.fileName, "B.csv");
     assert.equal(failedFiles.length, 0);
+  });
+
+  test("releases a browser file registered by an import that is canceled during prepare", async () => {
+    const failedFiles: FileImportPrepareFailure[] = [];
+    const filesService = store.add(new FileService());
+    const provider = store.add(new HTMLFileSystemProvider());
+    store.add(filesService.registerProvider("file", provider));
+    let registeredResource: URI | null = null;
+    const registerFile = provider.registerFile.bind(provider);
+    provider.registerFile = file => {
+      registeredResource = registerFile(file);
+      return registeredResource;
+    };
+    let applyCheckCount = 0;
+
+    const result = await prepareFirstPendingImportFile({
+      canApplyResult: () => {
+        applyCheckCount += 1;
+        return applyCheckCount === 1;
+      },
+      failedFiles,
+      filesService,
+      pendingImportFiles: [
+        createDataPendingFile("A.csv", "folder/A.csv"),
+      ],
+      selectedRelativePath: null,
+    });
+
+    assert.equal(result.result, null);
+    assert.ok(registeredResource);
+    assert.equal(await filesService.exists(registeredResource), false);
+  });
+
+  test("keeps a registered browser resource until its last sheet identity is removed", async () => {
+    const failedFiles: FileImportPrepareFailure[] = [];
+    const firstImport = await prepareFirstPendingImportFile({
+      canApplyResult: () => true,
+      failedFiles,
+      filesService: browserFilesService,
+      pendingImportFiles: [
+        createDataPendingFile("A.csv", "folder/A.csv"),
+      ],
+      selectedRelativePath: null,
+    });
+    const entry = firstImport.result?.entry;
+    assert.ok(entry);
+    const siblingSheet = {
+      ...entry,
+      fileId: "sheet-b",
+      sheetId: "sheet-b",
+    };
+
+    releaseBrowserRegisteredExplorerResources(
+      browserFilesService,
+      [{ ...entry, sheetId: "sheet-a" }],
+      [siblingSheet],
+    );
+    assert.equal(await browserFilesService.exists(entry.resource), true);
+
+    releaseBrowserRegisteredExplorerResources(
+      browserFilesService,
+      [siblingSheet],
+      [],
+    );
+    assert.equal(await browserFilesService.exists(entry.resource), false);
   });
 
   test("prepare failures include relative paths in file lists", async () => {

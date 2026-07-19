@@ -5,8 +5,9 @@
 import { Emitter } from "src/cs/base/common/event";
 import { LinkedMap, Touch } from "src/cs/base/common/map";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import { CancellationToken } from "src/cs/base/common/cancellation";
+import { CancellationToken, CancellationTokenSource } from "src/cs/base/common/cancellation";
 import { disposableTimeout, raceCancellation } from "src/cs/base/common/async";
+import { isCancellationError } from "src/cs/base/common/errors";
 import { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { BrandedService } from "src/cs/platform/instantiation/common/instantiation";
@@ -102,6 +103,7 @@ type UriReviewCacheEntry = {
 };
 
 type ActiveUriReview = {
+  readonly cancellation: CancellationTokenSource;
   readonly generation: number;
   readonly promise: Promise<UriReviewCacheEntry | null>;
   readonly workspaceGeneration: number;
@@ -276,6 +278,23 @@ export class ReviewService extends Disposable implements IReviewService {
     return entry ? createResourceReviewExecutionFromCacheEntry(entry) : null;
   }
 
+  public releaseResource(resource: URI, sheetId?: string | null): void {
+    const resourceIdentity = normalizeResourceIdentity(URI.revive(resource));
+    const normalizedSheetId = normalizeText(sheetId);
+    if (!resourceIdentity) {
+      return;
+    }
+
+    for (const [key, target] of [...this.uriReviewTargetsByKey]) {
+      if (
+        normalizeResourceIdentity(target.resource) === resourceIdentity &&
+        normalizeText(target.sheetId) === normalizedSheetId
+      ) {
+        this.evictUriReviewTarget(key);
+      }
+    }
+  }
+
   private async doReevaluate(
     key: string,
     target: NormalizedUriReviewTarget,
@@ -341,6 +360,9 @@ export class ReviewService extends Disposable implements IReviewService {
         this.startUriReview(key, reviewTarget);
       const entry = await review.promise;
       if (this.disposed || this.workspaceGeneration !== review.workspaceGeneration) {
+        return null;
+      }
+      if (!this.uriReviewTargetsByKey.get(key)) {
         return null;
       }
       this.trackUriReviewTarget(key, reviewTarget);
@@ -530,12 +552,21 @@ export class ReviewService extends Disposable implements IReviewService {
   private evictUriReviewTarget(key: string): void {
     const target = this.uriReviewTargetsByKey.get(key);
     const hadCachedReview = this.uriReviewCacheByKey.has(key);
-    const hasActiveReview = this.activeUriReviewsByKey.has(key);
+    const activeReview = this.activeUriReviewsByKey.get(key);
+    activeReview?.cancellation.cancel();
     this.uriReviewTargetsByKey.delete(key);
     this.uriReviewCacheByKey.delete(key);
     this.staleUriReviewKeys.delete(key);
     this.pendingUriReviewRefreshTargetsByKey.delete(key);
-    if (hasActiveReview) {
+    this.pendingReviewChangeTargetsByKey.delete(key);
+    this.activeUriReevaluationsByKey.delete(key);
+    const persistedStorageKey = target
+      ? this.getPersistedReviewStorageKey(target)
+      : null;
+    if (persistedStorageKey) {
+      this.attemptedPersistedReviewKeys.delete(persistedStorageKey);
+    }
+    if (activeReview) {
       this.uriReviewGenerationByKey.set(key, this.getUriReviewGeneration(key) + 1);
     } else {
       this.uriReviewGenerationByKey.delete(key);
@@ -547,6 +578,9 @@ export class ReviewService extends Disposable implements IReviewService {
 
   private clearUriReviewState(): void {
     this.workspaceGeneration += 1;
+    for (const activeReview of this.activeUriReviewsByKey.values()) {
+      activeReview.cancellation.cancel();
+    }
     this.scheduledReviewChange?.dispose();
     this.scheduledReviewChange = null;
     this.scheduledUriReviewRefresh?.dispose();
@@ -843,9 +877,11 @@ export class ReviewService extends Disposable implements IReviewService {
     key: string,
     target: NormalizedUriReviewTarget,
   ): ActiveUriReview {
+    const cancellation = new CancellationTokenSource();
     const generation = this.getUriReviewGeneration(key);
     const workspaceGeneration = this.workspaceGeneration;
-    const promise = this.resolveUriReviewSummary(target).finally(() => {
+    const promise = this.resolveUriReviewSummary(target, cancellation.token).finally(() => {
+      cancellation.dispose();
       if (this.activeUriReviewsByKey.get(key)?.promise === promise) {
         this.activeUriReviewsByKey.delete(key);
         if (!this.uriReviewTargetsByKey.get(key)) {
@@ -853,7 +889,7 @@ export class ReviewService extends Disposable implements IReviewService {
         }
       }
     });
-    const review = { generation, promise, workspaceGeneration };
+    const review = { cancellation, generation, promise, workspaceGeneration };
     this.activeUriReviewsByKey.set(key, review);
     this.fireReviewChange(target);
     return review;
@@ -861,8 +897,9 @@ export class ReviewService extends Disposable implements IReviewService {
 
   private async resolveUriReviewSummary(
     target: NormalizedUriReviewTarget,
+    token: CancellationToken,
   ): Promise<UriReviewCacheEntry | null> {
-    if (!this.dataResourceService) {
+    if (!this.dataResourceService || token.isCancellationRequested) {
       return null;
     }
 
@@ -870,9 +907,16 @@ export class ReviewService extends Disposable implements IReviewService {
     try {
       reference = await this.dataResourceService.resolveStructuredEvidence(
         createDataResourceStructuredContentTarget(target),
+        token,
       );
+      if (token.isCancellationRequested) {
+        return null;
+      }
       return this.createUriReviewSummaryFromStructuredContent(target, reference.object);
     } catch (error) {
+      if (token.isCancellationRequested || isCancellationError(error)) {
+        return null;
+      }
       return {
         modelSignature: createUriReviewErrorSignature(target, error),
         reviewEngineVersion: REVIEW_ENGINE_VERSION,

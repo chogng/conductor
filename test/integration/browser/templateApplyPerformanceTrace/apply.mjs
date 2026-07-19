@@ -169,9 +169,23 @@ const createTemplateApplyReadinessErrorState = (state) => ({
 });
 
 export const waitForTemplateProcessingBatch = async (page, timeoutMs) => page.waitForFunction(
-  () => Boolean(window.conductorAnalysisPerf?.getReport?.()?.entries?.some(entry =>
-    entry.stage === "processing:batch"
-  )),
+  () => {
+    const traceTargets = window.__conductorTemplateApplyPerformanceTrace?.targetApi
+      ?.getChartTargets?.() ?? [];
+    if (traceTargets.length > 0) {
+      return traceTargets.every(target =>
+        target.chartState === "ready" ||
+        target.chartState === "failed" ||
+        target.chartState === "skipped"
+      );
+    }
+
+    const fileItems = [...document.querySelectorAll(".file-list-item[data-file-id]")];
+    return fileItems.length > 0 && fileItems.every(item => {
+      const state = item.dataset.chartState;
+      return state === "ready" || state === "failed" || state === "skipped";
+    });
+  },
   undefined,
   { timeout: timeoutMs },
-).catch(() => null);
+);

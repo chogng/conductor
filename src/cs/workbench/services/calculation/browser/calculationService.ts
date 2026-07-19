@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from "src/cs/base/common/event";
+import { CancellationTokenSource } from "src/cs/base/common/cancellation";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import { startPerf } from "src/cs/workbench/common/perf";
@@ -59,6 +60,7 @@ export class CalculationService extends Disposable implements ICalculationServic
 	private readonly pendingByCacheKey = new Map<string, PendingCalculation>();
 	private readonly queue: string[] = [];
 	private activeCacheKey: string | null = null;
+	private activeCancellation: CancellationTokenSource | null = null;
 	private nextRequestId = 1;
 	private disposed = false;
 
@@ -128,6 +130,7 @@ export class CalculationService extends Disposable implements ICalculationServic
 			return;
 		}
 		this.disposed = true;
+		this.activeCancellation?.cancel();
 		this.queue.length = 0;
 		this.pendingByCacheKey.clear();
 		this.resultsByCacheKey.clear();
@@ -140,6 +143,9 @@ export class CalculationService extends Disposable implements ICalculationServic
 			this.resultsByCacheKey.has(cacheKey) ||
 			this.pendingByCacheKey.has(cacheKey) ||
 			this.activeCacheKey === cacheKey;
+		if (this.activeCacheKey === cacheKey) {
+			this.activeCancellation?.cancel();
+		}
 		this.resultsByCacheKey.delete(cacheKey);
 		this.pendingByCacheKey.delete(cacheKey);
 		removeArrayValue(this.queue, cacheKey);
@@ -153,6 +159,9 @@ export class CalculationService extends Disposable implements ICalculationServic
 
 	private invalidateResource(resource: URI, sheetId?: string | null): void {
 		const cacheKey = createCalculationResourceCacheKey(resource, sheetId);
+		if (this.activeCacheKey === cacheKey) {
+			this.activeCancellation?.cancel();
+		}
 		const deletedResult = this.resultsByCacheKey.delete(cacheKey);
 		const deletedPending = this.pendingByCacheKey.delete(cacheKey);
 		removeArrayValue(this.queue, cacheKey);
@@ -190,6 +199,8 @@ export class CalculationService extends Disposable implements ICalculationServic
 		}
 
 		this.activeCacheKey = cacheKey;
+		const cancellation = new CancellationTokenSource();
+		this.activeCancellation = cancellation;
 		this.pendingByCacheKey.delete(cacheKey);
 		const requestId = this.nextRequestId++;
 		const endPerf = startPerf("calculationService.calculateResource", {
@@ -203,9 +214,13 @@ export class CalculationService extends Disposable implements ICalculationServic
 					inputSignature: pending.inputSignature,
 					records: pending.records,
 					requestId,
-				})
+				}, cancellation.token)
 				: null;
-			if (this.disposed || !this.isCurrentPendingCalculation(pending)) {
+			if (
+				this.disposed ||
+				cancellation.token.isCancellationRequested ||
+				!this.isCurrentPendingCalculation(pending)
+			) {
 				endPerf({ result: "stale" });
 				return;
 			}
@@ -229,6 +244,10 @@ export class CalculationService extends Disposable implements ICalculationServic
 				result: backendResult ? "backend" : "mainThread",
 			});
 		} finally {
+			cancellation.dispose();
+			if (this.activeCancellation === cancellation) {
+				this.activeCancellation = null;
+			}
 			this.activeCacheKey = null;
 			if (!this.disposed && this.queue.length) {
 				void this.drainQueue();

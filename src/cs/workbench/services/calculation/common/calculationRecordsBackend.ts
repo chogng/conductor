@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDisposable } from "src/cs/base/common/lifecycle";
+import type { CancellationToken } from "src/cs/base/common/cancellation";
 import type {
 	CalculationAnalysisBySeriesId,
 } from "src/cs/workbench/services/calculation/common/calculationAnalysis";
@@ -32,5 +33,6 @@ export interface ICalculationRecordsBackend extends IDisposable {
 	isSupported(): boolean;
 	calculateRecords(
 		input: CalculationRecordsBackendInput,
+		token?: CancellationToken,
 	): Promise<CalculationRecordsBackendOutput | null>;
 }

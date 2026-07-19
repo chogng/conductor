@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { CancellationToken } from "src/cs/base/common/cancellation";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
@@ -96,8 +97,9 @@ export class ElectronCalculationRecordsBackend
 
 	public async calculateRecords(
 		input: CalculationRecordsBackendInput,
+		token: CancellationToken = CancellationToken.None,
 	): Promise<CalculationRecordsBackendOutput | null> {
-		if (this.disposed) {
+		if (this.disposed || token.isCancellationRequested) {
 			return null;
 		}
 
@@ -113,6 +115,10 @@ export class ElectronCalculationRecordsBackend
 			});
 			try {
 				const response = await this.rustTransport.analyze(payload);
+				if (token.isCancellationRequested) {
+					endPerf({ result: "cancelled" });
+					return null;
+				}
 				const analysisBySeriesId = readRustCalculationAnalysis(
 					response,
 					input.records,
@@ -122,7 +128,7 @@ export class ElectronCalculationRecordsBackend
 					const output = await this.fallbackBackend.calculateRecords({
 						...input,
 						analysisBySeriesId,
-					});
+					}, token);
 					if (output) {
 						endPerf({
 							curveCount: output.curves.length,
@@ -152,7 +158,7 @@ export class ElectronCalculationRecordsBackend
 			}
 		}
 
-		return this.fallbackBackend.calculateRecords(input);
+		return this.fallbackBackend.calculateRecords(input, token);
 	}
 
 	public override dispose(): void {

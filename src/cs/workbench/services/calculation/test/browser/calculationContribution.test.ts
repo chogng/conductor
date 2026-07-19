@@ -4,8 +4,9 @@
 
 import assert from "assert";
 
+import { CancellationToken } from "src/cs/base/common/cancellation";
 import { Emitter, Event } from "src/cs/base/common/event";
-import { Disposable } from "src/cs/base/common/lifecycle";
+import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { CalculationService } from "src/cs/workbench/services/calculation/browser/calculationService";
@@ -115,6 +116,23 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
 		assert.equal(result.sourceVersion, 2);
 		assert.equal(result.requestSignature, "request-2");
 	});
+
+	test("cancels an active backend calculation when its Slice resource is released", async () => {
+		const resource = URI.file("/data/released.csv");
+		const sliceService = store.add(new TestSliceService(
+			createSliceResourceResult(resource, "Sheet 1", 1),
+		));
+		const backend = new TestCalculationRecordsBackend(false);
+		const service = store.add(new CalculationService(backend, sliceService));
+
+		service.prioritizeResource(resource, "Sheet 1");
+		assert.equal(backend.calculateCount, 1);
+		sliceService.clearResult(resource, "Sheet 1");
+		await waitForCalculation();
+
+		assert.equal(backend.cancellationCount, 1);
+		assert.equal(service.getResourceResult(resource, "Sheet 1"), null);
+	});
 });
 
 class TestCalculationRecordsBackend
@@ -122,9 +140,10 @@ class TestCalculationRecordsBackend
 	implements ICalculationRecordsBackend {
 
 	public calculateCount = 0;
+	public cancellationCount = 0;
 	private readonly pending: Array<{
 		readonly input: CalculationRecordsBackendInput;
-		readonly resolve: (result: CalculationRecordsBackendOutput) => void;
+		readonly resolve: (result: CalculationRecordsBackendOutput | null) => void;
 	}> = [];
 
 	public constructor(private readonly autoComplete: boolean) {
@@ -137,13 +156,23 @@ class TestCalculationRecordsBackend
 
 	public calculateRecords(
 		input: CalculationRecordsBackendInput,
-	): Promise<CalculationRecordsBackendOutput> {
+		token: CancellationToken = CancellationToken.None,
+	): Promise<CalculationRecordsBackendOutput | null> {
 		this.calculateCount += 1;
 		if (this.autoComplete) {
 			return Promise.resolve(createBackendOutput(input));
 		}
 		return new Promise(resolve => {
-			this.pending.push({ input, resolve });
+			let cancellationListener: IDisposable | undefined;
+			const complete = (result: CalculationRecordsBackendOutput | null): void => {
+				cancellationListener?.dispose();
+				resolve(result);
+			};
+			this.pending.push({ input, resolve: complete });
+			cancellationListener = token.onCancellationRequested(() => {
+				this.cancellationCount += 1;
+				complete(null);
+			});
 		});
 	}
 
@@ -186,6 +215,11 @@ class TestSliceService extends Disposable implements ISliceService {
 		});
 	}
 
+	public clearResult(resource: URI, sheetId?: string | null): void {
+		this.result = null;
+		this.onDidChangeResourceSliceResultEmitter.fire({ resource, sheetId });
+	}
+
 	public getState(): ReturnType<ISliceService["getState"]> {
 		return { isRunning: false, queueLength: 0, templateSelections: [] };
 	}
@@ -202,6 +236,7 @@ class TestSliceService extends Disposable implements ISliceService {
 	public markResourceSkipped(): void {}
 	public prioritizeResource(): void {}
 	public cancelResource(): void {}
+	public releaseResource(): void {}
 	public setTemplateSelection(): void {}
 }
 
