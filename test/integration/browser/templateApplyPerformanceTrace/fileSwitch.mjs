@@ -183,7 +183,10 @@ export const waitForMainChartDrawn = async (page, fileId, previousCanvasSignatur
     }
 
     const renderSignature = canvas.dataset.plotRenderSignature ?? "";
-    if (renderSignature.split("|")[0] === targetFileId) {
+    const targetResource = targetFileId
+      .replace(/^resource:/, "")
+      .split("\u001f", 1)[0];
+    if (renderSignature.split("|")[0] === targetResource) {
       return true;
     }
 

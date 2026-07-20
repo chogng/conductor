@@ -120,6 +120,8 @@ const parseArgs = () => {
     runtime: args.get("runtime") || scenarioDefaults.runtime || "browser",
     sampleMs: readPositiveInteger(args.get("sample-ms"), 100),
     scenario: scenarioName,
+    sourceDirectory: args.get("source-dir") ? path.resolve(args.get("source-dir")) : null,
+    sourceFile: args.get("source-file") ? path.resolve(args.get("source-file")) : null,
     splitReports: !flags.has("no-split-reports"),
     tableInteraction: readBooleanFlag(flags, "table-interaction", scenarioDefaults.tableInteraction ?? false),
     tableResizeCount: readPositiveInteger(args.get("table-resize-count"), scenarioDefaults.tableResizeCount ?? 2),
@@ -222,6 +224,8 @@ const main = async () => {
     profile: options.profile,
     rowCount: options.rowCount,
     runId,
+    sourceDirectory: options.sourceDirectory,
+    sourceFile: options.sourceFile,
   });
   const { fixtureRoot } = fixture;
 
@@ -755,6 +759,46 @@ const main = async () => {
         stages: analysis.stages,
       }, null, 2)}`);
     }
+  } catch (error) {
+    const failurePath = path.join(options.outputRoot, "failure-diagnostics.json");
+    const failureDiagnostics = {
+      analysisPerf: runtime?.page
+        ? await readAnalysisPerfReport(runtime.page).catch(() => null)
+        : null,
+      error: error instanceof Error
+        ? {
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+          }
+        : {
+            message: String(error),
+          },
+      performanceTrace: runtime?.page
+        ? await readPerformanceTraceReport(runtime.page).catch(() => null)
+        : null,
+      pageState: runtime?.page
+        ? await runtime.page.evaluate(() => ({
+            bodyTextTail: document.body.innerText.slice(-4_000),
+            fileItems: Array.from(document.querySelectorAll(".file-list-item[data-file-id]")).map((item) => ({
+              chartState: item.dataset.chartState ?? null,
+              fileId: item.dataset.fileId ?? null,
+              hasChartData: item.dataset.hasChartData ?? null,
+              text: item.textContent?.trim() ?? "",
+            })),
+            notifications: Array.from(document.querySelectorAll(
+              ".notifications-toasts .notification-toast, [role='alert']",
+            )).map((item) => item.textContent?.trim() ?? ""),
+          })).catch(() => null)
+        : null,
+      resourceSamples: sampler?.samples ?? [],
+      traceState: runtime?.page
+        ? await readTraceState(runtime.page).catch(() => null)
+        : null,
+    };
+    writeFileSync(failurePath, JSON.stringify(failureDiagnostics, null, 2));
+    console.error(`[template-apply-performance-trace] failureDiagnostics=${failurePath}`);
+    throw error;
   } finally {
     sampler?.stop();
     if (runtime?.page) {

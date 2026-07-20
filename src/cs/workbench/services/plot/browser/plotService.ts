@@ -1241,10 +1241,28 @@ export class PlotService extends Disposable implements IPlotService {
       return cached;
     }
 
+    const endPerf = startPerf("plotService.createCalculatedData", {
+      curveCount: Object.keys(result.curvesByKey).length,
+      plotType,
+      resource: result.resource.toString(),
+      sheetId: result.sheetId ?? null,
+      sourcePointCount: Object.values(result.curvesByKey).reduce(
+        (total, curve) => total + curve.points.length,
+        0,
+      ),
+    });
+    const calculatedData = createCalculatedDataForCalculationResourceResult({
+      plotType,
+      result,
+    });
+    endPerf({
+      resultPointCount: calculatedData.pointsCount,
+      resultSeriesCount: calculatedData.seriesList.length,
+    });
     return this.cacheCalculatedDataForResource(
       id,
       plotType,
-      createCalculatedDataForCalculationResourceResult({ plotType, result }),
+      calculatedData,
       { resource: result.resource, sheetId: result.sheetId ?? null },
     );
   }

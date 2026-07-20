@@ -1,7 +1,9 @@
 ﻿import {
+  copyFileSync,
   createWriteStream,
   mkdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -13,13 +15,41 @@ import { strToU8, zipSync } from "fflate";
 export const createRunId = () =>
   `${new Date().toISOString().replace(/[:.]/g, "-")}-${process.pid}`;
 
-export const createUniqueImportFixture = async ({ fileCount, profile, rowCount, runId, outputRoot }) => {
+export const createUniqueImportFixture = async ({
+  fileCount,
+  outputRoot,
+  profile,
+  rowCount,
+  runId,
+  sourceDirectory,
+  sourceFile,
+}) => {
   const fixtureRoot = path.join(outputRoot, "data", runId);
   rmSync(fixtureRoot, { recursive: true, force: true });
   mkdirSync(fixtureRoot, { recursive: true });
 
   const files = [];
-  for (let index = 0; index < fileCount; index += 1) {
+  const sourceFiles = sourceFile
+    ? [sourceFile]
+    : sourceDirectory
+      ? readdirSync(sourceDirectory, { withFileTypes: true })
+        .filter(entry => entry.isFile() && entry.name.toLowerCase().endsWith(".csv"))
+        .map(entry => path.join(sourceDirectory, entry.name))
+      : [];
+  for (const [fileIndex, sourcePath] of sourceFiles.entries()) {
+    const fileName = path.basename(sourcePath);
+    copyFileSync(sourcePath, path.join(fixtureRoot, fileName));
+    files.push({
+      expectedReviewDecoration: true,
+      expectedPrepareFailure: false,
+      fileIndex,
+      fileName,
+      kind: "source",
+      type: "sourceCsv",
+    });
+  }
+
+  for (let index = 0; !sourceFiles.length && index < fileCount; index += 1) {
     const fixtureType = getFixtureType({ fileCount, index, profile });
     const kind = index % 2 === 0 ? "transfer" : "output";
     const fileName = createFixtureFileName({
@@ -354,6 +384,8 @@ export const createBrowserDropSpecs = ({ fixture, rowCount, runId }) =>
     if (file.type === "multiSheetXlsx" || file.type === "corruptXlsx") {
       spec.base64 = readFileSync(filePath).toString("base64");
       spec.mimeType = getImportFileMimeType(filePath);
+    } else if (file.type === "sourceCsv") {
+      spec.text = readFileSync(filePath, "utf8");
     }
     return spec;
   });
@@ -434,6 +466,8 @@ export const dispatchBrowserFixtureDrop = async (page, payload) => page.evaluate
 
   const createFileBody = (file) => {
     switch (file.type) {
+      case "sourceCsv":
+        return file.text;
       case "binaryCsv":
         return new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00, 0x19, 0x00, 0x00]);
       case "corruptXlsx":
