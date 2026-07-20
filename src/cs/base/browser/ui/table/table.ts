@@ -120,12 +120,6 @@ export interface ITableRowHeaderDescriptor {
 
 // Widget interaction state and events.
 
-export interface ITableBodyMouseEvent<T extends MouseEvent = MouseEvent> {
-	readonly browserEvent: T;
-	readonly cell: ITableCellPosition | null;
-	readonly mouseEvent: IMouseEvent;
-}
-
 export interface ITableSelectionRequestEvent {
 	readonly reveal: boolean;
 	readonly selection: ITableSelectionTarget;

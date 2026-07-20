@@ -17,7 +17,6 @@ import {
 import type { CancellationToken } from "src/cs/base/common/cancellation";
 import {
   TABLE_WIDGET_ZOOM_OPTIONS,
-  type ITableBodyMouseEvent,
   type ITableCellDecorationRange,
   type ITableCellState,
   type ITableCellPosition,
@@ -199,10 +198,6 @@ type HeaderCell = {
   readonly scaleBadge: HTMLButtonElement;
 };
 
-type BodyRangeSelectionState = {
-  readonly pointerId: number;
-};
-
 export class TableWidget {
   public readonly element: HTMLElement;
   public readonly onDidChangeSize: Event<ITableSize>;
@@ -215,7 +210,6 @@ export class TableWidget {
   private readonly columnScaleResetAction: Action;
   private readonly columnScaleControl: Stepper;
   private readonly performance = createPerformanceStageRecorder(state => this.getPerformanceStageContext(state));
-  private readonly bodyRangeSelectionStore = new DisposableStore();
   private disposeSelectionListener: (() => void) | null = null;
   private disposeHighlightListener: (() => void) | null = null;
   private disposeRangeDecorationListener: (() => void) | null = null;
@@ -232,9 +226,6 @@ export class TableWidget {
   private autoFitColumnWidthSignature: string | null = null;
   private pendingColumnWidthStorageTimeout: number | null = null;
   private pendingColumnWidthStorageTarget: ColumnWidthStorageTarget | null = null;
-  private bodyRangeSelectionState: BodyRangeSelectionState | null = null;
-  private suppressNextBodyClick = false;
-  private bodyClickSuppressionTimeout: number | null = null;
   private tracedBodyCellRenderCount = 0;
   private tracedHeaderCellRenderCount = 0;
   private props: TableWidgetProps;
@@ -337,19 +328,12 @@ export class TableWidget {
     this.store.add(this.grid.onDidDoubleClickColumnResizeBoundary(event => {
       this.autoFitColumnWidth(event.colIndex);
     }));
-    this.store.add(this.grid.onDidClickBody(event => {
-      this.onBodyClick(event);
-    }));
-    this.store.add(this.grid.onDidPointerDownBody(event => {
-      this.onBodyPointerDown(event);
-    }));
     this.store.add(addDisposableListener(this.element, EventType.KEY_DOWN, event => {
       this.onShortcutKeyDown(event as KeyboardEvent);
     }));
     this.store.add(addDisposableListener(this.element, EventType.WHEEL, event => {
       this.onWheel(event as WheelEvent);
     }, { passive: false }));
-    this.store.add(this.bodyRangeSelectionStore);
     this.bindTableState(props.tableViewModel);
     this.syncColumnWidthSheet();
     this.renderedInputKey = getTableWidgetInputKey(props);
@@ -399,8 +383,6 @@ export class TableWidget {
     this.disposeRowsVersionListener = null;
     this.disposeStateListener?.();
     this.disposeStateListener = null;
-    this.endBodyRangeSelection();
-    this.clearBodyClickSuppression();
     this.store.dispose();
   }
 
@@ -1469,188 +1451,6 @@ export class TableWidget {
     )) {
       this.renderTable();
       this.syncColumnResizeGuide();
-    }
-  }
-
-  private onBodyPointerDown(event: ITableBodyMouseEvent<PointerEvent>): void {
-    const browserEvent = event.browserEvent;
-    const mouseEvent = event.mouseEvent;
-    if (
-      mouseEvent.defaultPrevented ||
-      !mouseEvent.leftButton ||
-      this.grid.isColumnResizeActive()
-    ) {
-      return;
-    }
-
-    const target = event.cell;
-    if (!target) {
-      return;
-    }
-
-    mouseEvent.preventDefault();
-    mouseEvent.stopPropagation();
-    this.clearNativeSelection();
-    this.endBodyRangeSelection();
-
-    const selection = mouseEvent.shiftKey
-      ? this.grid.selectRangeToCell(target)
-      : this.grid.selectCell(target);
-    if (!selection) {
-      return;
-    }
-
-    this.beginBodyClickSuppression();
-    this.bodyRangeSelectionState = {
-      pointerId: browserEvent.pointerId,
-    };
-    this.element.classList.add("table_view--selecting_cells");
-    this.focus();
-
-    const targetWindow = this.element.ownerDocument.defaultView;
-    if (!targetWindow) {
-      return;
-    }
-
-    this.bodyRangeSelectionStore.add(addDisposableListener(
-      targetWindow,
-      EventType.POINTER_MOVE,
-      moveEvent => {
-        this.onBodyPointerMove(moveEvent as PointerEvent);
-      },
-      { passive: false },
-    ));
-    this.bodyRangeSelectionStore.add(addDisposableListener(targetWindow, EventType.POINTER_UP, event => {
-      this.onBodyPointerUp(event as PointerEvent);
-    }, { passive: false }));
-    this.bodyRangeSelectionStore.add(addDisposableListener(targetWindow, "pointercancel", event => {
-      this.onBodyPointerUp(event as PointerEvent);
-    }, { passive: false }));
-    this.bodyRangeSelectionStore.add(addDisposableListener(targetWindow, EventType.BLUR, () => {
-      this.endBodyRangeSelection();
-      this.releaseBodyClickSuppressionSoon();
-    }));
-  }
-
-  private onBodyPointerMove(event: PointerEvent): void {
-    const state = this.bodyRangeSelectionState;
-    if (!state || event.pointerId !== state.pointerId) {
-      return;
-    }
-
-    if ((event.buttons & 1) === 0) {
-      this.endBodyRangeSelection();
-      this.releaseBodyClickSuppressionSoon();
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    this.clearNativeSelection();
-
-    const target = this.getBodyCellPositionFromEvent(event);
-    if (!target) {
-      return;
-    }
-
-    const selection = this.grid.selectRangeToCell(target);
-    if (selection) {
-      this.beginBodyClickSuppression();
-    }
-  }
-
-  private onBodyPointerUp(event: PointerEvent): void {
-    const state = this.bodyRangeSelectionState;
-    if (!state || event.pointerId !== state.pointerId) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    this.clearNativeSelection();
-    this.endBodyRangeSelection();
-    this.releaseBodyClickSuppressionSoon();
-    this.focus();
-  }
-
-  private endBodyRangeSelection(): void {
-    if (this.bodyRangeSelectionState) {
-      this.bodyRangeSelectionState = null;
-      this.element.classList.remove("table_view--selecting_cells");
-    }
-    this.bodyRangeSelectionStore.clear();
-  }
-
-  private getBodyCellPositionFromEvent(
-    event: Pick<PointerEvent | MouseEvent, "clientX" | "clientY" | "target">,
-  ): ITableCellPosition | null {
-    return this.grid.getBodyCellPositionFromMouseEvent(event);
-  }
-
-  private clearNativeSelection(): void {
-    const selection = this.element.ownerDocument.getSelection?.() ??
-      this.element.ownerDocument.defaultView?.getSelection?.();
-    selection?.removeAllRanges();
-  }
-
-  private beginBodyClickSuppression(): void {
-    this.suppressNextBodyClick = true;
-    this.clearBodyClickSuppressionTimeout();
-  }
-
-  private releaseBodyClickSuppressionSoon(): void {
-    this.clearBodyClickSuppressionTimeout();
-    const targetWindow = this.element.ownerDocument.defaultView;
-    if (!targetWindow) {
-      this.suppressNextBodyClick = false;
-      return;
-    }
-
-    this.bodyClickSuppressionTimeout = targetWindow.setTimeout(() => {
-      this.suppressNextBodyClick = false;
-      this.bodyClickSuppressionTimeout = null;
-    }, 50);
-  }
-
-  private clearBodyClickSuppression(): void {
-    this.suppressNextBodyClick = false;
-    this.clearBodyClickSuppressionTimeout();
-  }
-
-  private clearBodyClickSuppressionTimeout(): void {
-    if (this.bodyClickSuppressionTimeout === null) {
-      return;
-    }
-
-    this.element.ownerDocument.defaultView?.clearTimeout(this.bodyClickSuppressionTimeout);
-    this.bodyClickSuppressionTimeout = null;
-  }
-
-  private onBodyClick(event: ITableBodyMouseEvent): void {
-    const mouseEvent = event.mouseEvent;
-    if (this.suppressNextBodyClick) {
-      this.clearBodyClickSuppression();
-      mouseEvent.preventDefault();
-      mouseEvent.stopPropagation();
-      return;
-    }
-
-    const target = event.cell;
-    if (!target) {
-      return;
-    }
-
-    if (mouseEvent.shiftKey) {
-      const selection = this.grid.selectRangeToCell(target);
-      if (selection) {
-        this.focus();
-      }
-      return;
-    }
-
-    const selection = this.grid.selectCell(target);
-    if (selection) {
-      this.focus();
     }
   }
 
