@@ -600,7 +600,7 @@
   "slice.runWithTemplate.noNewResourceTables": "没有新的表格资源可用于切片。",
   "slice.runWithTemplate.noResourceTables": "没有可用于切片的表格资源。",
   "slice.runWithTemplate.noReviewedResourceTables": "没有可用于切片的已 Review 表格资源。",
-  "slice.runWithTemplate.partial": "已将 {0} 个资源加入队列，跳过 {1} 个。",
+  "slice.runWithTemplate.partial": "已将 {0} 个资源加入队列，跳过 {1} 个",
   "slice.runWithTemplate.resourcePreparationFailed": "无法准备此资源以进行切片。",
   "slice.runWithTemplate.reviewTemplateUnavailable": "此资源没有可用的有效已 Review 模板。",
   "slice.runWithTemplate.reviewUnavailable": "此资源的 Review 数据不可用。",

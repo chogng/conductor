@@ -265,7 +265,7 @@ const runResourcesWithTemplate = async ({
 			id: "slice.notification",
 			message: localize(
 				"slice.runWithTemplate.partial",
-				"Queued {0} resource(s) and skipped {1}.",
+				"Queued {0} resource(s) and skipped {1}",
 				{ 0: requests.length, 1: skippedCount },
 			),
 			severity: Severity.Warning,

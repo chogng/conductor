@@ -597,7 +597,7 @@
   "slice.runWithTemplate.noNewResourceTables": "No new table resources to slice.",
   "slice.runWithTemplate.noResourceTables": "No table resources are available to slice.",
   "slice.runWithTemplate.noReviewedResourceTables": "No reviewed table resources are available to slice.",
-  "slice.runWithTemplate.partial": "Queued {0} resource(s) and skipped {1}.",
+  "slice.runWithTemplate.partial": "Queued {0} resource(s) and skipped {1}",
   "slice.runWithTemplate.resourcePreparationFailed": "This resource could not be prepared for slicing.",
   "slice.runWithTemplate.reviewTemplateUnavailable": "No valid reviewed template is available for this resource.",
   "slice.runWithTemplate.reviewUnavailable": "Review data is unavailable for this resource.",
