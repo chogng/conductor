@@ -38,7 +38,6 @@ suite("workbench/services/export/browser/csvExport", () => {
   test("buildCsvExports writes caller-provided legend labels when requested", () => {
     const exports = buildCsvExports([
       {
-        fileId: "file-a",
         fileName: "file_a.csv",
         xGroups: [[0, 1]],
         series: [
@@ -84,7 +83,7 @@ suite("workbench/services/export/browser/csvExport", () => {
     const values = rows[1].split(",");
     const byHeader = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
 
-    assert.equal(byHeader.file_id, "test:/file_a.csv");
+    assert.equal(byHeader.file_name, "file_a.csv");
     assert.equal(byHeader.series_id, "series-a");
     assert.equal(byHeader.ss, "");
     assert.equal(byHeader.ss_ok, "false");
@@ -93,16 +92,15 @@ suite("workbench/services/export/browser/csvExport", () => {
 
   test("buildSsMetricsCsv uses caller-owned manual SS range input", () => {
     const csvFile = createExportCsvFile(createCalculationResult("transfer"));
-    const fileId = String(csvFile.fileId);
     const csv = buildSsMetricsCsv({
       csvFiles: [csvFile],
-      manualSsRangesByFileId: {
-        [fileId]: {
-          "series-a": {
+      resolveManualSsRange: (file, seriesId) => {
+        assert.equal(file.resource?.toString(), "test:/file_a.csv");
+        assert.equal(seriesId, "series-a");
+        return {
           x1: 0,
           x2: 2,
-          },
-        },
+        };
       },
       ssMethod: "manual",
     });
@@ -112,7 +110,7 @@ suite("workbench/services/export/browser/csvExport", () => {
     const values = rows[1].split(",");
     const byHeader = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
 
-    assert.equal(byHeader.file_id, "test:/file_a.csv");
+    assert.equal(byHeader.file_name, "file_a.csv");
     assert.equal(byHeader.series_id, "series-a");
     assert.equal(byHeader.ss_range_source, "manual");
   });
@@ -121,7 +119,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const csv = buildSsMetricsCsv({
       csvFiles: [
         {
-          fileId: "output-file",
           fileName: "output.csv",
           curveType: "output",
           supportsSs: false,
@@ -154,7 +151,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const csv = buildSsMetricsCsv({
       csvFiles: [
         {
-          fileId: "transfer-file",
           fileName: "transfer.csv",
           curveType: "transfer",
           supportsSs: true,
@@ -169,7 +165,6 @@ suite("workbench/services/export/browser/csvExport", () => {
             },
           ],
           calculationCache: {
-            fileId: "transfer-file",
             entriesByKey: {
               "ssFitAuto:curve-transfer": {
                 inputSignatures: [],
@@ -438,7 +433,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const payload = buildOriginSelectionExport(
       [
         {
-          fileId: "file-a",
           fileName: "file_a.csv",
           xGroups: [[0, 1, 2]],
           series: [
@@ -451,7 +445,6 @@ suite("workbench/services/export/browser/csvExport", () => {
           ],
         },
         {
-          fileId: "file-b",
           fileName: "file_b.csv",
           xGroups: [[0, 0.5]],
           series: [
@@ -464,16 +457,17 @@ suite("workbench/services/export/browser/csvExport", () => {
           ],
         },
       ],
-      {
-        "file-a": ["curve-a"],
-        "file-b": ["curve-b"],
-      },
+      (file) =>
+        file?.fileName === "file_a.csv"
+          ? ["curve-a"]
+          : file?.fileName === "file_b.csv"
+            ? ["curve-b"]
+            : undefined,
     );
 
     assert.ok(payload);
     assert.equal(payload.canvasCount, 2);
     assert.equal(payload.curveCount, 2);
-    assert.deepEqual(payload.fileIds, ["file-a", "file-b"]);
     assert.equal(payload.xyPairCount, 2);
     assert.equal(payload.xyPairs, "((1,2),(3,4))");
     assert.deepEqual(payload.curveLabels, ["Vg=0", "Vg=0.5"]);
@@ -497,7 +491,6 @@ suite("workbench/services/export/browser/csvExport", () => {
   test("buildOriginSelectionExport shares X within each source file only", () => {
     const payload = buildOriginSelectionExport([
       {
-        fileId: "file-a",
         fileName: "file_a.csv",
         xLabel: "Vg",
         xUnit: "V",
@@ -508,7 +501,6 @@ suite("workbench/services/export/browser/csvExport", () => {
         ],
       },
       {
-        fileId: "file-b",
         fileName: "file_b.csv",
         xLabel: "Vg",
         xUnit: "V",
@@ -536,7 +528,6 @@ suite("workbench/services/export/browser/csvExport", () => {
   test("buildOriginSelectionExport defaults to all live series when no explicit selection is stored", () => {
     const payload = buildOriginSelectionExport([
       {
-        fileId: "file-a",
         fileName: "file_a.csv",
         xGroups: [[0, 1], [0, 1]],
         series: [
@@ -560,7 +551,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     assert.equal(payload.canvasCount, 1);
     assert.equal(payload.columnLayout, "shared-x");
     assert.equal(payload.curveCount, 2);
-    assert.deepEqual(payload.fileIds, ["file-a"]);
     assert.equal(payload.xyPairs, "((1,2),(1,3))");
     assert.deepEqual(payload.curveLabels, ["Drain A", "Vg=1"]);
     assert.deepEqual(payload.xColumnLongNames, ["X"]);
@@ -576,7 +566,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const payload = buildOriginSelectionExport(
       [
         {
-          fileId: "file-a",
           fileName: "file_a.csv",
           xLabel: "Vg (V)",
           xGroups: [[0, 1]],
@@ -596,13 +585,13 @@ suite("workbench/services/export/browser/csvExport", () => {
       () => 1,
       () => "A",
       (file, series, index) => {
-        assert.equal(file?.fileId, "file-a");
+        assert.equal(file?.fileName, "file_a.csv");
         assert.equal(series?.id, "curve-a");
         assert.equal(index, 0);
         return "Edited Legend";
       },
       (file, axis) => {
-        assert.equal(file?.fileId, "file-a");
+        assert.equal(file?.fileName, "file_a.csv");
         return axis === "x" ? "Gate Voltage (V)" : "Drain Current (A)";
       },
     );
@@ -618,7 +607,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "file-a",
           fileName: "file_a.csv",
           xGroups: [[0, 1]],
           series: [
@@ -655,7 +643,6 @@ suite("workbench/services/export/browser/csvExport", () => {
   test("buildOriginExportPlan can omit single-canvas IV csv text for Rust path export", () => {
     const plan = buildOriginExportPlan([
       {
-        fileId: "file-rust-export",
         fileName: "file_rust_export.csv",
         originExportOmitIvCsvText: true,
         xGroups: [[0, 1, 2]],
@@ -679,14 +666,12 @@ suite("workbench/services/export/browser/csvExport", () => {
   test("buildOriginExportPlan can omit merged IV csv text for Rust path export", () => {
     const plan = buildOriginExportPlan([
       {
-        fileId: "file-rust-a",
         fileName: "file_rust_a.csv",
         originExportOmitIvCsvText: true,
         xGroups: [[0, 1]],
         series: [{ id: "curve-a", groupIndex: 0, y: [1, 2] }],
       },
       {
-        fileId: "file-rust-b",
         fileName: "file_rust_b.csv",
         originExportOmitIvCsvText: true,
         xGroups: [[0, 1]],
@@ -705,7 +690,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "pmos-file",
           fileName: "pmos.csv",
           xGroups: [[0, 1, 2]],
           series: [
@@ -725,7 +709,7 @@ suite("workbench/services/export/browser/csvExport", () => {
       () => "A",
       undefined,
       undefined,
-      (file, y) => (String(file?.fileId ?? "") === "pmos-file" ? Math.abs(y) : y),
+      (file, y) => (file?.fileName === "pmos.csv" ? Math.abs(y) : y),
     );
 
     assert.equal(plan.payloads.length, 1);
@@ -744,7 +728,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "transfer-a",
           fileName: "transfer_a.csv",
           curveType: "transfer",
           xAxisRole: "vg",
@@ -759,7 +742,6 @@ suite("workbench/services/export/browser/csvExport", () => {
           yUnit: "A",
         },
         {
-          fileId: "output-a",
           fileName: "output_a.csv",
           curveType: "output",
           xAxisRole: "vd",
@@ -840,7 +822,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "transfer-rust-derived",
           fileName: "transfer_rust_derived.csv",
           curveType: "transfer",
           xAxisRole: "vg",
@@ -898,7 +879,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "output-rust-derived",
           fileName: "output_rust_derived.csv",
           curveType: "output",
           xAxisRole: "vd",
@@ -950,7 +930,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "transfer-metrics-js",
           fileName: "transfer_metrics_js.csv",
           curveType: "transfer",
           xAxisRole: "vg",
@@ -995,7 +974,6 @@ suite("workbench/services/export/browser/csvExport", () => {
 
   test("buildOriginExportPlan uses grouped IV naming consistently", () => {
     const file = {
-      fileId: "transfer-single",
       fileName: "Transfer_DB__TLM_1.csv",
       curveType: "transfer",
       xAxisRole: "vg",
@@ -1043,7 +1021,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "transfer-cache",
           fileName: "transfer_cache.csv",
           curveType: "transfer",
           xAxisRole: "vg",
@@ -1056,7 +1033,6 @@ suite("workbench/services/export/browser/csvExport", () => {
             },
           ],
           calculationCache: {
-            fileId: "transfer-cache",
             entriesByKey: {
               "gm:curve-cache": {
                 inputSignatures: [],
@@ -1128,7 +1104,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "transfer-negative-ss",
           fileName: "transfer_negative_ss.csv",
           curveType: "transfer",
           xAxisRole: "vg",
@@ -1168,7 +1143,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "transfer-negative-vth",
           fileName: "transfer_negative_vth.csv",
           curveType: "transfer",
           xAxisRole: "vg",
@@ -1207,7 +1181,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "transfer-a",
           fileName: "transfer_a.csv",
           curveType: "transfer",
           xAxisRole: "vg",
@@ -1216,7 +1189,6 @@ suite("workbench/services/export/browser/csvExport", () => {
           yUnit: "A",
         },
         {
-          fileId: "output-a",
           fileName: "output_a.csv",
           curveType: "output",
           xAxisRole: "vd",
@@ -1252,7 +1224,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "transfer-vth",
           fileName: "transfer_vth.csv",
           curveType: "transfer",
           xAxisRole: "vg",
@@ -1295,7 +1266,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const payloads = buildOriginExportsByMode(
       [
         {
-          fileId: "file-a",
           fileName: "file_a.csv",
           xGroups: [[0, 1]],
           series: [
@@ -1307,7 +1277,6 @@ suite("workbench/services/export/browser/csvExport", () => {
           ],
         },
         {
-          fileId: "file-b",
           fileName: "file_b.csv",
           xGroups: [[0, 1]],
           series: [
@@ -1325,8 +1294,8 @@ suite("workbench/services/export/browser/csvExport", () => {
 
     assert.equal(payloads.length, 2);
     assert.deepEqual(
-      payloads.map((payload) => payload.fileIds),
-      [["file-a"], ["file-b"]],
+      payloads.map((payload) => payload.canvasCount),
+      [1, 1],
     );
     assert.match(payloads[0].csvName, /^file_a__selected_curves\.csv$/);
     assert.match(payloads[1].csvName, /^file_b__selected_curves\.csv$/);
@@ -1344,7 +1313,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const payloads = buildOriginExportsByMode(
       [
         {
-          fileId: "file-a",
           fileName: "file_a.csv",
           xGroups: [[0, 1]],
           series: [
@@ -1356,7 +1324,6 @@ suite("workbench/services/export/browser/csvExport", () => {
           ],
         },
         {
-          fileId: "file-b",
           fileName: "file_b.csv",
           xGroups: [[0, 1]],
           series: [
@@ -1374,8 +1341,8 @@ suite("workbench/services/export/browser/csvExport", () => {
 
     assert.equal(payloads.length, 2);
     assert.deepEqual(
-      payloads.map((payload) => payload.fileIds),
-      [["file-a"], ["file-b"]],
+      payloads.map((payload) => payload.canvasCount),
+      [1, 1],
     );
     assert.match(payloads[0].csvName, /^file_a__selected_curves\.csv$/);
     assert.match(payloads[1].csvName, /^file_b__selected_curves\.csv$/);
@@ -1393,7 +1360,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const payloads = buildOriginExportsByMode(
       [
         {
-          fileId: "file-a",
           fileName: "file_a.csv",
           xGroups: [[0, 1]],
           series: [
@@ -1405,7 +1371,6 @@ suite("workbench/services/export/browser/csvExport", () => {
           ],
         },
         {
-          fileId: "file-b",
           fileName: "file_b.csv",
           xGroups: [[0, 1]],
           series: [
@@ -1432,7 +1397,6 @@ suite("workbench/services/export/browser/csvExport", () => {
   test("buildOriginSelectionExport disambiguates duplicate curve labels with canvas labels", () => {
     const payload = buildOriginSelectionExport([
       {
-        fileId: "file-a",
         fileName: "file_a.csv",
         xGroups: [[0, 1]],
         series: [
@@ -1445,7 +1409,6 @@ suite("workbench/services/export/browser/csvExport", () => {
         ],
       },
       {
-        fileId: "file-b",
         fileName: "file_b.csv",
         xGroups: [[0, 1]],
         series: [
@@ -1467,7 +1430,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     const plan = buildOriginExportPlan(
       [
         {
-          fileId: "file-a",
           fileName: "file_a.csv",
           xGroups: [[0, 1]],
           series: [
@@ -1479,7 +1441,6 @@ suite("workbench/services/export/browser/csvExport", () => {
           ],
         },
         {
-          fileId: "file-b",
           fileName: "file_b.csv",
           xGroups: [[0, 1]],
           series: [
@@ -1491,7 +1452,6 @@ suite("workbench/services/export/browser/csvExport", () => {
           ],
         },
         {
-          fileId: "file-c",
           fileName: "file_c.csv",
           xGroups: [[0, 1]],
           series: [
@@ -1505,7 +1465,7 @@ suite("workbench/services/export/browser/csvExport", () => {
       ],
       undefined,
       "merged",
-      (file) => (String(file?.fileId ?? "") === "file-b" ? "log" : "linear"),
+      (file) => (file?.fileName === "file_b.csv" ? "log" : "linear"),
     );
 
     assert.equal(plan.mode, "workbookSheets");
@@ -1518,8 +1478,8 @@ suite("workbench/services/export/browser/csvExport", () => {
       ["linear", "log"],
     );
     assert.deepEqual(
-      plan.payloads.map((payload) => payload.fileIds),
-      [["file-a", "file-c"], ["file-b"]],
+      plan.payloads.map((payload) => payload.canvasCount),
+      [2, 1],
     );
     assert.equal(plan.payloads[0].workbookName, plan.payloads[1].workbookName);
     assert.match(plan.payloads[0].sheetName, /Linear$/);

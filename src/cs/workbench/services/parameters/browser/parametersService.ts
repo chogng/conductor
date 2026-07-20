@@ -5,6 +5,7 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
+import { extUri } from "src/cs/base/common/resources";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { localize } from "src/cs/nls";
 import {
@@ -39,24 +40,45 @@ export class ParametersService extends Disposable implements IParametersService 
 		this.onDidChangeParametersViewStateEmitter.event;
 
 	private viewStateInputKey: string | null = null;
+	private viewStateTarget: ParametersViewStateInput | null = null;
 	private viewState: ParametersViewState = createDefaultParametersViewState();
 
 	public constructor(
 		@ICalculationService private readonly calculationService: ICalculationService,
 	) {
 		super();
+
+		this._register(this.calculationService.onDidChangeResourceCalculationResult(result => {
+			const target = this.viewStateTarget;
+			if (
+				target?.resource &&
+				extUri.isEqual(target.resource, result.resource) &&
+				normalizeParametersSheetId(target.sheetId) ===
+					normalizeParametersSheetId(result.sheetId)
+			) {
+				this.updateViewState(target);
+			}
+		}));
 	}
 
 	public getViewState(): ParametersViewState {
 		return this.viewState;
 	}
 
-	public createViewState(input: ParametersViewStateInput): ParametersViewState {
-		return this.createViewStateForResolvedInput(this.resolveViewStateInput(input));
-	}
-
 	public updateViewState(input: ParametersViewStateInput): ParametersViewState {
 		const resolvedInput = this.resolveViewStateInput(input);
+		this.viewStateTarget = resolvedInput.resource
+			? {
+				resource: resolvedInput.resource,
+				sheetId: resolvedInput.sheetId,
+			}
+			: null;
+		if (resolvedInput.resource && !resolvedInput.fileRecord) {
+			this.calculationService.prioritizeResource(
+				resolvedInput.resource,
+				resolvedInput.sheetId,
+			);
+		}
 		const inputKey = createParametersViewStateInputKey(resolvedInput);
 		if (this.viewStateInputKey === inputKey) {
 			return this.viewState;

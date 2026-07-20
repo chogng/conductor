@@ -214,19 +214,25 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     assert.notEqual(left.signature, right.signature);
   });
 
-  test("createCalculatedDataForCalculationResourceResult derives resource id from URI components", () => {
+  test("createCalculatedDataForCalculationResourceResult preserves URI resource identity", () => {
     const result = createCalculationResourceResult();
     const calculated = createCalculatedDataForCalculationResourceResult({
       plotType: "iv",
       result,
     });
 
-    assert.equal(
-      calculated.source.fileId,
-      "file:///workspace/data/transfer.csv\u0000Sheet 1",
-    );
-    assert.equal(calculated.source.fileId?.includes("[object Object]"), false);
+    assert.equal(calculated.source.fileId, null);
+    assert.equal(calculated.source.resource?.toString(), result.resource.toString());
     assert.equal(calculated.source.sheetId, "Sheet 1");
+
+    const otherResource = createCalculatedDataForCalculationResourceResult({
+      plotType: "iv",
+      result: {
+        ...result,
+        resource: URI.file("/workspace/data/other.csv"),
+      },
+    });
+    assert.notEqual(otherResource.signature, calculated.signature);
   });
 
   test("uses a series legend value before its source name", () => {

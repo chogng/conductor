@@ -12,7 +12,6 @@ import type {
 import type {
   CalculationResourceResult,
 } from "src/cs/workbench/services/calculation/common/calculation";
-import { createCalculationResourceId } from "src/cs/workbench/services/calculation/common/calculation";
 
 export type OriginExportContentOption = {
   group: "basic" | "derived";
@@ -23,8 +22,6 @@ export type OriginExportContentOption = {
 export type OriginCurveExportSeriesOption = {
   key: string;
   label: string;
-  sourceFileId: string;
-  sourceSeriesId: string;
 };
 
 export type ExportPaneState = {
@@ -43,10 +40,9 @@ export const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
 
 export const createOriginCurveOptions = (
   result: CalculationResourceResult,
-  resolveSeriesLabel: (fileId: string, seriesId: string, fallback: string, index: number) => string =
-    (_fileId, _seriesId, fallback, index) => fallback || `Series ${index + 1}`,
+  resolveSeriesLabel: (seriesId: string, fallback: string, index: number) => string =
+    (_seriesId, fallback, index) => fallback || `Series ${index + 1}`,
 ): OriginCurveExportSeriesOption[] => {
-  const fileId = createCalculationResourceId(result.resource, result.sheetId);
   return result.seriesOrder
     .map((seriesId, index) => {
       const series = result.seriesById[seriesId];
@@ -59,9 +55,7 @@ export const createOriginCurveOptions = (
       );
       return {
         key: seriesId,
-        label: resolveSeriesLabel(fileId, seriesId, fallback, index),
-        sourceFileId: fileId,
-        sourceSeriesId: seriesId,
+        label: resolveSeriesLabel(seriesId, fallback, index),
       };
     })
     .filter((option): option is OriginCurveExportSeriesOption => Boolean(option));

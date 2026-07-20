@@ -15,7 +15,6 @@ export const ParametersViewContainerId = "workbench.viewContainer.parameters";
 export const ParametersViewId = "workbench.parameters";
 
 export type ParametersViewStateInput = {
-  readonly fileId?: string | null;
   readonly resource?: URI | null;
   readonly sheetId?: string | null;
 };
@@ -24,7 +23,6 @@ export interface IParametersService {
   readonly _serviceBrand: undefined;
   readonly onDidChangeParametersViewState: Event<ParametersViewState>;
 
-  createViewState(input: ParametersViewStateInput): ParametersViewState;
   getViewState(): ParametersViewState;
   updateViewState(input: ParametersViewStateInput): ParametersViewState;
 }

@@ -67,7 +67,6 @@ import "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 import "src/cs/workbench/services/calculation/browser/calculation.contribution";
 import "src/cs/workbench/services/slice/browser/slicePriority.contribution";
-import "src/cs/workbench/services/calculation/browser/calculationPriority.contribution";
 
 //#endregion
 

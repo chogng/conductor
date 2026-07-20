@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from "src/cs/base/common/event";
-import { URI } from "src/cs/base/common/uri";
+import type { URI } from "src/cs/base/common/uri";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type {
 	CalculationAxis,
@@ -19,15 +19,6 @@ export type CalculationResourceIdentity = {
 	readonly resource: URI;
 	readonly sheetId?: string | null;
 };
-
-export function createCalculationResourceId(
-	resource: URI,
-	sheetId?: string | null,
-): string {
-	const resourceId = URI.revive(resource).toString().replace(/\\/g, "/");
-	const normalizedSheetId = String(sheetId ?? "").trim();
-	return normalizedSheetId ? `${resourceId}\u0000${normalizedSheetId}` : resourceId;
-}
 
 export type CalculationResourceResult = CalculationResourceIdentity & {
 	readonly axis: CalculationAxis;

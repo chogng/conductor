@@ -7,7 +7,6 @@ import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import { createCalculationResourceId } from "src/cs/workbench/services/calculation/common/calculation";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import {
 	BrowserThumbnailPreviewService,
@@ -420,7 +419,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 					calculatedResources.push(input.resource?.toString() ?? null);
 					return modelReady
 						? {
-							fileId: createCalculationResourceId(input.resource!, input.sheetId),
+							fileId: input.resource!.toString(),
 							signature: `plot:${input.resource?.toString()}`,
 						}
 						: null;

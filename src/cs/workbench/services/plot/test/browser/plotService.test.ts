@@ -5,10 +5,10 @@
 import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
+import { extUri } from "src/cs/base/common/resources";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
 import {
-  createCalculationResourceId,
   type CalculationResourceResult,
   type ICalculationService,
 } from "src/cs/workbench/services/calculation/common/calculation";
@@ -17,6 +17,42 @@ import { PlotService } from "src/cs/workbench/services/plot/browser/plotService"
 
 suite("workbench/services/plot/test/browser/plotService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+  test("keeps creating reads passive when the calculation result is missing", () => {
+    const target = createTarget();
+    const priorities: string[] = [];
+    const service = store.add(createPlotService([], undefined, resource => {
+      priorities.push(resource.toString());
+    }));
+
+    assert.equal(service.getCalculatedData({ ...target, plotType: "iv" }), null);
+    assert.equal(service.getPlotDisplayModel({ ...target, plotType: "iv" }), null);
+    assert.equal(service.getPlotLegendModel({ ...target, plotType: "iv" }), null);
+    assert.equal(service.getPlotRenderModel({ ...target, plotType: "iv" }), null);
+    assert.deepEqual(priorities, []);
+  });
+
+  test("requests calculation only from explicit prefetch and resumes the queued display model", async () => {
+    const target = createTarget();
+    const results: CalculationResourceResult[] = [];
+    const changes = store.add(new Emitter<{ readonly resource: URI; readonly sheetId?: string | null }>());
+    const priorities: string[] = [];
+    const service = store.add(createPlotService(results, changes, resource => {
+      priorities.push(resource.toString());
+    }));
+
+    service.prefetchPlotDisplayModel({ ...target, plotType: "iv" }, "active");
+
+    assert.deepEqual(priorities, [target.resource.toString()]);
+    assert.equal(service.getCachedPlotDisplayModel({ ...target, plotType: "iv" }), null);
+
+    results.push(createCalculationResult(target));
+    changes.fire(target);
+    await new Promise(resolve => globalThis.setTimeout(resolve, 0));
+
+    assert.ok(service.getCachedPlotDisplayModel({ ...target, plotType: "iv" }));
+    assert.deepEqual(priorities, [target.resource.toString()]);
+  });
 
   test("reads calculated data only from an identified calculation resource", () => {
     const target = createTarget();
@@ -136,6 +172,7 @@ type PlotTarget = {
 const createPlotService = (
   results: readonly CalculationResourceResult[],
   changes?: Emitter<{ readonly resource: URI; readonly sheetId?: string | null }>,
+  onPrioritize: (resource: URI, sheetId?: string | null) => void = () => undefined,
 ): PlotService => new PlotService(
   {
     calculateDisplayModel: async () => null,
@@ -144,11 +181,11 @@ const createPlotService = (
   createStorageServiceStub(),
   {
     getResourceResult: (resource: URI, sheetId?: string | null) => results.find(result =>
-      createCalculationResourceId(result.resource, result.sheetId) ===
-      createCalculationResourceId(resource, sheetId)
+      extUri.isEqual(result.resource, resource) &&
+      String(result.sheetId ?? "").trim() === String(sheetId ?? "").trim()
     ) ?? null,
     onDidChangeResourceCalculationResult: changes?.event ?? Event.None,
-    prioritizeResource: () => undefined,
+    prioritizeResource: onPrioritize,
   } as unknown as ICalculationService,
 );
 

@@ -726,7 +726,7 @@
   "template.management.title": "模板管理",
   "template.picker.label": "模板",
   "template.recommendedTemplate": "推荐模板",
-  "template.recommendedTemplate.description": "系统会根据表格事实、语义规则和 Review 结果选择用于切片的模板。",
+  "template.recommendedTemplate.description": "系统会根据表格事实、语义规则和 Review 结果推荐适合切片的模板",
   "template.recommendedTemplate.title": "推荐模板",
   "template.save.failed": "保存模板失败：{error}",
   "template.save.label": "保存模板",

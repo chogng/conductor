@@ -720,7 +720,7 @@
   "template.management.title": "Template Management",
   "template.picker.label": "模板名称",
   "template.recommendedTemplate": "Recommended template",
-  "template.recommendedTemplate.description": "The system uses table model, semantic rules, and review results to choose the template for slicing.",
+  "template.recommendedTemplate.description": "The system recommends the template best suited for slicing based on table facts, semantic rules, and review results",
   "template.recommendedTemplate.title": "Recommended template",
   "template.save.failed": "Failed to save template: {error}",
   "template.save.label": "Save template",

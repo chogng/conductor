@@ -23,10 +23,6 @@ import {
 	type IChartService as IChartServiceType,
 } from "src/cs/workbench/services/chart/common/chart";
 import {
-	ICalculationService,
-	type ICalculationService as ICalculationServiceType,
-} from "src/cs/workbench/services/calculation/common/calculation";
-import {
 	IPlotService,
 	type IPlotService as IPlotServiceType,
 } from "src/cs/workbench/services/plot/common/plot";
@@ -44,7 +40,6 @@ export class ChartExplorerSelectionContribution extends Disposable implements IW
 
 	public constructor(
 		@IExplorerService private readonly explorerService: IExplorerServiceType,
-		@ICalculationService private readonly calculationService: ICalculationServiceType,
 		@IChartService private readonly chartService: IChartServiceType,
 		@IPlotService private readonly plotService: IPlotServiceType,
 		@ISliceService private readonly sliceService: ISliceServiceType,
@@ -56,7 +51,6 @@ export class ChartExplorerSelectionContribution extends Disposable implements IW
 		this._register(this.plotService.onDidChangePlotState(() => this.scheduleSync()));
 		this._register(this.sliceService.onDidChangeResourceSliceResult(() => this.scheduleSync()));
 		this._register(this.sliceService.onDidChangeSliceState(() => this.scheduleSync()));
-		this._register(this.calculationService.onDidChangeResourceCalculationResult(() => this.scheduleSync()));
 		this.sync();
 	}
 
@@ -101,10 +95,6 @@ export class ChartExplorerSelectionContribution extends Disposable implements IW
 			return;
 		}
 
-		this.calculationService.prioritizeResource(
-			activeResource.resource,
-			activeResource.sheetId,
-		);
 		this.plotService.prefetchPlotDisplayModel({
 			plotType: activePlotType,
 			resource: activeResource.resource,

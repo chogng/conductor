@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Papa from "papaparse";
+import type { URI } from "src/cs/base/common/uri";
 import {
   classifySsFit,
   computeSubthresholdSwingFitAuto,
@@ -33,7 +34,10 @@ type ManualSsRangeEntry = {
   x2?: number | null;
 };
 
-type ManualSsRangesByFileId = Record<string, Record<string, ManualSsRangeEntry>>;
+type ResolveManualSsRange = (
+  file: ExportCsvFile,
+  seriesId: string,
+) => ManualSsRangeEntry | null | undefined;
 
 type SsFit = Partial<{
   ok: boolean;
@@ -67,9 +71,10 @@ export type ExportCsvSeries = {
 export type ExportCsvFile = {
   readonly calculationCache?: unknown;
   readonly curveType?: string | null;
-  readonly fileId?: string;
   readonly fileName?: string;
+  readonly resource?: URI;
   readonly series?: readonly ExportCsvSeries[];
+  readonly sheetId?: string | null;
   readonly supportsSs?: boolean;
   readonly xAxisRole?: string;
   readonly xGroups?: readonly ExportCsvNumberArray[];
@@ -144,6 +149,8 @@ export const createExportCsvFile = (
   );
   return {
     ...file,
+    resource: result.resource,
+    sheetId: result.sheetId ?? null,
     xAxisRole: file.xAxisRole ?? undefined,
   };
 };
@@ -287,17 +294,16 @@ const getOrComputeSsFitAuto = (
 
 export const buildSsMetricsCsv = ({
   csvFiles,
-  manualSsRangesByFileId,
+  resolveManualSsRange,
   ssMethod,
 }: {
   csvFiles?: ExportCsvFile[];
-  manualSsRangesByFileId?: unknown;
+  resolveManualSsRange?: ResolveManualSsRange;
   ssMethod?: unknown;
 }): string => {
   const files = csvFiles ?? [];
   const fields = [
     "ss_conf_version",
-    "file_id",
     "file_name",
     "series_id",
     "series_name",
@@ -318,14 +324,9 @@ export const buildSsMetricsCsv = ({
 
   const rows: Array<Record<string, string | number>> = [];
   const confVersion = "ssfit_v1";
-  const manualRanges =
-    manualSsRangesByFileId && typeof manualSsRangesByFileId === "object"
-      ? (manualSsRangesByFileId as ManualSsRangesByFileId)
-      : {};
   const methodDefault = String(ssMethod || "auto");
 
   for (const file of files) {
-    const fileId = file?.fileId ?? "";
     const fileName = file?.fileName ?? "";
     const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
     const seriesList = Array.isArray(file?.series) ? file.series : [];
@@ -368,8 +369,9 @@ export const buildSsMetricsCsv = ({
         rangeSource = autoSelection.source ?? "";
       } else if (method === "manual") {
         const autoFit = getOrComputeSsFitAuto(file, series, points);
-        const storedRange =
-          fileId && seriesId ? manualRanges?.[fileId]?.[seriesId] : null;
+        const storedRange = seriesId
+          ? resolveManualSsRange?.(file, seriesId) ?? null
+          : null;
         const initialRange = storedRange
           ? { x1: storedRange.x1, x2: storedRange.x2, source: "manual" as const }
           : autoFit?.strict?.ok
@@ -401,7 +403,6 @@ export const buildSsMetricsCsv = ({
       const ssValue = ssOk && Number.isFinite(fit?.ss) ? (fit.ss as number) : "";
 
       rows.push({
-        file_id: fileId,
         file_name: fileName,
         group_index: Number.isFinite(groupIndex) ? groupIndex : "",
         series_id: seriesId,

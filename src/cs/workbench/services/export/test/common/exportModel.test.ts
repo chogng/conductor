@@ -108,21 +108,17 @@ suite("workbench/services/export/common/exportModel", () => {
     assert.deepEqual(
       createOriginCurveOptions(
         createCalculationResult(),
-        (_fileId, seriesId, fallback) =>
+        (seriesId, fallback) =>
           seriesId === "series-b" ? "Edited B" : fallback,
       ),
       [
         {
           key: "series-a",
           label: "Vd=0.1",
-          sourceFileId: "test:/file-a.csv",
-          sourceSeriesId: "series-a",
         },
         {
           key: "series-b",
           label: "Edited B",
-          sourceFileId: "test:/file-a.csv",
-          sourceSeriesId: "series-b",
         },
       ],
     );

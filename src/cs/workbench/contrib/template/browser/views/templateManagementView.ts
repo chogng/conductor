@@ -131,7 +131,7 @@ export class TemplateManagementView {
 
     const autoDescription = document.createElement("p");
     autoDescription.className = "template_auto_card_description";
-    autoDescription.textContent = localize("template.recommendedTemplate.description", "The system uses table model, semantic rules, and review results to choose the template for slicing.");
+    autoDescription.textContent = localize("template.recommendedTemplate.description", "The system recommends the template best suited for slicing based on table facts, semantic rules, and review results");
 
     this.autoCard.append(autoTitle, autoDescription);
     this.element.append(this.autoCard);

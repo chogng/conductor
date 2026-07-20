@@ -6,9 +6,9 @@ import assert from "assert";
 
 import { Event as BaseEvent } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
+import { extUri } from "src/cs/base/common/resources";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
-	createCalculationResourceId,
 	type CalculationResourceResult,
 	type ICalculationService,
 } from "src/cs/workbench/services/calculation/common/calculation";
@@ -165,7 +165,6 @@ suite("workbench/services/export/browser/exportService", () => {
 		assert.deepEqual(viewState, {
 			curveOptions: [],
 			hasMixedExportYScales: false,
-			scopedFileIds: [],
 			showFilteredCanvasKindSelect: false,
 		});
 		assert.deepEqual(service.getViewState(), viewState);
@@ -183,9 +182,9 @@ suite("workbench/services/export/browser/exportService", () => {
 
 	test("resolves curve labels from plot owner state", () => {
 		const result = createCalculationResult();
-		const fileId = createCalculationResourceId(result.resource, result.sheetId);
+		const resourceKey = result.resource.toString();
 		const service = createExportService([result], {
-			[fileId]: {
+			[resourceKey]: {
 				"series-a": "Plot Label",
 			},
 		});
@@ -204,9 +203,9 @@ suite("workbench/services/export/browser/exportService", () => {
 			createCalculationResult("file-a", "transfer"),
 			createCalculationResult("file-b", "output"),
 		];
-		const fileBId = createCalculationResourceId(results[1].resource, results[1].sheetId);
+		const fileBResourceKey = results[1].resource.toString();
 		const service = createExportService(results, {}, {
-			[fileBId]: { yScale: "log" },
+			[fileBResourceKey]: { yScale: "log" },
 		});
 
 		service.setCanvasScope("all");
@@ -215,24 +214,42 @@ suite("workbench/services/export/browser/exportService", () => {
 			resources: results.map(result => ({ resource: result.resource })),
 		});
 
-		assert.deepEqual(viewState.scopedFileIds, results.map(result =>
-			createCalculationResourceId(result.resource, result.sheetId)
-		));
 		assert.equal(viewState.hasMixedExportYScales, true);
+		service.dispose();
+	});
+
+	test("resolves current scope before reading calculation results", () => {
+		const results = [
+			createCalculationResult("file-a", "transfer"),
+			createCalculationResult("file-b", "output"),
+		];
+		const requestedResources: string[] = [];
+		const service = createExportService(results, {}, {}, resource => {
+			requestedResources.push(resource.toString());
+		});
+
+		const viewState = service.updateViewState({
+			activeResource: results[1].resource,
+			resources: results.map(result => ({ resource: result.resource })),
+		});
+
+		assert.equal(viewState.hasMixedExportYScales, false);
+		assert.deepEqual(requestedResources, [results[1].resource.toString()]);
 		service.dispose();
 	});
 });
 
 const createExportService = (
 	results: readonly CalculationResourceResult[] = [],
-	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
+	legendLabelsByResource: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
 	axisSettings: Readonly<Record<string, PlotAxisOverrides>> = {},
+	onGetResourceResult: (resource: URI) => void = () => undefined,
 ): BrowserExportService => {
 	const notificationService = exportTestStore.add(new NotificationService());
 	const service = new BrowserExportService(
-		createCalculationServiceStub(results),
+		createCalculationServiceStub(results, onGetResourceResult),
 		createSettingsServiceStub(),
-		createPlotServiceStub(legendLabelsByFileId, axisSettings),
+		createPlotServiceStub(legendLabelsByResource, axisSettings),
 		notificationService,
 	);
 	exportTestStore.add(service);
@@ -241,11 +258,15 @@ const createExportService = (
 
 const createCalculationServiceStub = (
 	results: readonly CalculationResourceResult[],
+	onGetResourceResult: (resource: URI) => void,
 ): ICalculationService => ({
-	getResourceResult: (resource: URI, sheetId?: string | null) => results.find(result =>
-		createCalculationResourceId(result.resource, result.sheetId) ===
-		createCalculationResourceId(resource, sheetId)
-	) ?? null,
+	getResourceResult: (resource: URI, sheetId?: string | null) => {
+		onGetResourceResult(resource);
+		return results.find(result =>
+		extUri.isEqual(result.resource, resource) &&
+		String(result.sheetId ?? "").trim() === String(sheetId ?? "").trim()
+	) ?? null;
+	},
 	onDidChangeResourceCalculationResult: BaseEvent.None,
 	prioritizeResource: () => undefined,
 } as unknown as ICalculationService);
@@ -255,21 +276,19 @@ const createSettingsServiceStub = (): ISettingsService => ({
 } as ISettingsService);
 
 const createPlotServiceStub = (
-	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>>,
+	legendLabelsByResource: Readonly<Record<string, Readonly<Record<string, string>>>>,
 	axisSettings: Readonly<Record<string, PlotAxisOverrides>>,
 ): IPlotService => ({
 	getCachedPlotRenderModel: () => null,
 	getAxisOverrides: (target: PlotTarget) =>
-		axisSettings[createCalculationResourceId(target.resource, target.sheetId)] ?? {},
-	getLegendLabels: (target: PlotTarget) => {
-		const fileId = createCalculationResourceId(target.resource, target.sheetId);
-		return legendLabelsByFileId[fileId] ?? {};
-	},
+		axisSettings[target.resource.toString()] ?? {},
+	getLegendLabels: (target: PlotTarget) =>
+		legendLabelsByResource[target.resource.toString()] ?? {},
 	onDidChangeCalculatedDataCache: BaseEvent.None,
 } as unknown as IPlotService);
 
 const createCalculationResult = (
-	fileId = "file-a",
+	resourceName = "file-a",
 	ivMode: "transfer" | "output" = "transfer",
 ): CalculationResourceResult => ({
 	axis: {
@@ -280,10 +299,10 @@ const createCalculationResult = (
 		yUnit: "A",
 	},
 	completedAt: 1,
-	inputSignature: `input-${fileId}`,
+	inputSignature: `input-${resourceName}`,
 	metricsByKey: {},
-	requestSignature: `request-${fileId}`,
-	resource: URI.parse(`test:/${fileId}.csv`),
+	requestSignature: `request-${resourceName}`,
+	resource: URI.parse(`test:/${resourceName}.csv`),
 	seriesById: {
 		"series-a": {
 			groupIndex: 0,

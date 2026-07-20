@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import { Event } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type {
@@ -24,7 +24,7 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
 		const viewStates: ParametersViewState[] = [];
 		store.add(service.onDidChangeParametersViewState(state => viewStates.push(state)));
 
-		const viewState = service.updateViewState({ fileId: null });
+		const viewState = service.updateViewState({});
 
 		assert.deepEqual(viewState, {
 			kind: "empty",
@@ -34,13 +34,49 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
 		assert.deepEqual(viewStates, [viewState]);
 	});
 
+	test("requests a missing Calculation result and publishes it when ready", () => {
+		const resource = URI.file("/data/Transfer.csv");
+		const changes = store.add(new Emitter<{ readonly resource: URI; readonly sheetId?: string | null }>());
+		const priorities: string[] = [];
+		let result: CalculationResourceResult | null = null;
+		const service = store.add(new ParametersService(createCalculationService(
+			() => result,
+			changes.event,
+			(target) => priorities.push(target.toString()),
+		)));
+		const viewStates: ParametersViewState[] = [];
+		store.add(service.onDidChangeParametersViewState(state => viewStates.push(state)));
+
+		const pending = service.updateViewState({
+			resource,
+			sheetId: "sheet-a",
+		});
+
+		assert.equal(pending.kind, "empty");
+		assert.deepEqual(priorities, [resource.toString()]);
+
+		result = createCalculationResourceResult(resource, "sheet-a", 1);
+		changes.fire({
+			resource: URI.parse(resource.toString()),
+			sheetId: "sheet-b",
+		});
+		assert.equal(service.getViewState().kind, "empty");
+
+		changes.fire({
+			resource: URI.parse(resource.toString()),
+			sheetId: "sheet-a",
+		});
+
+		assert.equal(service.getViewState().kind, "table");
+		assert.deepEqual(viewStates.map(state => state.kind), ["empty", "table"]);
+	});
+
 	test("reads parameter records from the Calculation resource result", () => {
 		const resource = URI.file("/data/Transfer.csv");
 		const result = createCalculationResourceResult(resource, "sheet-a", 1);
 		const service = store.add(new ParametersService(createCalculationService(() => result)));
 
-		const viewState = service.createViewState({
-			fileId: "ignored-file-id",
+		const viewState = service.updateViewState({
 			resource,
 			sheetId: "sheet-a",
 		});
@@ -63,8 +99,8 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
 		const viewStates: ParametersViewState[] = [];
 		store.add(service.onDidChangeParametersViewState(state => viewStates.push(state)));
 
-		const first = service.updateViewState({ fileId: null, resource });
-		const second = service.updateViewState({ fileId: null, resource });
+		const first = service.updateViewState({ resource });
+		const second = service.updateViewState({ resource });
 
 		assert.equal(second, first);
 		assert.deepEqual(viewStates, [first]);
@@ -77,9 +113,9 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
 		const viewStates: ParametersViewState[] = [];
 		store.add(service.onDidChangeParametersViewState(state => viewStates.push(state)));
 
-		const first = service.updateViewState({ fileId: null, resource });
+		const first = service.updateViewState({ resource });
 		result = createCalculationResourceResult(resource, null, 2);
-		const second = service.updateViewState({ fileId: null, resource });
+		const second = service.updateViewState({ resource });
 
 		assert.notEqual(second, first);
 		assert.deepEqual(viewStates, [first, second]);
@@ -88,13 +124,15 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
 
 function createCalculationService(
 	getResult: () => CalculationResourceResult | null = () => null,
+	onDidChangeResourceCalculationResult: ICalculationService["onDidChangeResourceCalculationResult"] =
+		Event.None as ICalculationService["onDidChangeResourceCalculationResult"],
+	onPrioritize: (resource: URI, sheetId?: string | null) => void = () => undefined,
 ): ICalculationService {
 	return {
 		_serviceBrand: undefined,
 		getResourceResult: () => getResult(),
-		onDidChangeResourceCalculationResult:
-			Event.None as ICalculationService["onDidChangeResourceCalculationResult"],
-		prioritizeResource: () => undefined,
+		onDidChangeResourceCalculationResult,
+		prioritizeResource: onPrioritize,
 	};
 }
 

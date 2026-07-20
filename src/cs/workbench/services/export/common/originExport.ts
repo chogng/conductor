@@ -37,7 +37,6 @@ type OriginExportSeriesLike = {
 type OriginExportFileLike = {
   calculationCache?: unknown;
   curveType?: string;
-  fileId?: string;
   fileName?: string;
   originExportConfig?: unknown;
   originExportSourcePath?: string;
@@ -55,7 +54,7 @@ type OriginExportFileLike = {
   originExportUseCurveYLongNames?: boolean;
   originExportYScaleFactor?: number;
   originExportYUnitLabel?: string;
-  [key: string]: unknown;
+  supportsSs?: boolean;
 };
 
 export type OriginExportContentKey =
@@ -66,6 +65,9 @@ export type OriginExportContentKey =
   | "ss"
   | "vth";
 
+type ResolveSelectedSeriesIdsForFile = (
+  file: OriginExportFileLike | null | undefined,
+) => readonly string[] | null | undefined;
 type ResolveYScaleFactorForFile = (
   file: OriginExportFileLike | null | undefined,
 ) => number;
@@ -102,8 +104,8 @@ export type OriginImportMode =
 export type OriginYAxisScaleMode = "linear" | "log";
 
 type OriginCurveEntry = {
+  canvasIndex: number;
   canvasLabel: string;
-  fileId: string;
   label: string;
   rowCount: number;
   xArr: number[];
@@ -126,7 +128,6 @@ export type OriginSelectionExport = {
   csvText: string;
   curveCount: number;
   curveLabels: string[];
-  fileIds: string[];
   importMode: OriginImportMode;
   sheetShortName?: string;
   sheetName: string;
@@ -174,15 +175,14 @@ export const getRustOriginCsvDerivedContentKey = (
 
 export const isRustOriginCsvEligiblePayload = (
   payload:
-    | Pick<OriginSelectionExport, "csvName" | "fileIds" | "xColumnLongNames">
+    | Pick<OriginSelectionExport, "canvasCount" | "csvName" | "xColumnLongNames">
     | null
     | undefined,
 ): boolean => {
   const csvName = String(payload?.csvName ?? "");
   if (/__metrics\.csv$/i.test(csvName)) {
     return (
-      Array.isArray(payload?.fileIds) &&
-      payload.fileIds.length === 1 &&
+      Number(payload?.canvasCount) === 1 &&
       Array.isArray(payload?.xColumnLongNames) &&
       ((payload.xColumnLongNames.length === OUTPUT_METRICS_FIELDS.length &&
         OUTPUT_METRICS_FIELDS.every(
@@ -195,8 +195,7 @@ export const isRustOriginCsvEligiblePayload = (
     );
   }
   return (
-    Array.isArray(payload?.fileIds) &&
-    payload.fileIds.length >= 1 &&
+    Number(payload?.canvasCount) >= 1 &&
     !/__metrics/i.test(csvName)
   );
 };
@@ -464,7 +463,7 @@ const normalizeOriginXValueForKey = (value: unknown): string => {
 
 const buildOriginXGroupKey = (entry: OriginCurveEntry): string =>
   [
-    entry.fileId,
+    entry.canvasIndex,
     entry.xLongName,
     entry.xUnits,
     entry.rowCount,
@@ -481,23 +480,17 @@ export const isOriginExportMode = (
 
 const resolveSelectedSeriesForOriginCanvas = (
   file: OriginExportFileLike | null | undefined,
-  selectedSeriesIdsByFile:
-    | Record<string, string[] | undefined>
-    | null
-    | undefined,
+  resolveSelectedSeriesIdsForFile: ResolveSelectedSeriesIdsForFile = () => undefined,
 ): OriginExportSeriesLike[] => {
   const allSeries = Array.isArray(file?.series) ? file.series : [];
   if (!allSeries.length) return [];
-
-  const fileKey = String(file?.fileId ?? "");
-  if (!fileKey) return allSeries;
 
   const liveSeriesKeys = allSeries
     .map((series) => String(series?.id ?? ""))
     .filter(Boolean);
   if (!liveSeriesKeys.length) return [];
 
-  const stored = selectedSeriesIdsByFile?.[fileKey];
+  const stored = resolveSelectedSeriesIdsForFile(file);
   if (!Array.isArray(stored)) return allSeries;
 
   const liveKeySet = new Set(liveSeriesKeys);
@@ -517,10 +510,8 @@ const resolveSelectedSeriesForOriginCanvas = (
 
 const buildOriginCurveEntriesForCanvas = (
   file: OriginExportFileLike | null | undefined,
-  selectedSeriesIdsByFile:
-    | Record<string, string[] | undefined>
-    | null
-    | undefined,
+  canvasIndex: number,
+  resolveSelectedSeriesIdsForFile: ResolveSelectedSeriesIdsForFile = () => undefined,
   resolveXScaleFactorForFile: ResolveXScaleFactorForFile = () => 1,
   resolveYScaleFactorForFile: ResolveYScaleFactorForFile = () => 1,
   resolveYUnitLabelForFile: ResolveYUnitLabelForFile = (source) =>
@@ -533,9 +524,9 @@ const buildOriginCurveEntriesForCanvas = (
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   const selectedSeries = resolveSelectedSeriesForOriginCanvas(
     file,
-    selectedSeriesIdsByFile,
+    resolveSelectedSeriesIdsForFile,
   );
-  const canvasLabel = resolveCanvasDisplayName(file?.fileName ?? file?.fileId);
+  const canvasLabel = resolveCanvasDisplayName(file?.fileName);
   const rawXScaleFactor = Number(resolveXScaleFactorForFile(file));
   const xScaleFactor =
     Number.isFinite(rawXScaleFactor) && rawXScaleFactor > 0 ? rawXScaleFactor : 1;
@@ -578,8 +569,8 @@ const buildOriginCurveEntriesForCanvas = (
         Number.isFinite(value) ? resolveYValueForOriginFile(file, value) : value,
       );
       return {
+        canvasIndex,
         canvasLabel,
-        fileId: String(file?.fileId ?? canvasLabel),
         label: resolveCurveLabel(series, index),
         rowCount,
         xArr: mapNumberArray(
@@ -744,9 +735,6 @@ const buildWorksheetExport = ({
     csvText: omitCsvText ? "" : "\uFEFF" + Papa.unparse(rows),
     curveCount: curveEntries.length,
     curveLabels,
-    fileIds: canvases
-      .map((canvas) => String(canvas?.fileId ?? ""))
-      .filter(Boolean),
     importMode,
     sheetName,
     workbookName,
@@ -790,10 +778,7 @@ const buildWorksheetExport = ({
 
 export const buildOriginCanvasExport = (
   canvas: OriginExportFileLike | null | undefined,
-  selectedSeriesIdsByFile:
-    | Record<string, string[] | undefined>
-    | null
-    | undefined = {},
+  resolveSelectedSeriesIdsForFile: ResolveSelectedSeriesIdsForFile = () => undefined,
   resolveXScaleFactorForFile: ResolveXScaleFactorForFile = () => 1,
   resolveYScaleFactorForFile: ResolveYScaleFactorForFile = () => 1,
   resolveYUnitLabelForFile: ResolveYUnitLabelForFile = (source) =>
@@ -807,7 +792,8 @@ export const buildOriginCanvasExport = (
 
   const curveEntries = buildOriginCurveEntriesForCanvas(
     canvas,
-    selectedSeriesIdsByFile,
+    0,
+    resolveSelectedSeriesIdsForFile,
     resolveXScaleFactorForFile,
     resolveYScaleFactorForFile,
     resolveYUnitLabelForFile,
@@ -847,10 +833,7 @@ export const buildOriginCanvasExport = (
 
 export const buildOriginSelectionExport = (
   selectedCanvases: OriginExportFileLike[] = [],
-  selectedSeriesIdsByFile:
-    | Record<string, string[] | undefined>
-    | null
-    | undefined = {},
+  resolveSelectedSeriesIdsForFile: ResolveSelectedSeriesIdsForFile = () => undefined,
   resolveXScaleFactorForFile: ResolveXScaleFactorForFile = () => 1,
   resolveYScaleFactorForFile: ResolveYScaleFactorForFile = () => 1,
   resolveYUnitLabelForFile: ResolveYUnitLabelForFile = (source) =>
@@ -865,10 +848,11 @@ export const buildOriginSelectionExport = (
   );
   if (!liveCanvases.length) return null;
 
-  const curveEntries = liveCanvases.flatMap((file) =>
+  const curveEntries = liveCanvases.flatMap((file, canvasIndex) =>
     buildOriginCurveEntriesForCanvas(
       file,
-      selectedSeriesIdsByFile,
+      canvasIndex,
+      resolveSelectedSeriesIdsForFile,
       resolveXScaleFactorForFile,
       resolveYScaleFactorForFile,
       resolveYUnitLabelForFile,
@@ -922,10 +906,7 @@ export const buildOriginSelectionExport = (
 
 const buildOriginWorkbookSheetsExports = (
   selectedCanvases: OriginExportFileLike[] = [],
-  selectedSeriesIdsByFile:
-    | Record<string, string[] | undefined>
-    | null
-    | undefined = {},
+  resolveSelectedSeriesIdsForFile: ResolveSelectedSeriesIdsForFile = () => undefined,
   resolveXScaleFactorForFile: ResolveXScaleFactorForFile = () => 1,
   resolveYScaleFactorForFile: ResolveYScaleFactorForFile = () => 1,
   resolveYUnitLabelForFile: ResolveYUnitLabelForFile = (source) =>
@@ -955,7 +936,7 @@ const buildOriginWorkbookSheetsExports = (
     .map((canvas): OriginSelectionExport | null => {
       const exportPayload = buildOriginCanvasExport(
         canvas,
-        selectedSeriesIdsByFile,
+        resolveSelectedSeriesIdsForFile,
         resolveXScaleFactorForFile,
         resolveYScaleFactorForFile,
         resolveYUnitLabelForFile,
@@ -1145,7 +1126,7 @@ const buildDerivedCurveFile = (
 
 const buildMetricsWorksheetExports = (
   selectedCanvases: OriginExportFileLike[],
-  selectedSeriesIdsByFile: Record<string, string[] | undefined> | null | undefined,
+  resolveSelectedSeriesIdsForFile: ResolveSelectedSeriesIdsForFile,
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
 ): OriginSelectionExport[] => {
   return selectedCanvases
@@ -1156,7 +1137,7 @@ const buildMetricsWorksheetExports = (
     const fields = supportsTransfer ? TRANSFER_METRICS_FIELDS : supportsOutput ? OUTPUT_METRICS_FIELDS : TRANSFER_METRICS_FIELDS;
     const selectedSeries = resolveSelectedSeriesForOriginCanvas(
       file,
-      selectedSeriesIdsByFile,
+      resolveSelectedSeriesIdsForFile,
     );
     const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
     for (const [index, series] of selectedSeries.entries()) {
@@ -1244,7 +1225,6 @@ const buildMetricsWorksheetExports = (
         csvText,
         curveCount: 0,
         curveLabels: rows.map((row) => String(row.series ?? "")),
-        fileIds: [String(file?.fileId ?? "")].filter(Boolean),
         importMode: "new-book",
         sheetName: "Metrics",
         skipPlot: true,
@@ -1326,10 +1306,7 @@ const buildIvOriginExportGroups = (
 
 export const buildOriginExportsByMode = (
   selectedCanvases: OriginExportFileLike[] = [],
-  selectedSeriesIdsByFile:
-    | Record<string, string[] | undefined>
-    | null
-    | undefined = {},
+  resolveSelectedSeriesIdsForFile: ResolveSelectedSeriesIdsForFile = () => undefined,
   exportMode: OriginExportMode = "merged",
   resolveXScaleFactorForFile: ResolveXScaleFactorForFile = () => 1,
   resolveYScaleFactorForFile: ResolveYScaleFactorForFile = () => 1,
@@ -1348,7 +1325,7 @@ export const buildOriginExportsByMode = (
   if (exportMode === "workbookSheets") {
     return buildOriginWorkbookSheetsExports(
       liveCanvases,
-      selectedSeriesIdsByFile,
+      resolveSelectedSeriesIdsForFile,
       resolveXScaleFactorForFile,
       resolveYScaleFactorForFile,
       resolveYUnitLabelForFile,
@@ -1363,7 +1340,7 @@ export const buildOriginExportsByMode = (
       .map((canvas) =>
         buildOriginCanvasExport(
           canvas,
-          selectedSeriesIdsByFile,
+          resolveSelectedSeriesIdsForFile,
           resolveXScaleFactorForFile,
           resolveYScaleFactorForFile,
           resolveYUnitLabelForFile,
@@ -1377,7 +1354,7 @@ export const buildOriginExportsByMode = (
 
   const merged = buildOriginSelectionExport(
     liveCanvases,
-    selectedSeriesIdsByFile,
+    resolveSelectedSeriesIdsForFile,
     resolveXScaleFactorForFile,
     resolveYScaleFactorForFile,
     resolveYUnitLabelForFile,
@@ -1406,10 +1383,7 @@ const appendOriginScaleSuffix = (
 
 export const buildOriginExportPlan = (
   selectedCanvases: OriginExportFileLike[] = [],
-  selectedSeriesIdsByFile:
-    | Record<string, string[] | undefined>
-    | null
-    | undefined = {},
+  resolveSelectedSeriesIdsForFile: ResolveSelectedSeriesIdsForFile = () => undefined,
   exportMode: OriginExportMode = "merged",
   resolveYScaleForFile: (
     file: OriginExportFileLike | null | undefined,
@@ -1453,7 +1427,7 @@ export const buildOriginExportPlan = (
       if (contentKey === "metrics") {
         const metricsPayloads = buildMetricsWorksheetExports(
           liveCanvases,
-          selectedSeriesIdsByFile,
+          resolveSelectedSeriesIdsForFile,
           resolveCurveLabelForSeries,
         );
         entries.push(
@@ -1466,7 +1440,7 @@ export const buildOriginExportPlan = (
         for (const group of ivGroups) {
           const nextPayloads = buildOriginExportPlan(
             group.canvases,
-            selectedSeriesIdsByFile,
+            resolveSelectedSeriesIdsForFile,
             exportMode,
             resolveYScaleForFile,
             resolveXScaleFactorForFile,
@@ -1500,7 +1474,7 @@ export const buildOriginExportPlan = (
       if (!derivedCanvases.length) continue;
       const nextPayloads = buildOriginExportPlan(
           derivedCanvases,
-          selectedSeriesIdsByFile,
+          resolveSelectedSeriesIdsForFile,
           exportMode,
           contentKey === "ss" || contentKey === "vth" ? () => "linear" : resolveYScaleForFile,
           resolveXScaleFactorForFile,
@@ -1559,7 +1533,7 @@ export const buildOriginExportPlan = (
   if (exportMode !== "merged") {
     const payloads = buildOriginExportsByMode(
       liveCanvases,
-      selectedSeriesIdsByFile,
+      resolveSelectedSeriesIdsForFile,
       exportMode,
       resolveXScaleFactorForFile,
       resolveYScaleFactorForFile,
@@ -1567,14 +1541,10 @@ export const buildOriginExportPlan = (
       resolveCurveLabelForSeries,
       resolveAxisTitleForFile,
       resolveYValueForOriginFile,
-    ).map((payload) => ({
+    ).map((payload, index) => ({
       ...payload,
       yScaleMode: resolveNormalizedOriginYScale(
-        resolveYScaleForFile(
-          liveCanvases.find(
-            (file) => String(file?.fileId ?? "") === String(payload.fileIds?.[0] ?? ""),
-          ) ?? null,
-        ),
+        resolveYScaleForFile(liveCanvases[index] ?? null),
       ),
     }));
     return {
@@ -1606,7 +1576,7 @@ export const buildOriginExportPlan = (
   if (groupedCanvases.size <= 1) {
     const payloads = buildOriginExportsByMode(
       liveCanvases,
-      selectedSeriesIdsByFile,
+      resolveSelectedSeriesIdsForFile,
       "merged",
       resolveXScaleFactorForFile,
       resolveYScaleFactorForFile,
@@ -1639,7 +1609,7 @@ export const buildOriginExportPlan = (
     .map(([scaleMode, canvases]): OriginSelectionExport | null => {
       const payload = buildOriginSelectionExport(
         canvases,
-        selectedSeriesIdsByFile,
+        resolveSelectedSeriesIdsForFile,
         resolveXScaleFactorForFile,
         resolveYScaleFactorForFile,
         resolveYUnitLabelForFile,

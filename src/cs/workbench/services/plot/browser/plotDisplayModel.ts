@@ -6,7 +6,7 @@ import {
   createSecondCalculatedData,
   type CalculatedData,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
-import { createCalculationResourceId } from "src/cs/workbench/services/calculation/common/calculation";
+import { URI } from "src/cs/base/common/uri";
 import {
   type PlotAxisTitleContext,
   type PlotAxisOverrides,
@@ -298,7 +298,11 @@ const createUnitControlModel = (
 
 const getPlotAxisTitleIdentityKey = (
   context: PlotAxisTitleContext,
-): string => createCalculationResourceId(context.resource, context.sheetId);
+): string => {
+  const resource = URI.revive(context.resource).toString();
+  const sheetId = String(context.sheetId ?? "").trim();
+  return sheetId ? `${resource}\u0000${sheetId}` : resource;
+};
 
 const resolveYScale = (
   data: CalculatedData,

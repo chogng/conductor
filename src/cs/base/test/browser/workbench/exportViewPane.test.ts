@@ -41,8 +41,6 @@ suite("base/browser/workbench/exportViewPane", () => {
         curveOptions: [{
           key: "series-a",
           label: "Series A",
-          sourceFileId: "file-a",
-          sourceSeriesId: "series-a",
         }],
       }));
 
@@ -71,7 +69,6 @@ const createExportService = (): IExportService => {
   const viewState: ExportViewState = {
     curveOptions: [],
     hasMixedExportYScales: false,
-    scopedFileIds: [],
     showFilteredCanvasKindSelect: false,
   };
   return {

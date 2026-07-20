@@ -16,7 +16,6 @@ import {
   type CalculatedData,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import {
-  createCalculationResourceId,
   ICalculationService,
   type ICalculationService as ICalculationServiceType,
 } from "src/cs/workbench/services/calculation/common/calculation";
@@ -99,13 +98,6 @@ type PlotInspectorDisplayModelCacheEntry = {
   lastUsed: number;
 };
 
-type QueuedCalculatedDataPrefetch = {
-  readonly plotType: PlotType;
-  readonly priority: PlotCalculatedDataPrefetchPriority;
-  readonly resource: URI;
-  readonly sheetId?: string | null;
-};
-
 type QueuedPlotDisplayModelPrefetch = {
   readonly hiddenLegendKeys: readonly string[];
   readonly legendLabels: Readonly<Record<string, string>>;
@@ -170,12 +162,6 @@ export class PlotService extends Disposable implements IPlotService {
   };
   private readonly calculatedDataCacheKeys = new Set<string>();
   private readonly calculatedDataCache = new Map<string, CalculatedData>();
-  private readonly unavailableCalculatedDataCacheKeys = new Set<string>();
-  private readonly queuedCalculatedDataPrefetchByKey = new Map<string, QueuedCalculatedDataPrefetch>();
-  private readonly inFlightCalculatedDataPrefetchByKey = new Map<string, InFlightPlotPrefetch>();
-  private cancelQueuedCalculatedDataPrefetch: (() => void) | null = null;
-  private calculatedDataPrefetchGeneration = 0;
-  private nextCalculatedDataWorkerRequestId = 1;
   private readonly plotDisplayModelCacheByKey = new Map<string, PlotDisplayModelCacheEntry>();
   private plotDisplayModelCacheUse = 0;
   private readonly plotInspectorDisplayModelCacheByKey = new Map<string, PlotInspectorDisplayModelCacheEntry>();
@@ -197,7 +183,6 @@ export class PlotService extends Disposable implements IPlotService {
     this._register(this.calculationService.onDidChangeResourceCalculationResult(resource => {
       this.invalidatePlotModelsForResourceChange(resource.resource, resource.sheetId);
     }));
-    this._register({ dispose: () => this.cancelScheduledCalculatedDataPrefetch() });
     this._register({ dispose: () => this.cancelScheduledPlotDisplayModelPrefetch() });
   }
 
@@ -300,6 +285,16 @@ export class PlotService extends Disposable implements IPlotService {
       resultPointsCount: calculatedData?.pointsCount ?? 0,
       source: "calculationResource",
     });
+    return calculatedData;
+  }
+
+  private requestCalculatedDataForInput(
+    input: PlotCalculatedDataInput,
+  ): CalculatedData | null {
+    const calculatedData = this.getCalculatedDataForInput(input);
+    if (!calculatedData) {
+      this.calculationService.prioritizeResource(input.resource, input.sheetId);
+    }
     return calculatedData;
   }
 
@@ -592,15 +587,8 @@ export class PlotService extends Disposable implements IPlotService {
       sheetId: request.sheetId,
     });
     let calculatedDataWarmed = false;
-    if (!calculatedData && this.isCalculatedDataUnavailable(getPlot(request), request.plotType)) {
-      return {
-        plotType: request.plotType,
-        result: "calculatedDataUnavailable",
-        stage: request.stage,
-      };
-    }
     if (!calculatedData) {
-      calculatedData = this.getCalculatedDataForInput({
+      calculatedData = this.requestCalculatedDataForInput({
         plotType: request.plotType,
         resource: request.resource,
         sheetId: request.sheetId,
@@ -714,15 +702,8 @@ export class PlotService extends Disposable implements IPlotService {
       sheetId: input.sheetId,
     });
     let calculatedDataWarmed = false;
-    if (!calculatedData && this.isCalculatedDataUnavailable(id, plotType)) {
-      endPerf({
-        plotType,
-        result: "calculatedDataUnavailable",
-      });
-      return;
-    }
     if (!calculatedData) {
-      calculatedData = this.getCalculatedDataForInput({
+      calculatedData = this.requestCalculatedDataForInput({
         plotType,
         resource: input.resource,
         sheetId: input.sheetId,
@@ -837,7 +818,6 @@ export class PlotService extends Disposable implements IPlotService {
       return;
     }
 
-    this.clearQueuedCalculatedDataPrefetch();
     this.clearQueuedPlotDisplayModelPrefetch();
     this.state = {
       ...this.state,
@@ -1089,7 +1069,7 @@ export class PlotService extends Disposable implements IPlotService {
   }
 
   private invalidatePlotModelsForResourceChange(resource: URI, sheetId?: string | null): void {
-    const id = createCalculationResourceId(resource, sheetId);
+    const id = getPlot({ resource, sheetId });
     this.clearPlotModels(
       new Set([id]),
       new Map([[id, { resource, sheetId: sheetId ?? null }]]),
@@ -1122,27 +1102,6 @@ export class PlotService extends Disposable implements IPlotService {
         addPlotCacheChange(calculatedDataChanges, keyContext);
       }
     }
-    for (const key of [...this.unavailableCalculatedDataCacheKeys]) {
-      const keyContext = getCalculatedDataPrefetchContext(key);
-      if (keyContext && ids.has(keyContext.id)) {
-        this.unavailableCalculatedDataCacheKeys.delete(key);
-        addPlotCacheChange(calculatedDataChanges, keyContext);
-      }
-    }
-    for (const [key, request] of [...this.queuedCalculatedDataPrefetchByKey]) {
-      const id = getPlot(request);
-      if (ids.has(id)) {
-        this.queuedCalculatedDataPrefetchByKey.delete(key);
-        addPlotCacheChange(calculatedDataChanges, { plotType: request.plotType, id: id });
-      }
-    }
-    for (const key of [...this.inFlightCalculatedDataPrefetchByKey.keys()]) {
-      const keyContext = getCalculatedDataPrefetchContext(key);
-      if (keyContext && ids.has(keyContext.id)) {
-        this.inFlightCalculatedDataPrefetchByKey.delete(key);
-        addPlotCacheChange(calculatedDataChanges, keyContext);
-      }
-    }
     for (const key of [...this.plotDisplayModelCacheByKey.keys()]) {
       const keyContext = getPlotDisplayModelContextFromKey(key);
       if (keyContext && ids.has(keyContext.id)) {
@@ -1157,13 +1116,6 @@ export class PlotService extends Disposable implements IPlotService {
         addPlotCacheChange(plotDisplayModelChanges, keyContext);
       }
     }
-    for (const [key, request] of [...this.queuedPlotDisplayModelPrefetchByKey]) {
-      const id = getPlot(request);
-      if (ids.has(id)) {
-        this.queuedPlotDisplayModelPrefetchByKey.delete(key);
-        addPlotCacheChange(plotDisplayModelChanges, { plotType: request.plotType, id: id });
-      }
-    }
     for (const key of [...this.inFlightPlotDisplayModelPrefetchByKey.keys()]) {
       const keyContext = getPlotDisplayModelContextFromKey(key);
       if (keyContext && ids.has(keyContext.id)) {
@@ -1172,15 +1124,13 @@ export class PlotService extends Disposable implements IPlotService {
       }
     }
 
-    if (!this.queuedCalculatedDataPrefetchByKey.size) {
-      this.cancelScheduledCalculatedDataPrefetch();
-    }
     if (!this.queuedPlotDisplayModelPrefetchByKey.size) {
       this.cancelScheduledPlotDisplayModelPrefetch();
     }
 
     this.fireCalculatedDataCacheChanges(calculatedDataChanges, resources);
     this.firePlotDisplayModelCacheChanges(plotDisplayModelChanges, resources);
+    this.schedulePlotDisplayModelPrefetch();
   }
 
   private fireCalculatedDataCacheChanges(
@@ -1229,11 +1179,10 @@ export class PlotService extends Disposable implements IPlotService {
   private getCalculatedDataForResource(input: PlotCalculatedDataInput, plotType: PlotType): CalculatedData | null {
     const result = this.calculationService.getResourceResult(input.resource, input.sheetId);
     if (!result) {
-      this.calculationService.prioritizeResource(input.resource, input.sheetId);
       return null;
     }
 
-    const id = createCalculationResourceId(result.resource, result.sheetId);
+    const id = getPlot(result);
 
     const key = getCalculatedDataPrefetchKey(id, plotType);
     const cached = this.calculatedDataCache.get(key);
@@ -1267,30 +1216,6 @@ export class PlotService extends Disposable implements IPlotService {
     );
   }
 
-  private prefetchCalculatedDataForResource(
-    id: string,
-    plotType: PlotType,
-    resource: PlotTarget,
-  ): void {
-    const normalizedId = normalizeStateKey(id);
-    if (!normalizedId) {
-      return;
-    }
-
-    const key = getCalculatedDataPrefetchKey(normalizedId, plotType);
-    if (this.hasCompletedCalculatedDataPrefetch(key)) {
-      return;
-    }
-
-    const calculatedData = this.getCalculatedDataForResource({
-      resource: resource.resource,
-      sheetId: resource.sheetId,
-    }, plotType);
-    if (!calculatedData) {
-      this.markCalculatedDataUnavailable(normalizedId, plotType, resource);
-    }
-  }
-
   private cacheCalculatedDataForResource(
     id: string,
     plotType: PlotType,
@@ -1304,107 +1229,12 @@ export class PlotService extends Disposable implements IPlotService {
     }
 
     this.calculatedDataCache.set(key, calculatedData);
-    this.unavailableCalculatedDataCacheKeys.delete(key);
     this.calculatedDataCacheKeys.add(key);
     this.onDidChangeCalculatedDataCacheEmitter.fire(
       createPlotCalculatedDataCacheChangeEvent(plotType, resource),
     );
     this.schedulePlotDisplayModelPrefetch();
     return calculatedData;
-  }
-
-  private scheduleCalculatedDataPrefetch(): void {
-    if (this.cancelQueuedCalculatedDataPrefetch || !this.queuedCalculatedDataPrefetchByKey.size) {
-      return;
-    }
-
-    const run = (): void => {
-      this.cancelQueuedCalculatedDataPrefetch = null;
-      this.flushQueuedCalculatedDataPrefetch();
-    };
-    if (typeof globalThis.requestAnimationFrame === "function") {
-      const cancelAnimationFrame = globalThis.cancelAnimationFrame;
-      const handle = globalThis.requestAnimationFrame(run);
-      this.cancelQueuedCalculatedDataPrefetch = () => {
-        cancelAnimationFrame?.(handle);
-      };
-      return;
-    }
-
-    const handle = globalThis.setTimeout(run, 0);
-    this.cancelQueuedCalculatedDataPrefetch = () => {
-      globalThis.clearTimeout(handle);
-    };
-  }
-
-  private cancelScheduledCalculatedDataPrefetch(): void {
-    this.cancelQueuedCalculatedDataPrefetch?.();
-    this.cancelQueuedCalculatedDataPrefetch = null;
-  }
-
-  private clearQueuedCalculatedDataPrefetch(): void {
-    this.calculatedDataPrefetchGeneration += 1;
-    this.queuedCalculatedDataPrefetchByKey.clear();
-    this.inFlightCalculatedDataPrefetchByKey.clear();
-    this.cancelScheduledCalculatedDataPrefetch();
-  }
-
-  private flushQueuedCalculatedDataPrefetch(): void {
-    const startedAt = Date.now();
-    let blockedOnCapacity = false;
-    let processed = 0;
-    while (
-      this.queuedCalculatedDataPrefetchByKey.size &&
-      processed < CALCULATED_DATA_PREFETCH_BATCH_LIMIT
-    ) {
-      const next = this.dequeueNextCalculatedDataPrefetch();
-      if (!next) {
-        break;
-      }
-
-      if (!this.canStartPlotPrefetch(next.priority)) {
-        const id = getPlot(next);
-        this.queuedCalculatedDataPrefetchByKey.set(
-          getCalculatedDataPrefetchKey(id, next.plotType),
-          next,
-        );
-        blockedOnCapacity = true;
-        break;
-      }
-
-      this.prefetchCalculatedDataForResource(getPlot(next), next.plotType, {
-        resource: next.resource,
-        sheetId: next.sheetId ?? null,
-      });
-      processed += 1;
-
-      if (Date.now() - startedAt >= CALCULATED_DATA_PREFETCH_FRAME_BUDGET_MS) {
-        break;
-      }
-    }
-
-    if (this.queuedCalculatedDataPrefetchByKey.size && !blockedOnCapacity) {
-      this.scheduleCalculatedDataPrefetch();
-    }
-  }
-
-  private dequeueNextCalculatedDataPrefetch(): QueuedCalculatedDataPrefetch | null {
-    let nextKey: string | null = null;
-    let nextPrefetch: QueuedCalculatedDataPrefetch | null = null;
-    let nextPriority = Number.POSITIVE_INFINITY;
-    for (const [key, prefetch] of this.queuedCalculatedDataPrefetchByKey) {
-      const order = CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[prefetch.priority];
-      if (order < nextPriority) {
-        nextKey = key;
-        nextPrefetch = prefetch;
-        nextPriority = order;
-      }
-    }
-
-    if (nextKey) {
-      this.queuedCalculatedDataPrefetchByKey.delete(nextKey);
-    }
-    return nextPrefetch;
   }
 
   private schedulePlotDisplayModelPrefetch(): void {
@@ -1473,25 +1303,23 @@ export class PlotService extends Disposable implements IPlotService {
         break;
       }
 
-      const calculatedData = this.getCachedCalculatedDataForInput({
+      let calculatedData = this.getCachedCalculatedDataForInput({
         plotType: next.plotType,
         resource: next.resource,
         sheetId: next.sheetId,
       });
-      if (!calculatedData && this.isCalculatedDataUnavailable(getPlot(next), next.plotType)) {
-        processed += 1;
-        continue;
+      if (!calculatedData) {
+        calculatedData = this.requestCalculatedDataForInput({
+          plotType: next.plotType,
+          resource: next.resource,
+          sheetId: next.sheetId,
+        });
       }
       if (!calculatedData) {
         this.queuedPlotDisplayModelPrefetchByKey.set(
           getQueuedPlotDisplayModelPrefetchKey(next),
           next,
         );
-        this.getCalculatedDataForInput({
-          plotType: next.plotType,
-          resource: next.resource,
-          sheetId: next.sheetId,
-        });
         blockedOnCalculatedData = true;
         break;
       }
@@ -1614,13 +1442,11 @@ export class PlotService extends Disposable implements IPlotService {
     }).then((result) => {
       this.deleteInFlightPlotDisplayModelPrefetch(prefetchKey, requestId);
       if (generation !== this.plotDisplayModelPrefetchGeneration) {
-        this.scheduleCalculatedDataPrefetch();
         this.schedulePlotDisplayModelPrefetch();
         return;
       }
 
       if (!this.isCalculatedDataCurrentForResource(request, calculatedData)) {
-        this.scheduleCalculatedDataPrefetch();
         this.schedulePlotDisplayModelPrefetch();
         return;
       }
@@ -1634,7 +1460,6 @@ export class PlotService extends Disposable implements IPlotService {
         if (model) {
           this.cachePlotDisplayModel(calculatedData, request, model);
         }
-        this.scheduleCalculatedDataPrefetch();
         this.schedulePlotDisplayModelPrefetch();
         return;
       }
@@ -1644,13 +1469,11 @@ export class PlotService extends Disposable implements IPlotService {
         result.dataVersion !== generation ||
         result.plotType !== request.plotType
       ) {
-        this.scheduleCalculatedDataPrefetch();
         this.schedulePlotDisplayModelPrefetch();
         return;
       }
 
       this.cachePlotDisplayModel(calculatedData, request, result.displayModel);
-      this.scheduleCalculatedDataPrefetch();
       this.schedulePlotDisplayModelPrefetch();
     });
   }
@@ -1691,13 +1514,11 @@ export class PlotService extends Disposable implements IPlotService {
     }).then((result) => {
       this.deleteInFlightPlotDisplayModelPrefetch(prefetchKey, requestId);
       if (generation !== this.plotDisplayModelPrefetchGeneration) {
-        this.scheduleCalculatedDataPrefetch();
         this.schedulePlotDisplayModelPrefetch();
         return;
       }
 
       if (!this.isCalculatedDataCurrentForResource(request, calculatedData)) {
-        this.scheduleCalculatedDataPrefetch();
         this.schedulePlotDisplayModelPrefetch();
         return;
       }
@@ -1715,7 +1536,6 @@ export class PlotService extends Disposable implements IPlotService {
           result.plotType !== request.plotType
         )
       ) {
-        this.scheduleCalculatedDataPrefetch();
         this.schedulePlotDisplayModelPrefetch();
         return;
       }
@@ -1723,7 +1543,6 @@ export class PlotService extends Disposable implements IPlotService {
       if (inspectorModel) {
         this.cachePlotInspectorDisplayModel(calculatedData, request, inspectorModel);
       }
-      this.scheduleCalculatedDataPrefetch();
       this.schedulePlotDisplayModelPrefetch();
     });
   }
@@ -1745,37 +1564,6 @@ export class PlotService extends Disposable implements IPlotService {
       this.queuedPlotDisplayModelPrefetchByKey.delete(nextKey);
     }
     return nextPrefetch;
-  }
-
-  private hasCompletedCalculatedDataPrefetch(key: string): boolean {
-    return this.calculatedDataCacheKeys.has(key) ||
-      this.unavailableCalculatedDataCacheKeys.has(key);
-  }
-
-  private isCalculatedDataUnavailable(id: string, plotType: PlotType): boolean {
-    return this.unavailableCalculatedDataCacheKeys.has(getCalculatedDataPrefetchKey(id, plotType));
-  }
-
-  private markCalculatedDataUnavailable(
-    id: string,
-    plotType: PlotType,
-    resource: PlotTarget,
-  ): void {
-    const key = getCalculatedDataPrefetchKey(id, plotType);
-    if (this.unavailableCalculatedDataCacheKeys.has(key)) {
-      return;
-    }
-
-    this.unavailableCalculatedDataCacheKeys.add(key);
-    this.onDidChangeCalculatedDataCacheEmitter.fire(
-      createPlotCalculatedDataCacheChangeEvent(plotType, resource),
-    );
-  }
-
-  private deleteInFlightCalculatedDataPrefetch(key: string, requestId: number): void {
-    if (this.inFlightCalculatedDataPrefetchByKey.get(key)?.requestId === requestId) {
-      this.inFlightCalculatedDataPrefetchByKey.delete(key);
-    }
   }
 
   private deleteInFlightPlotDisplayModelPrefetch(key: string, requestId: number): void {
@@ -1805,7 +1593,7 @@ export class PlotService extends Disposable implements IPlotService {
   }
 
   private getNonDetailInFlightPlotPrefetchCount(): number {
-    let count = this.inFlightCalculatedDataPrefetchByKey.size;
+    let count = 0;
     for (const inFlight of this.inFlightPlotDisplayModelPrefetchByKey.values()) {
       if (inFlight.lane !== "detail") {
         count += 1;
@@ -1826,11 +1614,6 @@ export class PlotService extends Disposable implements IPlotService {
 
   private getBackgroundInFlightPlotPrefetchCount(): number {
     let count = 0;
-    for (const inFlight of this.inFlightCalculatedDataPrefetchByKey.values()) {
-      if (!isInteractivePlotPrefetchPriority(inFlight.priority)) {
-        count += 1;
-      }
-    }
     for (const inFlight of this.inFlightPlotDisplayModelPrefetchByKey.values()) {
       if (inFlight.lane !== "detail" && !isInteractivePlotPrefetchPriority(inFlight.priority)) {
         count += 1;
@@ -1863,7 +1646,7 @@ export class PlotService extends Disposable implements IPlotService {
         previousRetentionPriority,
         result: cachedEntry.retentionPriority === previousRetentionPriority ? "kept" : "upgraded",
         retentionPriority: cachedEntry.retentionPriority,
-        id: createCalculationResourceId(chartModel.resource, chartModel.sheetId),
+        id: getPlot(chartModel),
         signature: calculatedData.signature,
       });
       return cached;
@@ -1890,7 +1673,7 @@ export class PlotService extends Disposable implements IPlotService {
       plotType: chartModel.plotType,
       retentionPriority,
       result: "created",
-      id: createCalculationResourceId(chartModel.resource, chartModel.sheetId),
+      id: getPlot(chartModel),
       signature: calculatedData.signature,
     });
     return chartModel;
@@ -1906,7 +1689,7 @@ export class PlotService extends Disposable implements IPlotService {
     if (!resource || !isPlotType(calculatedData.kind)) {
       return model;
     }
-    const id = createCalculationResourceId(resource, calculatedData.source.sheetId);
+    const id = getPlot({ resource, sheetId: calculatedData.source.sheetId });
     const cachedEntry = this.plotInspectorDisplayModelCacheByKey.get(key);
     if (cachedEntry) {
       cachedEntry.lastUsed = ++this.plotInspectorDisplayModelCacheUse;
@@ -2080,7 +1863,10 @@ export class PlotService extends Disposable implements IPlotService {
   ): string {
     return [
       calculatedData.source.resource
-        ? createCalculationResourceId(calculatedData.source.resource, calculatedData.source.sheetId)
+        ? getPlot({
+          resource: calculatedData.source.resource,
+          sheetId: calculatedData.source.sheetId,
+        })
         : "",
       calculatedData.kind,
       calculatedData.signature,
@@ -2199,7 +1985,11 @@ const getPlotTargetStateKey = (
 
 const getPlot = (
   input: Pick<PlotCalculatedDataInput, "resource" | "sheetId">,
-): string => createCalculationResourceId(input.resource, input.sheetId);
+): string => {
+  const resource = URI.revive(input.resource).toString();
+  const sheetId = String(input.sheetId ?? "").trim();
+  return sheetId ? `${resource}\u0000${sheetId}` : resource;
+};
 
 const addPlotCacheChange = (
   changes: PlotCacheChangeMap,

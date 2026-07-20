@@ -12,9 +12,8 @@ import {
   type CalculatedDataKind,
   type CalculationKind,
 } from "src/cs/workbench/services/calculation/common/calculationTypes";
-import {
-  createCalculationResourceId,
-  type CalculationResourceResult,
+import type {
+  CalculationResourceResult,
 } from "src/cs/workbench/services/calculation/common/calculation";
 import type {
   CalculationCurveRecord,
@@ -149,7 +148,7 @@ export const createCalculatedDataForCalculationResourceResult = ({
     .filter((series): series is CalculatedSeries => Boolean(series));
   const points = seriesList.flatMap(series => series.data);
   const source = {
-    fileId: createCalculationResourceId(result.resource, result.sheetId),
+    fileId: null,
     inputKind: "calculationResource" as const,
     resource: result.resource,
     sheetId: result.sheetId ?? null,
@@ -278,8 +277,7 @@ export const createCalculationSourceFileFromCalculationResourceResult = (
         y: getFiniteDomain(yValues, [0, 1]),
       }
       : undefined,
-    fileId: createCalculationResourceId(result.resource, result.sheetId),
-    fileName: result.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? createCalculationResourceId(result.resource, result.sheetId),
+    fileName: result.resource.path.split(/[\\/]/).filter(Boolean).pop() ?? result.resource.toString(),
     series: createCalculationSourceSeriesFromCalculationResourceResult(result, curves),
     supportsSs: curves.some(curve => curve.curveFamily === "iv" && curve.ivMode === "transfer"),
     xAxisRole: result.axis.xAxisRole,
@@ -433,7 +431,7 @@ export const createSecondCalculatedData = (
     .filter((series): series is CalculatedSeries => series !== null);
   const points = seriesList.flatMap((series) => series.data);
   const source = {
-    fileId: sourceData.source.fileId,
+    ...sourceData.source,
     inputKind: sourceKind,
   };
   const xDomain = getFiniteDomain(points.map((point) => Number(point.x)), sourceData.xDomain);
@@ -500,6 +498,8 @@ export const createCalculatedDataSignature = ({
   add(pointsCount);
   add(source.fileId);
   add(source.inputKind);
+  add(source.resource?.toString());
+  add(source.sheetId);
   add(activeFile?.xLabel);
   add(activeFile?.yLabel);
   add(xDomain[0]);

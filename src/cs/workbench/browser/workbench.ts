@@ -39,7 +39,6 @@ import {
   type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
-  findExplorerFileEntryByResource,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   IParametersService,
@@ -1120,7 +1119,6 @@ export class Workbench extends Layout {
   private renderParametersView(): void {
     const chartInput = this.chartService.getViewInput();
     this.parametersService.updateViewState({
-      fileId: chartInput?.activeFileId ?? null,
       resource: chartInput?.activeResource ?? null,
       sheetId: chartInput?.activeSheetId ?? null,
     });
@@ -1213,21 +1211,6 @@ export class Workbench extends Layout {
       ViewContainerLocation.Panel,
       viewContainerId,
     );
-  }
-
-  //#endregion
-
-  //#region view inputs and selection
-
-  private getSelectedChartFileId(): string | null {
-    const file = this.explorerService.selectedResource
-      ? findExplorerFileEntryByResource(this.explorerService.files, {
-          resource: this.explorerService.selectedResource,
-          sheetId: this.explorerService.selectedSheetId,
-        })
-      : null;
-    const fileId = String(file?.fileId ?? "").trim();
-    return fileId || null;
   }
 
   //#endregion

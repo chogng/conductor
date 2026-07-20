@@ -58,7 +58,7 @@ Plot owner APIs include:
 - creating reads where appropriate: `getCalculatedData`, `getPlotDisplayModel`, `getPlotLegendModel`, `getPlotMainRenderModel`;
 - Plot-owned settings reads: `getAxisSettings`;
 - legend state reads: `getHiddenLegendKeys`, `getLegendLabels`;
-- prefetch APIs: calculated data, chart display model, inspector display model, batch display models;
+- prefetch APIs: chart display model, inspector display model, and batch display models;
 - state mutations: `setActivePlotType`, `setAxisUnit`, `setYScale`, `setAxisTitleOverride`, `setLegendLabel`, `toggleHiddenLegendKey`.
 
 `setAxisUnit` and `setYScale` are Plot owner APIs. Their persistence currently
@@ -68,7 +68,7 @@ uses platform storage; callers should not write settings/storage directly.
 
 - `getCached*` APIs are non-creating reads for render paths with tight frame budgets.
 - Consumers request prefetch on cache miss instead of synchronously creating expensive data in render.
-- Calculated-data and display-model prefetch are separate cache warmups.
+- Display-model prefetch explicitly requests the backing Calculation result on cache miss; ordinary reads do not trigger Calculation.
 - PlotService owns dedupe, cache-hit skip, queue promotion, stale-result checks, and perf counters.
 - Consumers pass `resource` and optional `sheetId` directly into Plot read and
   prefetch APIs. Plot derives cache and state keys from that identity.
@@ -80,7 +80,7 @@ uses platform storage; callers should not write settings/storage directly.
 - Prefetch priority follows user-facing urgency: active chart, hover thumbnail, visible thumbnails, recent interactive targets, nearby thumbnails, idle.
 - Visible/nearby thumbnail backfill runs only while Explorer is in chart thumbnail layout.
 - Tree-layout hover previews use hover priority on demand.
-- Active/hover display-model prefetch may synchronously warm cheap file-scoped data when canonical curves are already drawable.
+- Active/hover display-model prefetch may synchronously project cheap calculated data and display models when canonical curves are already drawable.
 - Do not apply interactive sync warm paths to visible/nearby/idle background prefetch.
 
 ## Invalidation And Retention

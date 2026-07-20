@@ -49,6 +49,10 @@ Export UI / command
 - Export option state is service-local unless saved project export settings are intentionally introduced.
 - Workbench passes selected resource/sheet identities to Export; export execution
   rereads current Calculation and Plot owner state.
+- Keep resource URI and optional sheet identity through Export planning. Do not
+  synthesize file IDs; associate derived export data by object ownership or canvas order.
+- Resolve the export scope before materializing CSV/Origin file data; view refreshes
+  must not project unselected Calculation results.
 - Notification/toast side effects belong to export/origin execution, not Workbench callback bags.
 
 ## Do Not

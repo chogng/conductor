@@ -9,7 +9,6 @@ import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { ChartExplorerSelectionContribution } from "src/cs/workbench/contrib/chart/browser/chartExplorerSelection";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
-import type { ICalculationService } from "src/cs/workbench/services/calculation/common/calculation";
 import type { IChartService } from "src/cs/workbench/services/chart/common/chart";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {
@@ -32,14 +31,9 @@ suite("workbench/contrib/chart/browser/chartExplorerSelection", () => {
 
 		const viewInputs: ChartViewInput[] = [];
 		const plotPrefetches: string[] = [];
-		const calculationPriorities: string[] = [];
 		let resourceBQueued = false;
 		const contribution = store.add(new ChartExplorerSelectionContribution(
 			explorerService,
-			{
-				onDidChangeResourceCalculationResult: Event.None,
-				prioritizeResource: (resource: URI) => calculationPriorities.push(resource.toString()),
-			} as unknown as ICalculationService,
 			{
 				updateViewInput: (input: ChartViewInput) => viewInputs.push(input),
 			} as unknown as IChartService,
@@ -74,7 +68,6 @@ suite("workbench/contrib/chart/browser/chartExplorerSelection", () => {
 			hasChartData: true,
 			processingState: null,
 		});
-		assert.deepEqual(calculationPriorities, [resourceA.toString()]);
 		assert.deepEqual(plotPrefetches, [resourceA.toString()]);
 
 		resourceBQueued = true;

@@ -65,7 +65,9 @@ SliceResourceResult for { resource, sheetId? }
 ## Resource And Worker Rules
 
 - Resource identity is `{ resource: URI, sheetId? }`; do not introduce a
-  parallel calculation file-id identity.
+  parallel calculation file-id identity. Consumers pass and compare that identity
+  directly; string cache keys are service-private implementation details and must
+  not be exported as Calculation resource IDs.
 - Calculation record builders consume one resource-neutral
   `CalculationRecordsInput`; do not introduce a parallel file ledger or
   synthetic file-id batching for URI work.

@@ -12,7 +12,6 @@ import type {
   OriginExportContentKey,
   OriginExportMode,
   OriginExportPlan,
-  OriginYAxisScaleMode,
 } from "src/cs/workbench/services/export/common/originExport";
 
 export const IExportService = createDecorator<IExportService>("exportService");
@@ -42,16 +41,9 @@ export type ExportState = {
 
 export type ExportStateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
-export type OriginExportAxisSettings = {
-  readonly xUnitByFileId?: Readonly<Record<string, string>>;
-  readonly yScaleByFileId?: Readonly<Record<string, OriginYAxisScaleMode | string>>;
-  readonly yUnitByFileId?: Readonly<Record<string, string>>;
-};
-
 export type OriginExportPlanInput = {
   readonly activeResource?: URI | null;
   readonly activeSheetId?: string | null;
-  readonly axisSettings?: OriginExportAxisSettings;
   readonly resources: readonly ExportResourceIdentity[];
 };
 
@@ -60,15 +52,9 @@ export type ExportResourceIdentity = {
   readonly sheetId?: string | null;
 };
 
-export type OriginExportScopeModel = {
-  readonly fileIds: readonly string[];
-  readonly hasMixedYScales: boolean;
-};
-
 export type ExportViewState = {
   readonly curveOptions: OriginCurveExportSeriesOption[];
   readonly hasMixedExportYScales: boolean;
-  readonly scopedFileIds: string[];
   readonly showFilteredCanvasKindSelect: boolean;
 };
 
@@ -80,7 +66,6 @@ export interface IExportService {
   readonly onDidChangeExportViewState: Event<ExportViewState>;
 
   buildOriginExportPlan(input: OriginExportPlanInput): OriginExportPlan;
-  createOriginExportScopeModel(input: OriginExportPlanInput): OriginExportScopeModel;
   getState(): ExportState;
   getViewState(): ExportViewState;
   updateViewState(input: ExportViewStateInput): ExportViewState;

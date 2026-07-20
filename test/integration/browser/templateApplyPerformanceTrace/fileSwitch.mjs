@@ -8,6 +8,10 @@ import {
   dispatchTraceChartTargetSelect,
 } from "./targets.mjs";
 
+// Hidden Chromium throttles requestAnimationFrame. Poll state independently so a
+// render that completes during dispatch is measured instead of waiting for a throttled frame.
+const FILE_SWITCH_POLLING_INTERVAL_MS = 10;
+
 export const inspectMainChartState = async (page) => page.evaluate(() => {
   const readCanvasSnapshot = (canvas) => {
     if (!(canvas instanceof HTMLCanvasElement) || canvas.width <= 0 || canvas.height <= 0) {
@@ -126,7 +130,7 @@ export const waitForSelectedFile = async (page, fileId, timeoutMs) => page.waitF
     ) || traceSelectedFileId === targetFileId;
   },
   fileId,
-  { timeout: Math.min(timeoutMs, 5000) },
+  { polling: FILE_SWITCH_POLLING_INTERVAL_MS, timeout: Math.min(timeoutMs, 5000) },
 );
 
 export const waitForMainChartCanvas = async (page, fileId, timeoutMs) => page.waitForFunction(
@@ -142,7 +146,7 @@ export const waitForMainChartCanvas = async (page, fileId, timeoutMs) => page.wa
       Boolean(document.querySelector(".plot_main_chart_canvas"));
   },
   fileId,
-  { timeout: Math.min(timeoutMs, 10000) },
+  { polling: FILE_SWITCH_POLLING_INTERVAL_MS, timeout: Math.min(timeoutMs, 10000) },
 );
 
 export const waitForMainChartDrawn = async (page, fileId, previousCanvasSignature, timeoutMs) => page.waitForFunction(
@@ -194,7 +198,7 @@ export const waitForMainChartDrawn = async (page, fileId, previousCanvasSignatur
     return !previousSignature || signature !== previousSignature;
   },
   { targetFileId: fileId, previousSignature: previousCanvasSignature },
-  { timeout: Math.min(timeoutMs, 10000) },
+  { polling: FILE_SWITCH_POLLING_INTERVAL_MS, timeout: Math.min(timeoutMs, 10000) },
 );
 
 export const installFileSwitchLiveObserver = async (page) => page.evaluate(() => {

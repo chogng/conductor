@@ -37,7 +37,8 @@ rendering, chart shell, another owner's state, or table selection.
 ```txt
 show parameters command -> IWorkbenchLayoutService
 current chart resource target -> IParametersService.updateViewState
-IParametersService resolves Calculation resource result + input signature
+IParametersService requests a missing Calculation result
+Calculation result event -> resolve result + input signature
 onDidChangeParametersViewState -> ParametersViewPane render
 ```
 
@@ -47,7 +48,7 @@ onDidChangeParametersViewState -> ParametersViewPane render
 - Parameter rows project Calculation curves/metrics by ids.
 - `onDidChangeParametersViewState` is a leaf view event for Parameters views.
 - Workbench provides the current chart resource target while rendering the active Parameters auxiliary view; Parameters resolves the backing result/signature through `ICalculationService`.
-- `updateViewState` should suppress duplicate publishes when effective input is unchanged.
+- `updateViewState` requests Calculation for a missing current target and suppresses duplicate publishes when the effective input is unchanged.
 - Showing/hiding Parameters belongs to layout/view commands, not `IParametersService`.
 
 ## Do Not

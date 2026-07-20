@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from "src/cs/base/common/event";
+import { extUri } from "src/cs/base/common/resources";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { localize } from "src/cs/nls";
@@ -25,9 +26,7 @@ import {
   type ExportViewStateInput,
   type OriginCanvasExportScope,
   type OriginCurveExportMode,
-  type OriginExportAxisSettings,
   type OriginExportPlanInput,
-  type OriginExportScopeModel,
   type OriginFilteredCanvasKind,
 } from "src/cs/workbench/services/export/common/export";
 import {
@@ -43,7 +42,6 @@ import {
   getYUnitMeta,
 } from "src/cs/workbench/services/plot/common/units";
 import {
-  createCalculationResourceId,
   ICalculationService,
   type CalculationResourceResult,
 } from "src/cs/workbench/services/calculation/common/calculation";
@@ -60,9 +58,10 @@ import { INotificationService } from "src/cs/workbench/services/notification/com
 
 type OriginExportFile = {
   readonly calculationCache?: unknown;
+  readonly axisOverrides: PlotAxisOverrides;
   readonly curveType?: string;
-  readonly fileId?: string;
   readonly fileName?: string;
+  readonly legendLabels: Readonly<Record<string, string>>;
   readonly resource: URI;
   readonly series?: readonly OriginExportSeries[];
   readonly sheetId?: string | null;
@@ -72,24 +71,25 @@ type OriginExportFile = {
   readonly xUnit?: string;
   readonly yLabel?: string;
   readonly yUnit?: string;
-  readonly [key: string]: unknown;
 };
-
-type OriginExportSourceFile = ExportCsvFile;
 
 type OriginExportSeries = {
   readonly id?: string;
   readonly label?: string;
   readonly legendValue?: unknown;
   readonly name?: string;
-  readonly [key: string]: unknown;
 };
 
 type OriginExportNumberArray = readonly number[] | Float64Array;
 
 type ResolvedOriginExportPlanInput = OriginExportPlanInput & {
-  readonly activeFileId: string | null;
-  readonly results: readonly CalculationResourceResult[];
+  readonly results: readonly ResolvedOriginExportResult[];
+};
+
+type ResolvedOriginExportResult = {
+  readonly axisOverrides: PlotAxisOverrides;
+  readonly legendLabels: Readonly<Record<string, string>>;
+  readonly result: CalculationResourceResult;
 };
 
 export class BrowserExportService extends Disposable implements IExportService {
@@ -140,17 +140,21 @@ export class BrowserExportService extends Disposable implements IExportService {
     const activeResult = this.resolveActiveOriginResult(planInput);
     const curveOptions = activeResult
       ? createOriginCurveOptions(
-        activeResult,
-        (fileId, seriesId, fallback, index) =>
-          this.resolveOriginSeriesLabel(activeResult, fileId, seriesId, fallback, index),
+        activeResult.result,
+        (seriesId, fallback, index) =>
+          this.resolveOriginSeriesLabel(
+            activeResult.result,
+            activeResult.legendLabels,
+            seriesId,
+            fallback,
+            index,
+          ),
       )
       : [];
     this.syncSelectedCurveKeys(curveOptions.map(option => option.key));
-    const exportScope = this.createOriginExportScopeModelForInput(planInput);
     const viewState: ExportViewState = {
       curveOptions,
-      hasMixedExportYScales: exportScope.hasMixedYScales,
-      scopedFileIds: [...exportScope.fileIds],
+      hasMixedExportYScales: this.hasMixedOriginExportYScales(planInput),
       showFilteredCanvasKindSelect: this.state.canvasScope === "filtered",
     };
     this.viewState = viewState;
@@ -158,20 +162,15 @@ export class BrowserExportService extends Disposable implements IExportService {
     return viewState;
   }
 
-  public createOriginExportScopeModel(input: OriginExportPlanInput): OriginExportScopeModel {
-    return this.createOriginExportScopeModelForInput(this.resolveOriginExportPlanInput(input));
-  }
-
-  private createOriginExportScopeModelForInput(input: ResolvedOriginExportPlanInput): OriginExportScopeModel {
-    const files = this.resolveOriginExportFiles(input);
-    return {
-      fileIds: files
-        .map((file) => String(file?.fileId ?? "").trim())
-        .filter(Boolean),
-      hasMixedYScales: new Set(
-        files.map((file) => this.resolveOriginYScaleForFile(input.axisSettings, file)),
-      ).size > 1,
-    };
+  private hasMixedOriginExportYScales(
+    input: ResolvedOriginExportPlanInput,
+  ): boolean {
+    const results = this.state.canvasScope === "filtered"
+      ? input.results.filter(result => this.isOriginFilteredResult(result.result))
+      : input.results;
+    return new Set(
+      results.map(result => result.axisOverrides.yScale === "log" ? "log" : "linear"),
+    ).size > 1;
   }
 
   public buildOriginExportPlan(input: OriginExportPlanInput): OriginExportPlan {
@@ -186,17 +185,17 @@ export class BrowserExportService extends Disposable implements IExportService {
 
     const plan = buildOriginExportPlan(
       files,
-      this.createSelectedOriginSeriesIdsByFile(files),
+      () => this.state.curveMode === "select" ? this.state.selectedCurveKeys : undefined,
       this.state.originMode,
-      (file) => this.resolveOriginYScaleForFile(input.axisSettings, file as OriginExportFile),
-      (file) => getXUnitMeta(this.resolveOriginXUnitForFile(input.axisSettings, file as OriginExportFile)).factor,
-      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(input.axisSettings, file as OriginExportFile)).factor,
-      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(input.axisSettings, file as OriginExportFile)).label,
+      (file) => this.resolveOriginYScaleForFile(file as OriginExportFile),
+      (file) => getXUnitMeta(this.resolveOriginXUnitForFile(file as OriginExportFile)).factor,
+      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(file as OriginExportFile)).factor,
+      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(file as OriginExportFile)).label,
       (file, series, index) =>
-        this.resolveOriginCurveLabel(input, file as OriginExportFile, series, index),
-      (file, axis) => this.resolveOriginAxisTitleForFile(input, file as OriginExportFile, axis),
+        this.resolveOriginCurveLabel(file as OriginExportFile, series, index),
+      (file, axis) => this.resolveOriginAxisTitleForFile(file as OriginExportFile, axis),
       (file, y) =>
-        this.resolveOriginYScaleForFile(input.axisSettings, file as OriginExportFile) === "log"
+        this.resolveOriginYScaleForFile(file as OriginExportFile) === "log"
           ? Math.abs(y)
           : y,
       this.state.selectedContentKeys,
@@ -282,24 +281,42 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   private resolveOriginExportPlanInput(input: OriginExportPlanInput): ResolvedOriginExportPlanInput {
-    for (const target of input.resources) {
+    const targets = this.resolveScopedOriginTargets(input);
+    for (const target of targets) {
       this.calculationService.prioritizeResource(target.resource, target.sheetId);
     }
-    const results = input.resources
+    const results = targets
       .map(target => this.calculationService.getResourceResult(target.resource, target.sheetId))
-      .filter((result): result is CalculationResourceResult => result !== null);
-    const activeFileId = input.activeResource
-      ? createCalculationResourceId(input.activeResource, input.activeSheetId)
-      : null;
+      .filter((result): result is CalculationResourceResult => result !== null)
+      .map(result => ({
+        axisOverrides: this.plotService.getAxisOverrides(result),
+        legendLabels: this.plotService.getLegendLabels(result),
+        result,
+      }));
     return {
       ...input,
-      activeFileId,
-      axisSettings: input.axisSettings ?? toOriginExportAxisSettings(
-        input.resources,
-        target => this.plotService.getAxisOverrides(target),
-      ),
       results,
     };
+  }
+
+  private resolveScopedOriginTargets(
+    input: OriginExportPlanInput,
+  ): readonly ExportResourceIdentity[] {
+    if (this.state.canvasScope !== "current" && this.state.canvasScope !== "selected") {
+      return input.resources;
+    }
+    if (!input.activeResource) {
+      return [];
+    }
+
+    const activeTarget: ExportResourceIdentity = {
+      resource: input.activeResource,
+      sheetId: input.activeSheetId,
+    };
+    const matchedTarget = input.resources.find(target =>
+      isSameExportResource(target, activeTarget)
+    );
+    return matchedTarget ? [matchedTarget] : [];
   }
 
   private getCurrentOriginExportPlanInput(): ResolvedOriginExportPlanInput {
@@ -310,91 +327,58 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   private resolveOriginExportFiles(input: ResolvedOriginExportPlanInput): OriginExportFile[] {
-    const csvFiles = input.results.map(result =>
-      this.createOriginExportFile(createExportCsvFile(result), result)
+    const files = input.results.map(resolved =>
+      this.createOriginExportFile(createExportCsvFile(resolved.result), resolved)
     );
-    if (!csvFiles.length) {
-      return [];
-    }
-
-    if (this.state.canvasScope === "all") {
-      return csvFiles;
-    }
-
-    if (this.state.canvasScope === "filtered") {
-      return csvFiles.filter((file) => this.isOriginFilteredCanvas(file));
-    }
-
-    const activeFileId = String(input.activeFileId ?? "").trim();
-    const activeFile = activeFileId
-      ? csvFiles.find((file) => String(file.fileId ?? "") === activeFileId)
-      : null;
-    return activeFile ? [activeFile] : [];
+    return this.state.canvasScope === "filtered"
+      ? files.filter(file => this.isOriginFilteredCanvas(file))
+      : files;
   }
 
   private createOriginExportFile(
-    file: OriginExportSourceFile,
-    result: CalculationResourceResult,
+    file: ExportCsvFile,
+    resolved: ResolvedOriginExportResult,
   ): OriginExportFile {
     const xAxisRole = String(file.xAxisRole ?? "").trim();
     return {
       ...file,
+      axisOverrides: resolved.axisOverrides,
       curveType: file.curveType ? String(file.curveType) : undefined,
-      resource: result.resource,
-      sheetId: result.sheetId ?? null,
+      legendLabels: resolved.legendLabels,
+      resource: resolved.result.resource,
+      sheetId: resolved.result.sheetId ?? null,
       xAxisRole: xAxisRole || undefined,
     };
   }
 
-  private createSelectedOriginSeriesIdsByFile(
-    files: readonly OriginExportFile[],
-  ): Record<string, string[]> {
-    if (this.state.curveMode !== "select") {
-      return {};
-    }
-
-    const selectedByFile: Record<string, string[]> = {};
-    const selectedCurveKeys = new Set(this.state.selectedCurveKeys);
-    for (const file of files) {
-      const fileId = String(file.fileId ?? "").trim();
-      if (!fileId) {
-        continue;
-      }
-      selectedByFile[fileId] = (Array.isArray(file.series) ? file.series : [])
-        .map((series) => String(series.id ?? "").trim())
-        .filter((seriesId) => Boolean(seriesId) && selectedCurveKeys.has(seriesId));
-    }
-    return selectedByFile;
-  }
-
   private resolveOriginCurveLabel(
-    input: ResolvedOriginExportPlanInput,
     file: OriginExportFile | null | undefined,
     series: OriginExportSeries | null | undefined,
     index: number,
   ): string {
     const seriesId = String(series?.id ?? "");
     const fallback = this.resolveFallbackOriginCurveLabel(series, index);
-    const fileId = String(file?.fileId ?? "");
     return file
-      ? this.resolveOriginSeriesLabel(file, fileId, seriesId, fallback, index)
+      ? this.resolveOriginSeriesLabel(
+        file,
+        file.legendLabels,
+        seriesId,
+        fallback,
+        index,
+      )
       : fallback;
   }
 
   private resolveOriginSeriesLabel(
     target: Pick<OriginExportFile, "resource" | "sheetId"> | CalculationResourceResult,
-    fileId: string,
+    legendLabels: Readonly<Record<string, string>>,
     seriesId: string,
     fallback: string,
     index: number,
   ): string {
-    const normalizedFileId = String(fileId ?? "").trim();
     const normalizedSeriesId = String(seriesId ?? "").trim();
-    const plotLabel = normalizedFileId && normalizedSeriesId
-      ? this.plotService.getLegendLabels({
-        resource: target.resource,
-        sheetId: target.sheetId ?? null,
-      })[normalizedSeriesId]
+    const plotLabel = normalizedSeriesId
+      ? legendLabels[normalizedSeriesId]
       : undefined;
     if (plotLabel) {
       return plotLabel;
@@ -426,43 +410,24 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   private resolveOriginXUnitForFile(
-    axisSettings: OriginExportAxisSettings | undefined,
     file: OriginExportFile | null | undefined,
   ): string {
-    const fileId = String(file?.fileId ?? "").trim();
-    if (!fileId) {
-      return String(file?.xUnit ?? "V");
-    }
-
-    return axisSettings?.xUnitByFileId?.[fileId] ?? String(file?.xUnit ?? "V");
+    return file?.axisOverrides.xUnit ?? String(file?.xUnit ?? "V");
   }
 
   private resolveOriginYUnitForFile(
-    axisSettings: OriginExportAxisSettings | undefined,
     file: OriginExportFile | null | undefined,
   ): string {
-    const fileId = String(file?.fileId ?? "").trim();
-    if (!fileId) {
-      return String(file?.yUnit ?? "A");
-    }
-
-    return axisSettings?.yUnitByFileId?.[fileId] ?? String(file?.yUnit ?? "A");
+    return file?.axisOverrides.yUnit ?? String(file?.yUnit ?? "A");
   }
 
   private resolveOriginYScaleForFile(
-    axisSettings: OriginExportAxisSettings | undefined,
     file: OriginExportFile | null | undefined,
   ): OriginYAxisScaleMode {
-    const fileId = String(file?.fileId ?? "").trim();
-    if (!fileId) {
-      return "linear";
-    }
-
-    return axisSettings?.yScaleByFileId?.[fileId] === "log" ? "log" : "linear";
+    return file?.axisOverrides.yScale === "log" ? "log" : "linear";
   }
 
   private resolveOriginAxisTitleForFile(
-    _input: ResolvedOriginExportPlanInput,
     file: OriginExportFile | null | undefined,
     axis: "x" | "y",
   ): string {
@@ -475,27 +440,42 @@ export class BrowserExportService extends Disposable implements IExportService {
 
   private resolveActiveOriginResult(
     input: ResolvedOriginExportPlanInput,
-  ): CalculationResourceResult | null {
-    const activeFileId = String(input.activeFileId ?? "").trim();
-    return activeFileId
-      ? input.results.find(result =>
-        createCalculationResourceId(result.resource, result.sheetId) === activeFileId
-      ) ?? null
+  ): ResolvedOriginExportResult | null {
+    return input.activeResource
+      ? input.results.find(({ result }) => isSameExportResource(result, {
+        resource: input.activeResource!,
+        sheetId: input.activeSheetId,
+      })) ?? null
       : null;
   }
 
   private isOriginFilteredCanvas(file: OriginExportFile): boolean {
-    const targetFamily = this.state.filteredKind;
     const xAxisRole = String(file.xAxisRole ?? "").trim().toLowerCase();
-    if (targetFamily === "transfer" && xAxisRole === "vg") {
-      return true;
-    }
-    if (targetFamily === "output" && xAxisRole === "vd") {
+    if (this.matchesOriginFilteredAxisRole(xAxisRole)) {
       return true;
     }
 
     const curveType = String(file.curveType ?? "").trim().toLowerCase();
-    return Boolean(curveType && curveType.includes(targetFamily));
+    return Boolean(curveType && curveType.includes(this.state.filteredKind));
+  }
+
+  private isOriginFilteredResult(result: CalculationResourceResult): boolean {
+    const xAxisRole = String(result.axis.xAxisRole ?? "").trim().toLowerCase();
+    if (this.matchesOriginFilteredAxisRole(xAxisRole)) {
+      return true;
+    }
+
+    return Object.values(result.curvesByKey).some(curve =>
+      curve.curveGeneration === "base" &&
+      curve.curveFamily === "iv" &&
+      curve.ivMode === this.state.filteredKind
+    );
+  }
+
+  private matchesOriginFilteredAxisRole(xAxisRole: string): boolean {
+    return this.state.filteredKind === "transfer"
+      ? xAxisRole === "vg"
+      : xAxisRole === "vd";
   }
 
   private updateState(updates: Partial<ExportState>): void {
@@ -522,6 +502,17 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 }
 
+const isSameExportResource = (
+  first: ExportResourceIdentity,
+  second: ExportResourceIdentity,
+): boolean =>
+  extUri.isEqual(first.resource, second.resource) &&
+  normalizeExportSheetId(first.sheetId) === normalizeExportSheetId(second.sheetId);
+
+const normalizeExportSheetId = (
+  sheetId: string | null | undefined,
+): string => String(sheetId ?? "").trim();
+
 const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>
   typeof value === "function"
     ? (value as (previous: T) => T)(previous)
@@ -530,7 +521,6 @@ const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>
 const createDefaultExportViewState = (): ExportViewState => ({
   curveOptions: [],
   hasMixedExportYScales: false,
-  scopedFileIds: [],
   showFilteredCanvasKindSelect: false,
 });
 
@@ -596,33 +586,3 @@ const areStringArraysEqual = (
   first.every((value, index) => value === second[index]);
 
 registerSingleton(IExportService, BrowserExportService, InstantiationType.Delayed);
-
-const toOriginExportAxisSettings = (
-  targets: readonly ExportResourceIdentity[],
-  getSettings: (target: ExportResourceIdentity) => PlotAxisOverrides,
-): OriginExportAxisSettings => {
-  const result: {
-    xUnitByFileId: Record<string, string>;
-    yScaleByFileId: Record<string, "linear" | "log">;
-    yUnitByFileId: Record<string, string>;
-  } = {
-    xUnitByFileId: {},
-    yScaleByFileId: {},
-    yUnitByFileId: {},
-  };
-
-  for (const target of targets) {
-    const fileId = createCalculationResourceId(target.resource, target.sheetId);
-    const settings = getSettings(target);
-    if (settings.xUnit) {
-      result.xUnitByFileId[fileId] = settings.xUnit;
-    }
-    if (settings.yScale) {
-      result.yScaleByFileId[fileId] = settings.yScale;
-    }
-    if (settings.yUnit) {
-      result.yUnitByFileId[fileId] = settings.yUnit;
-    }
-  }
-  return result;
-};
