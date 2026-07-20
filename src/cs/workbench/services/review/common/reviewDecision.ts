@@ -360,7 +360,6 @@ const createReviewedTemplateSnapshotFromCandidateInterpretation = (
 	version: interpretation.version,
 	...(interpretation.measurement ? { measurement: interpretation.measurement } : {}),
 	blocks: interpretation.blocks,
-	stopOnError: interpretation.stopOnError,
 	...(interpretation.applicability ? { applicability: interpretation.applicability } : {}),
 });
 

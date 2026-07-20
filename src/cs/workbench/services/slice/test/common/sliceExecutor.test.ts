@@ -160,5 +160,4 @@ const createTemplate = ({
 			target: "auto",
 		},
 	}],
-	stopOnError: false,
 });

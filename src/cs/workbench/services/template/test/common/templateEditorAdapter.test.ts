@@ -18,7 +18,6 @@ suite("workbench/services/template/test/common/templateEditorAdapter", () => {
 
     assert.equal(record.id, "template-a");
     assert.equal(record.name, "Transfer");
-    assert.equal(record.stopOnError, true);
     assert.deepEqual(record.xColumns, [0]);
     assert.deepEqual(record.yColumns, [1]);
     assert.deepEqual(record.xRanges, [{ start: "A2", end: "A4" }]);
@@ -53,7 +52,6 @@ const createTemplate = (): Template => ({
   id: "template-a",
   name: "Transfer",
   version: 4,
-  stopOnError: true,
   blocks: [{
     rowRange: {
       startRow: 1,

@@ -52,7 +52,6 @@ type SliceCommandResource = {
 
 type SliceCommandTemplateOptions = {
 	readonly selection: TemplateSelection;
-	readonly stopOnError: boolean;
 };
 
 let sliceCommandRunActive = false;
@@ -112,7 +111,6 @@ export const runSliceWithTemplateHandler = (
 		reviewService,
 		selection: templateOptions.selection,
 		sliceService,
-		stopOnError: templateOptions.stopOnError,
 		viewsService,
 		resources,
 	}).catch(() => {
@@ -136,7 +134,6 @@ const createSliceCommandTemplateOptions = (
 	if (!state.selectedTemplateId || isAutoTemplateId(state.selectedTemplateId)) {
 		return {
 			selection: { kind: "auto" },
-			stopOnError: Boolean(state.formState.stopOnError),
 		};
 	}
 
@@ -161,7 +158,6 @@ const createSliceCommandTemplateOptions = (
 
 	return {
 		selection: createTemplateSelection(templateId),
-		stopOnError: Boolean(state.formState.stopOnError),
 	};
 };
 
@@ -170,7 +166,6 @@ const runResourcesWithTemplate = async ({
 	reviewService,
 	selection,
 	sliceService,
-	stopOnError,
 	viewsService,
 	resources,
 }: {
@@ -178,7 +173,6 @@ const runResourcesWithTemplate = async ({
 	readonly reviewService: IReviewServiceType;
 	readonly selection: TemplateSelection;
 	readonly sliceService: ISliceServiceType;
-	readonly stopOnError: boolean;
 	readonly viewsService: Pick<IViewsService, "openViewContainer">;
 	readonly resources: readonly SliceCommandResource[];
 }): Promise<void> => {
@@ -254,23 +248,6 @@ const runResourcesWithTemplate = async ({
 			skip.code,
 			skip.message,
 		);
-		if (stopOnError) {
-			const remainingResources = resources.slice(index + 1);
-			const stoppedMessage = localize(
-				"slice.runWithTemplate.stoppedAfterError",
-				"Skipped because template application stopped after an earlier resource failed.",
-			);
-			for (const remainingResource of remainingResources) {
-				skippedCount += 1;
-				sliceService.markResourceSkipped(
-					remainingResource.resource,
-					remainingResource.sheetId,
-					"slice.stoppedAfterError",
-					stoppedMessage,
-				);
-			}
-			break;
-		}
 	}
 
 	if (!requests.length) {

@@ -112,24 +112,14 @@ export const resolveTemplateSaveId = (
 };
 
 export type TemplateManagementStateInput = {
-  readonly config: TemplateEditorConfig;
   readonly selectedTemplateId: string | null;
-  readonly stopOnErrorDraft: boolean | null;
   readonly templates: readonly TemplateEditorRecord[] | null;
 };
 
 export const createTemplateManagementViewState = ({
-  config,
   selectedTemplateId,
-  stopOnErrorDraft,
   templates,
 }: TemplateManagementStateInput) => {
-  const effectiveConfig = stopOnErrorDraft === null
-    ? config
-    : {
-        ...config,
-        stopOnError: stopOnErrorDraft,
-      };
   const isCustomTemplate = Boolean(
     selectedTemplateId && !isAutoTemplateId(selectedTemplateId),
   );
@@ -142,7 +132,6 @@ export const createTemplateManagementViewState = ({
   return {
     canDeleteTemplate: isCustomTemplate,
     selectedTemplateLabel,
-    stopOnError: effectiveConfig.stopOnError,
   };
 };
 
@@ -157,11 +146,9 @@ export class TemplateView {
   private pendingXRangeSelectionIndex: number | null = null;
   private tableService: TemplateViewOptions["tableService"] | null = null;
   private mode: TemplateMode | null = null;
-  private stopOnErrorDraft: boolean | null = null;
   private managementView: TemplateManagementView | null = null;
   private editorView: TemplateEditorView | null = null;
   private hasRequestedUserTemplates = false;
-  private stopOnErrorDraftSource: TemplateEditorConfig | null = null;
 
   constructor(props: TemplateViewOptions) {
     this.props = props;
@@ -191,8 +178,6 @@ export class TemplateView {
     this.bindTableSelection(props.tableService);
 
     this.ensureTemplatesLoaded();
-    this.syncStopOnErrorDraft();
-
     const nextMode = this.readTemplateMode();
     if (this.mode !== nextMode) {
       this.mode = nextMode;
@@ -230,15 +215,7 @@ export class TemplateView {
   }
 
   private getEffectiveTemplateFormState(): TemplateEditorConfig {
-    const config = this.readTemplateFormState();
-    if (this.stopOnErrorDraft === null) {
-      return config;
-    }
-
-    return {
-      ...config,
-      stopOnError: this.stopOnErrorDraft,
-    };
+    return this.readTemplateFormState();
   }
 
   private bindTableSelection(tableService: TemplateViewOptions["tableService"]): void {
@@ -325,7 +302,6 @@ export class TemplateView {
       return;
     }
 
-    this.stopOnErrorDraft = next.stopOnError;
     this.props.templateViewStateService.setFormState(next);
     if (this.isTemplateEditorMode()) {
       this.syncTableSelectionState();
@@ -415,15 +391,6 @@ export class TemplateView {
     });
   }
 
-  private syncStopOnErrorDraft(): void {
-    const config = this.readTemplateFormState();
-    if (this.stopOnErrorDraftSource !== config || this.readTemplateMode() !== "management") {
-      this.stopOnErrorDraft = config.stopOnError;
-      this.stopOnErrorDraftSource = config;
-      return;
-    }
-  }
-
   private ensureTemplatesLoaded(): void {
     if (this.hasRequestedUserTemplates) {
       return;
@@ -463,9 +430,7 @@ export class TemplateView {
 
   private getManagementViewState() {
     return createTemplateManagementViewState({
-      config: this.readTemplateFormState(),
       selectedTemplateId: this.readSelectedTemplateId(),
-      stopOnErrorDraft: this.stopOnErrorDraft,
       templates: this.getTemplateEditorRecords(),
     });
   }
@@ -579,11 +544,7 @@ export class TemplateView {
   }
 
   private createTemplateDraft(): void {
-    const config = this.getEffectiveTemplateFormState();
-    this.stopOnErrorDraft = config.stopOnError;
-    void this.props.commandService.executeCommand(CREATE_TEMPLATE_COMMAND_ID, {
-      stopOnError: config.stopOnError,
-    });
+    void this.props.commandService.executeCommand(CREATE_TEMPLATE_COMMAND_ID);
   }
 
   private createTemplateItemActions(template: TemplateEditorRecord): MenuItemAction[] {
@@ -611,7 +572,6 @@ export class TemplateView {
   }
 
   private editTemplate(template: TemplateEditorRecord): void {
-    this.stopOnErrorDraft = Boolean(template.stopOnError);
     void this.props.commandService.executeCommand(EDIT_TEMPLATE_COMMAND_ID, template);
   }
 
@@ -624,14 +584,9 @@ export class TemplateView {
   }
 
   private selectTemplate(template: TemplateEditorRecord | null): void {
-    const config = this.getEffectiveTemplateFormState();
     if (!template) {
-      this.stopOnErrorDraft = config.stopOnError;
-      void this.props.commandService.executeCommand(SELECT_TEMPLATE_COMMAND_ID, {
-        stopOnError: config.stopOnError,
-      });
+      void this.props.commandService.executeCommand(SELECT_TEMPLATE_COMMAND_ID);
     } else {
-      this.stopOnErrorDraft = Boolean(template.stopOnError);
       void this.props.commandService.executeCommand(SELECT_TEMPLATE_COMMAND_ID, template);
     }
   }
@@ -678,7 +633,6 @@ export class TemplateView {
           });
       const saved = createTemplateEditorRecordFromUserTemplate(savedUserTemplate);
 
-      this.stopOnErrorDraft = Boolean(saved.stopOnError);
       this.props.templateViewStateService.finishTemplateEditor(saved);
       this.showNotification(localize("template.save.success", "Template saved"), "success");
     } catch (err) {
@@ -697,7 +651,6 @@ export class TemplateView {
   }
 
   private cancelTemplateEditor(): void {
-    const config = this.getEffectiveTemplateFormState();
     const selectedTemplateId = this.readSelectedTemplateId();
     if (
       selectedTemplateId &&
@@ -706,7 +659,6 @@ export class TemplateView {
     ) {
       const found = this.getTemplateEditorRecords().find((template) => template.id === selectedTemplateId);
       if (found) {
-        this.stopOnErrorDraft = Boolean(found.stopOnError);
         this.props.templateViewStateService.cancelTemplateEditor({
           fallbackTemplate: found,
         });
@@ -714,10 +666,7 @@ export class TemplateView {
       }
     }
 
-    this.stopOnErrorDraft = config.stopOnError;
-    this.props.templateViewStateService.cancelTemplateEditor({
-      stopOnError: config.stopOnError,
-    });
+    this.props.templateViewStateService.cancelTemplateEditor();
   }
 
   private getTemplateEditorRecords(): readonly TemplateEditorRecord[] {

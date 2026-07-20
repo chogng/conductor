@@ -125,7 +125,6 @@ const createDataResourceReviewCandidate = ({
 		...(reviewedType ? { reviewedType } : {}),
 		...(measurement ? { measurement } : {}),
 		blocks: projection.blocks,
-		stopOnError: false,
 		applicability: {
 			...(structuredContent.structure.fingerprint ? { schemaFingerprint: structuredContent.structure.fingerprint } : {}),
 			columnCount: context.evidence.sourceMetadata.columnCount,
@@ -462,7 +461,6 @@ const createUserTemplateReviewCandidate = ({
 		version: template.version,
 		...(template.measurement ? { measurement: template.measurement } : {}),
 		blocks: template.blocks,
-		stopOnError: template.stopOnError,
 		...(template.applicability ? { applicability: template.applicability } : {}),
 	});
 
@@ -529,7 +527,6 @@ const createReviewCandidateInterpretation = ({
 	measurement,
 	name,
 	reviewedType,
-	stopOnError,
 	version,
 }: ReviewCandidateInterpretation): ReviewCandidateInterpretation => ({
 	name,
@@ -537,7 +534,6 @@ const createReviewCandidateInterpretation = ({
 	...(reviewedType ? { reviewedType } : {}),
 	...(measurement ? { measurement } : {}),
 	blocks,
-	stopOnError,
 	...(applicability ? { applicability } : {}),
 });
 
@@ -547,20 +543,18 @@ const createCandidateInterpretationFingerprint = (
 	const {
 		applicability,
 		blocks,
-		measurement,
-		name,
-		reviewedType,
-		stopOnError,
-		version,
+	measurement,
+	name,
+	reviewedType,
+	version,
 	} = interpretation;
 	return createReviewInterpretationFingerprint({
 		schemaVersion: 1,
 		name,
 		version,
-		...(reviewedType ? { reviewedType } : {}),
-		...(measurement ? { measurement } : {}),
-		blocks,
-		stopOnError,
+	...(reviewedType ? { reviewedType } : {}),
+	...(measurement ? { measurement } : {}),
+	blocks,
 		...(applicability ? { applicability } : {}),
 	});
 };

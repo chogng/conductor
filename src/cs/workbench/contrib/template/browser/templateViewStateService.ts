@@ -22,7 +22,6 @@ export const ITemplateViewStateService =
 
 export type TemplateEditorCancelOptions = {
   readonly fallbackTemplate?: TemplateEditorRecord | null;
-  readonly stopOnError?: boolean;
 };
 
 export type TemplateMode = "management" | "editor";
@@ -57,13 +56,10 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
   private state: TemplateState = createDefaultTemplateState();
 
   public selectTemplate(template: TemplateEditorRecord | null = null): boolean {
-    const stopOnError = getTemplateStopOnError(template, this.state.formState.stopOnError);
     if (!template) {
       this.updateState({
         selectedTemplateId: null,
-        formState: createEmptyTemplateEditorConfig({
-          stopOnError,
-        }),
+        formState: createEmptyTemplateEditorConfig(),
         mode: "management",
       });
       return true;
@@ -73,9 +69,7 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
     if (!templateId) {
       this.updateState({
         selectedTemplateId: null,
-        formState: createEmptyTemplateEditorConfig({
-          stopOnError,
-        }),
+        formState: createEmptyTemplateEditorConfig(),
         mode: "management",
       });
       return true;
@@ -92,9 +86,7 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
   public createTemplateDraft(template: Partial<TemplateEditorConfig> | null = null): void {
     this.updateState({
       selectedTemplateId: null,
-      formState: createEmptyTemplateEditorConfig({
-        stopOnError: getTemplateStopOnError(template, this.state.formState.stopOnError),
-      }),
+      formState: createEmptyTemplateEditorConfig(),
       mode: "editor",
     });
   }
@@ -111,14 +103,9 @@ export class TemplateViewStateService extends Disposable implements ITemplateVie
       return;
     }
 
-    const stopOnError = typeof options.stopOnError === "boolean"
-      ? options.stopOnError
-      : this.state.formState.stopOnError;
     this.updateState({
       selectedTemplateId: null,
-      formState: createEmptyTemplateEditorConfig({
-        stopOnError,
-      }),
+      formState: createEmptyTemplateEditorConfig(),
       mode: "management",
     });
   }
@@ -171,14 +158,6 @@ const getTemplateId = (template: TemplateEditorRecord): string | null => {
   const templateId = String(template.id ?? "").trim();
   return templateId && !isAutoTemplateId(templateId) ? templateId : null;
 };
-
-const getTemplateStopOnError = (
-  template: Partial<TemplateEditorConfig> | null,
-  fallback: boolean,
-): boolean =>
-  typeof template?.stopOnError === "boolean"
-    ? template.stopOnError
-    : fallback;
 
 const createDefaultTemplateState = (): TemplateState => ({
   mode: "management",

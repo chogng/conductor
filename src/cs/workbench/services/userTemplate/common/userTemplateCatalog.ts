@@ -175,7 +175,6 @@ const normalizeTemplateForCatalog = ({
   name,
   version,
   blocks: Array.isArray(template.blocks) ? template.blocks : [],
-  stopOnError: Boolean(template.stopOnError),
 });
 
 const isUserTemplate = (
@@ -198,8 +197,7 @@ const isTemplate = (
   value.schemaVersion === 1 &&
   typeof value.name === "string" &&
   typeof value.version === "number" &&
-  Array.isArray(value.blocks) &&
-  typeof value.stopOnError === "boolean";
+  Array.isArray(value.blocks);
 
 const getNativeSource = (
   source: unknown,

@@ -26,7 +26,6 @@ export type TemplateEditorConfig = {
   xColumns: number[];
   xRanges: TemplateXRange[];
   yColumns: number[];
-  stopOnError: boolean;
   xDataEnd: string;
   xDataStart: string;
   xSegmentationMode: "auto" | "points" | "segments";
@@ -56,7 +55,6 @@ export const createEmptyTemplateEditorConfig = (
     yLegendStep: "",
     yLegendTarget: "auto" as const,
     yUnit: "A",
-    stopOnError: false,
     bottomTitle: "",
     leftTitle: "",
     legendPrefix: "",
@@ -115,7 +113,6 @@ export const cloneTemplateEditorConfig = (
     leftTitle: config.leftTitle,
     legendPrefix: config.legendPrefix,
     name: config.name,
-    stopOnError: config.stopOnError,
     xColumns: config.xColumns,
     xDataEnd: config.xDataEnd,
     xDataStart: config.xDataStart,
@@ -187,7 +184,6 @@ export const normalizeTemplateEditorConfigRecord = (
         ? source.yLegendTarget
         : "auto",
     yUnit: String(source?.yUnit ?? "A") || "A",
-    stopOnError: Boolean(source?.stopOnError),
     bottomTitle: String(source?.bottomTitle ?? ""),
     leftTitle: String(source?.leftTitle ?? ""),
     legendPrefix: String(source?.legendPrefix ?? ""),

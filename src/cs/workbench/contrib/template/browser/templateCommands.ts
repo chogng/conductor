@@ -44,7 +44,6 @@ export const EDIT_TEMPLATE_COMMAND_ID = "template.editTemplate";
 export const EXPORT_TEMPLATE_COMMAND_ID = "template.exportTemplate";
 export const APPLY_TEMPLATE_COMMAND_ID = "template.applyTemplate";
 export const APPLY_TEMPLATE_INCREMENTAL_COMMAND_ID = "template.applyTemplateIncremental";
-export const SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID = "template.setStopOnError";
 
 export function registerTemplateCommands(): IDisposable {
   const disposables = new DisposableStore();
@@ -57,7 +56,6 @@ export function registerTemplateCommands(): IDisposable {
   disposables.add(registerAction2(ExportTemplateAction));
   disposables.add(registerAction2(ApplyTemplateAction));
   disposables.add(registerAction2(ApplyTemplateIncrementalAction));
-  disposables.add(registerAction2(SetTemplateStopOnErrorAction));
 
   return disposables;
 }
@@ -207,28 +205,6 @@ export class ApplyTemplateIncrementalAction extends Action2 {
   }
 }
 
-export class SetTemplateStopOnErrorAction extends Action2 {
-  public constructor() {
-    super({
-      id: SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID,
-      title: localize("template.commands.setStopOnError", "Set Template Stop on Error"),
-      metadata: {
-        description: localize("template.commands.setStopOnError.description", "Set whether template application stops at the first invalid item."),
-      },
-    });
-  }
-
-  public run(accessor: ServicesAccessor, value?: unknown): void {
-    const templateViewStateService = accessor.get(ITemplateViewStateService);
-    const current = templateViewStateService.getState().formState.stopOnError;
-    const stopOnError = typeof value === "boolean" ? value : !current;
-    templateViewStateService.setFormState(previous => ({
-      ...previous,
-      stopOnError,
-    }));
-  }
-}
-
 function normalizeTemplateActionTarget(value: unknown): TemplateEditorRecord | null {
   return value && typeof value === "object"
     ? value as TemplateEditorRecord
@@ -259,9 +235,7 @@ async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Pr
 
   try {
     await userTemplateService.deleteTemplate(templateId);
-    templateViewStateService.selectTemplate({
-      stopOnError: target?.stopOnError,
-    });
+    templateViewStateService.selectTemplate();
     notificationService.notify({
       id: "template.notification",
       message: localize("template.delete.success", "Template deleted"),

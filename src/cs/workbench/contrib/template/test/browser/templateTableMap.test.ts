@@ -244,7 +244,6 @@ suite("workbench/contrib/template/test/browser/templateTableMap", () => {
       leftTitle: "",
       legendPrefix: "",
       name: "",
-      stopOnError: false,
       xColumns: [1],
       xDataEnd: "",
       xDataStart: "B3",
@@ -303,5 +302,4 @@ const createTemplate = (
   name: "Template",
   version: 1,
   blocks: template.blocks,
-  stopOnError: false,
 });

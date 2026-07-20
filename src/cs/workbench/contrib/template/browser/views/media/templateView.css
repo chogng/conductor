@@ -429,44 +429,6 @@ html[data-nav="keyboard"] .template_field .inputbox_field[data-picking="true"]::
   overflow: visible;
 }
 
-.template_divider {
-  height: 1px;
-  margin: 4px 0;
-  background-color: rgb(var(--border) / 1);
-}
-
-.template_toggle_rows {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.template_toggle_row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 32px;
-  padding: 4px 0;
-}
-
-.template_toggle_title {
-  min-width: 0;
-  flex: 1 1 0%;
-}
-
-.template_toggle_label {
-  margin: 0;
-  font-size: 12px;
-  line-height: 16px;
-  color: rgb(var(--text-secondary) / 1);
-}
-
-.template_toggle_control {
-  display: inline-flex;
-  align-items: center;
-}
-
 .template_auto_card {
   display: flex;
   flex-direction: column;

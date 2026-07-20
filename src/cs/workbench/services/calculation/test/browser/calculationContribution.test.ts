@@ -309,7 +309,6 @@ function createSliceResourceResult(
 				}],
 				name: "Transfer",
 				schemaVersion: 1,
-				stopOnError: false,
 				version: 1,
 			},
 			templateFingerprint: "template",

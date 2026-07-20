@@ -177,7 +177,6 @@ const createReviewExecution = (
 			name: "Output",
 			version: 1,
 			blocks: [],
-			stopOnError: false,
 		},
 		templateFingerprint: "template:test",
 		review: {

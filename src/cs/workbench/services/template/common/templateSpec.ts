@@ -9,7 +9,6 @@ export type Template = {
   readonly version: number;
   readonly measurement?: TemplateMeasurementBinding;
   readonly blocks: readonly TemplateBlock[];
-  readonly stopOnError: boolean;
   readonly applicability?: TemplateApplicability;
 };
 

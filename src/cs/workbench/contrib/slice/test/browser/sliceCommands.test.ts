@@ -419,7 +419,7 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.ok(notifications.some(notification => notification.id === "slice.notification"));
 	});
 
-	test("honors stop-on-error during bulk preparation", async () => {
+	test("continues bulk preparation after an invalid resource", async () => {
 		const sliceService = new TestSliceService();
 		const firstResource = URI.file("/workspace/failed.csv");
 		const secondResource = URI.file("/workspace/not-run.csv");
@@ -437,18 +437,15 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 				},
 			}),
 			sliceService,
-			templateState: createTemplateState({
-				formState: createEmptyTemplateEditorConfig({ stopOnError: true }),
-				selectedTemplateId: null,
-			}),
+			templateState: createTemplateState({ selectedTemplateId: null }),
 		}));
 
 		await waitForMicrotasks();
 
-		assert.equal(reviewCalls, 1);
+		assert.equal(reviewCalls, 2);
 		assert.deepEqual(sliceService.skippedResources.map(entry => entry.code), [
 			"slice.reviewUnavailable",
-			"slice.stoppedAfterError",
+			"slice.reviewUnavailable",
 		]);
 	});
 
@@ -739,7 +736,6 @@ const createReviewedTemplate = (): ReviewedTemplate => {
 				target: "auto" as const,
 			},
 		}],
-		stopOnError: false,
 	};
 	const templateFingerprint = createTemplateFingerprint(template);
 	return {

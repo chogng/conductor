@@ -243,6 +243,5 @@ const createTemplate = (
   name: "Template",
   version: 1,
   blocks: [],
-  stopOnError: false,
   ...overrides,
 });

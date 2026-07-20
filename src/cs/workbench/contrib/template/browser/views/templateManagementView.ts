@@ -2,7 +2,6 @@ import { createButton } from "src/cs/base/browser/ui/button/button";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DropdownMenu } from "src/cs/base/browser/ui/dropdown/dropdown";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import type { IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
@@ -13,7 +12,6 @@ import {
   RUN_SLICE_WITH_TEMPLATE_COMMAND_ID,
   RUN_SLICE_WITH_TEMPLATE_INCREMENTAL_COMMAND_ID,
 } from "src/cs/workbench/contrib/slice/browser/sliceActions";
-import { SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID } from "src/cs/workbench/contrib/template/browser/templateCommands";
 
 export type TemplateManagementViewOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;
@@ -24,15 +22,12 @@ export type TemplateManagementViewOptions = {
 export type TemplateManagementViewState = {
   readonly canDeleteTemplate: boolean;
   readonly selectedTemplateLabel: string;
-  readonly stopOnError: boolean;
 };
 
 export class TemplateManagementView {
   public readonly element: HTMLElement;
-  private readonly disposables = new DisposableStore();
   private readonly dropdownMenu: DropdownMenu;
   private readonly dropdownLabel: HTMLElement;
-  private readonly stopSwitch: SwitchWidget;
   private readonly autoCard: HTMLElement;
 
   constructor(
@@ -127,23 +122,6 @@ export class TemplateManagementView {
     applyActions.append(applyAllButton, applyNewButton);
     this.element.append(applyActions);
 
-    const divider = document.createElement("div");
-    divider.className = "template_divider";
-    this.element.append(divider);
-
-    const togglesRow = document.createElement("div");
-    togglesRow.className = "template_toggle_rows";
-
-    this.stopSwitch = this.createToggleRow(
-      togglesRow,
-      localize("template.stopOnError", "Stop at first invalid item"),
-      (checked) => {
-        void this.options.commandService.executeCommand(SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID, checked);
-      },
-    );
-
-    this.element.append(togglesRow);
-
     this.autoCard = document.createElement("div");
     this.autoCard.className = "template_auto_card";
 
@@ -169,39 +147,13 @@ export class TemplateManagementView {
     this.dropdownLabel.textContent = state.selectedTemplateLabel;
     this.dropdownLabel.parentElement?.setAttribute("aria-label", state.selectedTemplateLabel);
 
-    this.stopSwitch.update({ checked: state.stopOnError });
     this.autoCard.style.display = state.canDeleteTemplate ? "none" : "";
   }
 
   public dispose(): void {
-    this.disposables.dispose();
     this.dropdownMenu.dispose();
     this.element.replaceChildren();
     this.element.remove();
   }
 
-  private createToggleRow(
-    container: HTMLElement,
-    labelText: string,
-    onToggle: (checked: boolean) => void,
-  ): SwitchWidget {
-    const row = document.createElement("div");
-    row.className = "template_toggle_row";
-    const title = document.createElement("div");
-    title.className = "template_toggle_title";
-    const label = document.createElement("p");
-    label.className = "template_toggle_label";
-    label.textContent = labelText;
-    title.append(label);
-    const control = document.createElement("div");
-    control.className = "template_toggle_control";
-    const toggle = this.disposables.add(new SwitchWidget({
-      checked: false,
-      onDidChangeChecked: onToggle,
-    }));
-    control.append(toggle.domNode);
-    row.append(title, control);
-    container.append(row);
-    return toggle;
-  }
 }

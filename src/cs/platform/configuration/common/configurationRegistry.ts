@@ -151,7 +151,6 @@ export type ConductorSettings = JsonRecord & {
   filesExplorerShowBadges: boolean;
   transparentChrome: boolean;
   windowCloseBehavior: string;
-  stopOnErrorDefault: boolean;
   ionIoffMethodDefault: string;
   defaultYScaleForTransfer: string;
   defaultYScaleForOutput: string;
@@ -366,7 +365,6 @@ export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   filesExplorerShowBadges: true,
   transparentChrome: true,
   windowCloseBehavior: "minimizeToTray",
-  stopOnErrorDefault: false,
   ionIoffMethodDefault: "auto",
   defaultYScaleForTransfer: "log",
   defaultYScaleForOutput: "linear",
@@ -753,11 +751,6 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
       ? next.ssShowFitLine
       : DEFAULT_CONDUCTOR_CONFIGURATION.ssShowFitLine;
 
-  const stopOnErrorDefault =
-    normalizeBoolean(
-      next.stopOnErrorDefault,
-      DEFAULT_CONDUCTOR_CONFIGURATION.stopOnErrorDefault,
-    );
   const ssIdLow = normalizePositiveNumber(
     next.ssIdLow,
     DEFAULT_CONDUCTOR_CONFIGURATION.ssIdLow,
@@ -817,7 +810,6 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     ...DEFAULT_CONDUCTOR_CONFIGURATION,
     ...next,
     language,
-    stopOnErrorDefault,
     numericDisplayMode,
     tableAutoFitColumnWidthsEnabled,
     tableTemplateVisualizationEnabled,

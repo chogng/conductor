@@ -42,7 +42,6 @@ import {
   IMPORT_TEMPLATE_COMMAND_ID,
   registerTemplateCommands,
   SELECT_TEMPLATE_COMMAND_ID,
-  SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID,
 } from "src/cs/workbench/contrib/template/browser/templateCommands";
 import {
   ITemplateViewStateService,
@@ -90,7 +89,6 @@ suite("workbench/contrib/template/test/browser/templateCommands", () => {
         EXPORT_TEMPLATE_COMMAND_ID,
         APPLY_TEMPLATE_COMMAND_ID,
         APPLY_TEMPLATE_INCREMENTAL_COMMAND_ID,
-        SET_TEMPLATE_STOP_ON_ERROR_COMMAND_ID,
       ]) {
         assert.ok(CommandsRegistry.getCommand(commandId), commandId);
       }
@@ -356,7 +354,6 @@ function createTemplate(id: string, name: string): Template {
     id,
     name,
     schemaVersion: 1,
-    stopOnError: false,
     version: 1,
   };
 }

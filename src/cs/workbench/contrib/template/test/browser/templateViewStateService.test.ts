@@ -16,7 +16,6 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
     const template = {
       ...createEmptyTemplateEditorConfig({
         name: "Transfer",
-        stopOnError: true,
       }),
       id: "template-a",
     };
@@ -32,7 +31,6 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
       selectedTemplateId: "template-a",
       formState: createEmptyTemplateEditorConfig({
         name: "Transfer",
-        stopOnError: true,
       }),
     });
     assert.equal(latestMode, "editor");
@@ -46,7 +44,6 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
     const savedTemplate = {
       ...createEmptyTemplateEditorConfig({
         name: "Transfer",
-        stopOnError: true,
       }),
       id: "template-a",
     };
@@ -59,18 +56,16 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
       selectedTemplateId: "template-a",
       formState: createEmptyTemplateEditorConfig({
         name: "Transfer",
-        stopOnError: true,
       }),
     });
     service.dispose();
   });
 
-  test("cancels template editor with fallback or stop-on-error preference", () => {
+  test("cancels template editor with fallback or an empty form", () => {
     const service = new TemplateViewStateService();
     const fallbackTemplate = {
       ...createEmptyTemplateEditorConfig({
         name: "Output",
-        stopOnError: true,
       }),
       id: "template-b",
     };
@@ -78,7 +73,6 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
     service.editTemplate(fallbackTemplate);
     service.setFormState(createEmptyTemplateEditorConfig({
       name: "Draft",
-      stopOnError: false,
     }));
     service.cancelTemplateEditor({
       fallbackTemplate,
@@ -89,19 +83,16 @@ suite("workbench/contrib/template/browser/templateViewStateService", () => {
       selectedTemplateId: "template-b",
       formState: createEmptyTemplateEditorConfig({
         name: "Output",
-        stopOnError: true,
       }),
     });
 
-    service.createTemplateDraft({ stopOnError: true });
-    service.cancelTemplateEditor({ stopOnError: true });
+    service.createTemplateDraft();
+    service.cancelTemplateEditor();
 
     assert.deepEqual(service.getState(), {
       mode: "management",
       selectedTemplateId: null,
-      formState: createEmptyTemplateEditorConfig({
-        stopOnError: true,
-      }),
+      formState: createEmptyTemplateEditorConfig(),
     });
     service.dispose();
   });

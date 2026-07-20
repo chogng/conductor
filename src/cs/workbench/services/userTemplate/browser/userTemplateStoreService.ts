@@ -320,7 +320,6 @@ const normalizeTemplate = (
     name: name || "Untitled Template",
     version,
     blocks: value.blocks as Template["blocks"],
-    stopOnError: typeof value.stopOnError === "boolean" ? value.stopOnError : false,
   } as Template;
 };
 

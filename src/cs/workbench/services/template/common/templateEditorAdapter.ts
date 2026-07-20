@@ -86,7 +86,6 @@ export const createTemplateFromEditorRecord = (
 		name: config.name || id || "Untitled Template",
 		version: normalizeTemplateVersion(record.version),
 		blocks: [block],
-		stopOnError: config.stopOnError,
 		...(readTemplateApplicability(record) ? { applicability: readTemplateApplicability(record) } : {}),
 	};
 };
@@ -97,7 +96,6 @@ export const createTemplateEditorRecordFromTemplate = (
 	const block = template.blocks[0];
 	const config = createEmptyTemplateEditorConfig({
 		name: template.name,
-		stopOnError: template.stopOnError,
 		...(block ? createTemplateEditorConfigFromBlock(block) : {}),
 	});
 
@@ -130,8 +128,7 @@ const isTemplate = (value: unknown): value is Template => {
 	return record.schemaVersion === 1 &&
 		typeof record.name === "string" &&
 		typeof record.version === "number" &&
-		Array.isArray(record.blocks) &&
-		typeof record.stopOnError === "boolean";
+		Array.isArray(record.blocks);
 };
 
 const getTemplateRowRange = (

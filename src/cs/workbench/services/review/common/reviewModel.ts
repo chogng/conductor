@@ -120,7 +120,6 @@ export type ReviewCandidateInterpretation = {
 	readonly reviewedType?: string;
 	readonly measurement?: TemplateMeasurementBinding;
 	readonly blocks: readonly ReviewCandidateBlock[];
-	readonly stopOnError: boolean;
 	readonly applicability?: ReviewCandidateApplicability;
 };
 

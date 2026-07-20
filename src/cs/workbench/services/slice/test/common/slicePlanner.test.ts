@@ -243,5 +243,4 @@ const createTemplate = (): Template => ({
 			target: "auto",
 		},
 	}],
-	stopOnError: false,
 });

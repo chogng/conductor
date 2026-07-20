@@ -759,7 +759,6 @@ const createTemplate = (
 			target: "auto",
 		},
 	}],
-	stopOnError: false,
 });
 
 const createTestReviewFactors = () => ({
