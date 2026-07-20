@@ -165,19 +165,19 @@ const waitForImportedPreview = async (page) => {
   );
 };
 
-const waitForDroppedPreview = async (page) => {
+const waitForDroppedPreview = async (page, fileName = "drop.csv") => {
   await page.waitForFunction(
-    () => {
+    (expectedFileName) => {
       const text = document.body.innerText;
       const cells = Array.from(document.querySelectorAll(".table_view_cell"))
         .map((cell) => cell.textContent?.trim() ?? "");
       return (
-        text.includes("drop.csv") &&
+        text.includes(expectedFileName) &&
         text.includes("Transfer_DB") &&
         ["DataName", "Vg", "Id", "DataValue", "-2", "1e-12"].every((value) => cells.includes(value))
       );
     },
-    undefined,
+    fileName,
     { timeout: timeoutMs },
   );
 };
@@ -321,6 +321,92 @@ const runDropImportTest = async (browser, baseUrl) => {
   }
 };
 
+const runDirectoryDropImportTest = async (browser, baseUrl) => {
+  const page = await browser.newPage();
+  page.on("pageerror", (error) => {
+    console.error(error.stack || error.message);
+  });
+
+  try {
+    await openWorkbench(page, baseUrl);
+    await getOpenFolderButton(page).waitFor({
+      timeout: timeoutMs,
+    });
+
+    await page.evaluate((csvText) => {
+      const target = document.querySelector(".file-list-viewport");
+      if (!target) {
+        throw new Error("File list viewport was not found.");
+      }
+
+      const file = new File([csvText], "directory-drop.csv", {
+        lastModified: 1,
+        type: "text/csv;charset=utf-8",
+      });
+      const fileHandle = {
+        kind: "file",
+        name: file.name,
+        getFile: async () => file,
+      };
+      const directoryHandle = {
+        kind: "directory",
+        name: "drop-folder",
+        entries: async function* entries() {
+          yield [file.name, fileHandle];
+        },
+        getDirectoryHandle: async () => {
+          throw new Error("Directory was not found.");
+        },
+        getFileHandle: async (name) => {
+          if (name === file.name) {
+            return fileHandle;
+          }
+
+          throw new Error("File was not found.");
+        },
+      };
+      directoryHandle[Symbol.asyncIterator] = directoryHandle.entries;
+      const item = {
+        getAsFile: () => null,
+        getAsFileSystemHandle: async () => directoryHandle,
+        webkitGetAsEntry: () => null,
+      };
+      let itemListReadCount = 0;
+      const dataTransfer = {
+        dropEffect: "copy",
+        effectAllowed: "all",
+        files: [],
+        get items() {
+          itemListReadCount += 1;
+          window.__directoryDropItemListReadCount = itemListReadCount;
+          return itemListReadCount === 1 ? [item] : [];
+        },
+        types: ["Files"],
+      };
+
+      for (const type of ["dragenter", "dragover", "drop"]) {
+        const event = new DragEvent(type, {
+          bubbles: true,
+          cancelable: true,
+        });
+        Object.defineProperty(event, "dataTransfer", {
+          configurable: true,
+          value: dataTransfer,
+        });
+        target.dispatchEvent(event);
+      }
+    }, dropTransferCsv);
+
+    await waitForDroppedPreview(page, "directory-drop.csv");
+    assert.equal(
+      await page.evaluate(() => window.__directoryDropItemListReadCount),
+      1,
+    );
+  } finally {
+    await page.close();
+  }
+};
+
 const runInterceptedDirectoryPickerFallbackTest = async (browser, baseUrl) => {
   const page = await browser.newPage();
   const fixture = createImportFixture();
@@ -373,6 +459,7 @@ const run = async () => {
   });
 
   try {
+    await runDirectoryDropImportTest(browser, baseUrl);
     await runDropImportTest(browser, baseUrl);
     await runDirectoryPickerImportTest(browser, baseUrl);
     await runInterceptedDirectoryPickerFallbackTest(browser, baseUrl);

@@ -397,14 +397,15 @@ const createBadgePresentation = (
   fileKey: string,
   badge: IDecorationData | null | undefined,
 ): ExplorerBadgePresentation => {
-  if (!badge) {
+  const label = String(badge?.letter ?? "").trim();
+  if (!badge || !label) {
     return null;
   }
 
   return {
     color: normalizeDecorationColor(badge.color),
     fileKey,
-    label: badge.letter ?? "",
+    label,
   };
 };
 
@@ -1018,8 +1019,8 @@ export class ExplorerViewer implements IDisposable {
       hasChartData: nextFile.hasChartData,
     };
     if (
-      canRequestThumbnailPreviewForProps(previousPreviewState, previousProps) !==
-        canRequestThumbnailPreviewForProps(nextPreviewState, nextProps)
+      canRequestThumbnailPreview(previousPreviewState) !==
+        canRequestThumbnailPreview(nextPreviewState)
     ) {
       return true;
     }
@@ -2283,9 +2284,8 @@ export class ExplorerViewer implements IDisposable {
     }
 
     const fileEntry = this.getExplorerFileEntryByFileId(fileId);
-    if (!canRequestThumbnailPreviewForProps(
+    if (!canRequestThumbnailPreview(
       getFileItemChartPreviewState(item, fileEntry),
-      this.props,
     )) {
       return null;
     }
@@ -3162,26 +3162,6 @@ function canRequestThumbnailPreview(state: FileItemChartPreviewState | null): bo
   }
 
   return true;
-}
-
-function canRequestThumbnailPreviewForProps(
-  state: FileItemChartPreviewState | null,
-  props: Pick<ExplorerViewerProps, "files" | "mode">,
-): boolean {
-  if (canRequestThumbnailPreview(state)) {
-    return true;
-  }
-
-  return props.mode === "chart" &&
-    hasPendingChartPreviewWork(props.files) &&
-    state?.chartState !== "failed" &&
-    state?.chartState !== "skipped";
-}
-
-function hasPendingChartPreviewWork(files: readonly ExplorerFileEntry[]): boolean {
-  return files.some(file =>
-    file.chartState === "queued" ||
-    file.chartState === "processing");
 }
 
 function isSameHoverContent(

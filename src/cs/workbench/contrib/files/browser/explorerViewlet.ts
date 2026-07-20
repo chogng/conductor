@@ -531,7 +531,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
   };
 
   private readonly handleDropFiles = (dataTransfer: DataTransfer | null): void => {
-    this.sourceWorkflow.importDroppedFiles(dataTransfer);
+    void this.sourceWorkflow.importDroppedFiles(dataTransfer);
   };
 
   private readonly handleOpenFolderDialog = (): void => {

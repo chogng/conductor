@@ -227,7 +227,25 @@ pub fn resolve_structured_content(path: &Path) -> Result<Value, String> {
 
 fn resolve_delimited_content(path: &Path, delimiter: u8) -> Result<Value, String> {
     let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
-    let text = decode_delimited_text(&bytes)?;
+    Ok(resolve_delimited_bytes(&bytes, delimiter))
+}
+
+fn resolve_delimited_bytes(bytes: &[u8], delimiter: u8) -> Value {
+    let text = match decode_delimited_text(bytes) {
+        Ok(text) => text,
+        Err(message) => {
+            return json!({
+                "content": Value::Null,
+                "defaultSheetId": Value::Null,
+                "diagnostics": [{
+                    "code": "table.reader.decodeFailed",
+                    "message": message,
+                    "severity": "fatal",
+                }],
+                "sheets": [],
+            });
+        }
+    };
     let (rows, diagnostics) = parse_delimited_rows(&text, delimiter as char);
     let content = if text.chars().any(|character| !character.is_whitespace()) {
         Some(build_content(rows))
@@ -244,12 +262,12 @@ fn resolve_delimited_content(path: &Path, delimiter: u8) -> Result<Value, String
         diagnostics
     };
 
-    Ok(json!({
+    json!({
         "content": content,
         "defaultSheetId": "0",
         "diagnostics": diagnostics,
         "sheets": [],
-    }))
+    })
 }
 
 fn resolve_workbook_content(path: &Path, extension: &str) -> Result<Value, String> {
@@ -552,6 +570,18 @@ fn parse_finite_number(raw_value: &str) -> Option<f64> {
 }
 
 fn decode_delimited_text(bytes: &[u8]) -> Result<String, String> {
+    if is_zip_file_prefix(bytes) {
+        return Err(
+            "The table file contains ZIP binary data and cannot be decoded as CSV or TSV text."
+                .to_string(),
+        );
+    }
+    if bytes.contains(&0) {
+        return Err(
+            "The table file contains binary data and cannot be decoded as CSV or TSV text."
+                .to_string(),
+        );
+    }
     if let Ok(text) = std::str::from_utf8(bytes) {
         return Ok(text.to_string());
     }
@@ -560,6 +590,12 @@ fn decode_delimited_text(bytes: &[u8]) -> Result<String, String> {
         return Err("Text encoding or table structure is not reliable.".to_string());
     }
     Ok(decoded.into_owned())
+}
+
+fn is_zip_file_prefix(bytes: &[u8]) -> bool {
+    bytes.starts_with(&[0x50, 0x4b, 0x03, 0x04])
+        || bytes.starts_with(&[0x50, 0x4b, 0x05, 0x06])
+        || bytes.starts_with(&[0x50, 0x4b, 0x07, 0x08])
 }
 
 fn parse_delimited_rows(text: &str, delimiter: char) -> (Vec<Vec<String>>, Vec<Value>) {
@@ -747,6 +783,36 @@ mod tests {
         assert!(diagnostics.is_empty());
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[2], vec!["".to_string()]);
+    }
+
+    #[test]
+    fn reports_zip_binary_disguised_as_csv_as_a_fatal_decode_diagnostic() {
+        let result =
+            resolve_delimited_bytes(&[0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00], b',');
+
+        assert!(result["content"].is_null());
+        assert!(result["defaultSheetId"].is_null());
+        assert_eq!(
+            result["diagnostics"][0]["code"],
+            "table.reader.decodeFailed"
+        );
+        assert_eq!(result["diagnostics"][0]["severity"], "fatal");
+        assert_eq!(
+            result["diagnostics"][0]["message"],
+            "The table file contains ZIP binary data and cannot be decoded as CSV or TSV text."
+        );
+    }
+
+    #[test]
+    fn reports_nul_binary_csv_content_as_a_fatal_decode_diagnostic() {
+        let result = resolve_delimited_bytes(b"Vg,\0Id\n0,1", b',');
+
+        assert!(result["content"].is_null());
+        assert_eq!(
+            result["diagnostics"][0]["code"],
+            "table.reader.decodeFailed"
+        );
+        assert_eq!(result["diagnostics"][0]["severity"], "fatal");
     }
 
     #[test]

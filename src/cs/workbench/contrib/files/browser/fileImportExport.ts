@@ -384,8 +384,12 @@ export class FileSourceWorkflow implements IDisposable {
     }
   }
 
-  public importDroppedFiles(dataTransfer: DataTransfer | null): void {
-    void this.doImportDroppedFiles(dataTransfer);
+  public importDroppedFiles(dataTransfer: DataTransfer | null): Promise<void> {
+    this.options.onDraggingChange(false);
+    const snapshot = dataTransfer
+      ? snapshotDroppedDataTransfer(dataTransfer)
+      : null;
+    return this.runImportTask(runId => this.doImportDroppedFiles(runId, snapshot));
   }
 
   public openFolderDialog(): void {
@@ -405,10 +409,12 @@ export class FileSourceWorkflow implements IDisposable {
     });
   }
 
-  private handleSelectFiles(collection: DroppedFileCollection): void {
+  private async handleSelectFiles(
+    runId: number,
+    collection: DroppedFileCollection,
+  ): Promise<void> {
     const selectedFiles = collection.sources;
     this.clearImportedFolderWatch();
-    this.options.onDraggingChange(false);
     if (selectedFiles.length === 0) {
       this.showImportError(buildImportErrorMessage({
         failedFiles: [],
@@ -419,21 +425,33 @@ export class FileSourceWorkflow implements IDisposable {
       return;
     }
 
-    void this.importFiles(selectedFiles, {
+    await this.doImportFiles(runId, selectedFiles, {
       readFailures: collection.readFailures,
     });
   }
 
-  private async doImportDroppedFiles(dataTransfer: DataTransfer | null): Promise<void> {
-    if (!dataTransfer) {
-      this.handleSelectFiles({
-        readFailures: [],
-        sources: [],
-      });
+  private async doImportDroppedFiles(
+    runId: number,
+    snapshot: DroppedDataTransferSnapshot | null,
+  ): Promise<void> {
+    const canApplyResult = (): boolean =>
+      !this.options.isDisposed() && runId === this.importRunId;
+    const collection = snapshot
+      ? await collectDroppedFilesFromSnapshot(
+          snapshot,
+          this.options.filesService,
+          getPathForFile,
+          { shouldContinue: canApplyResult },
+        )
+      : {
+          readFailures: [],
+          sources: [],
+        };
+    if (!canApplyResult()) {
       return;
     }
 
-    this.handleSelectFiles(await collectDroppedFiles(dataTransfer, this.options.filesService));
+    await this.handleSelectFiles(runId, collection);
   }
 
   private async doOpenFolderDialog(): Promise<void> {
@@ -998,21 +1016,19 @@ export class FileSourceWorkflow implements IDisposable {
   private async runImportTask<R>(
     task: (runId: number) => Promise<R>,
   ): Promise<R> {
-    return await this.options.progressService.withProgress(
-      {
-        delay: 800,
-        location: ProgressLocation.Window,
-        title: localize("files.import.progress", "Importing Files"),
-      },
-      async () => {
-        const runId = this.startImportRun();
-        try {
-          return await task(runId);
-        } finally {
-          this.finishImportRun(runId);
-        }
-      },
-    );
+    const runId = this.startImportRun();
+    try {
+      return await this.options.progressService.withProgress(
+        {
+          delay: 800,
+          location: ProgressLocation.Window,
+          title: localize("files.import.progress", "Importing Files"),
+        },
+        async () => await task(runId),
+      );
+    } finally {
+      this.finishImportRun(runId);
+    }
   }
 
   private logImportDiagnostics(
@@ -2012,6 +2028,17 @@ type DroppedDataTransferItem = {
   readonly file: File | null;
 };
 
+type DroppedDataTransferSnapshot = {
+  readonly files: readonly File[];
+  readonly items: readonly DroppedDataTransferItem[];
+  readonly transferredHandles: Promise<readonly FileSystemHandle[]>;
+};
+
+type DroppedFileCollectionOptions = Pick<
+  CollectFolderImportFilesOptions,
+  "shouldContinue"
+>;
+
 const isAbsoluteFilePath = (filePath: string): boolean => {
   if (isWindows) {
     return /^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith("\\\\");
@@ -2067,40 +2094,55 @@ export const collectDroppedFiles = async (
   filesService: IFileService,
   resolveFilePath: (file: File) => string | undefined = getPathForFile,
 ): Promise<DroppedFileCollection> => {
-  const startedAt = getPerfNow();
-  const files = Array.from(dataTransfer.files);
-  const items = Array.from(dataTransfer.items) as DataTransferItemWithWebkitEntry[];
-  const droppedItems = items.map(snapshotDroppedDataTransferItem);
-  const nativeCollection = await collectNativeDroppedFiles(
-    files,
+  return collectDroppedFilesFromSnapshot(
+    snapshotDroppedDataTransfer(dataTransfer),
     filesService,
     resolveFilePath,
+    {},
   );
-  const transferredHandles = await extractFileSystemHandles(dataTransfer.items);
+};
+
+async function collectDroppedFilesFromSnapshot(
+  snapshot: DroppedDataTransferSnapshot,
+  filesService: IFileService,
+  resolveFilePath: (file: File) => string | undefined,
+  options: DroppedFileCollectionOptions,
+): Promise<DroppedFileCollection> {
+  const startedAt = getPerfNow();
+  const nativeCollection = await collectNativeDroppedFiles(
+    snapshot.files,
+    filesService,
+    resolveFilePath,
+    options,
+  );
+  const transferredHandles = await snapshot.transferredHandles;
   const transferredCollection = transferredHandles.length > 0
-    ? await collectTransferredHandles(transferredHandles, filesService)
+    ? await collectTransferredHandles(transferredHandles, filesService, options)
     : null;
   const isHandledNativeFile = (file: File): boolean =>
     nativeCollection.handledFiles.has(file);
   const shouldCollectBrowserSources =
     Boolean(transferredCollection) ||
-    files.some(file => !isHandledNativeFile(file)) ||
-    droppedItems.some((item, index) => {
+    snapshot.files.some(file => !isHandledNativeFile(file)) ||
+    snapshot.items.some((item, index) => {
       const itemFile = item.file ?? (
-        droppedItems.length === files.length ? files[index] : null
+        snapshot.items.length === snapshot.files.length
+          ? snapshot.files[index]
+          : null
       );
       return !itemFile || !isHandledNativeFile(itemFile);
     });
-  const browserSources = shouldCollectBrowserSources
+  const browserSources = shouldCollectBrowserSources && shouldContinueCollecting(options)
     ? transferredCollection?.sources ?? await collectBrowserDroppedFiles(
-        files,
-        droppedItems,
+        snapshot.files,
+        snapshot.items,
         resolveFilePath,
         isHandledNativeFile,
+        options,
       )
     : [];
   const sources = mergeDroppedFileSources(nativeCollection.sources, browserSources);
-  markDroppedFilesCollected(startedAt, dataTransfer, sources);
+  markDroppedFilesCollected(startedAt, snapshot, sources);
 
   return {
     readFailures: [
@@ -2109,11 +2151,12 @@ export const collectDroppedFiles = async (
     ],
     sources,
   };
-};
+}
 
 async function collectTransferredHandles(
   handles: readonly FileSystemHandle[],
   filesService: IFileService,
+  options: DroppedFileCollectionOptions,
 ): Promise<DroppedFileCollection | null> {
   const provider = filesService.getProvider("file");
   if (!(provider instanceof HTMLFileSystemProvider)) {
@@ -2124,10 +2167,18 @@ async function collectTransferredHandles(
   const readFailures: FolderFileReadFailure[] = [];
 
   for (const handle of handles) {
+    if (!shouldContinueCollecting(options)) {
+      break;
+    }
+
     if (WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
       try {
         const resource = await provider.registerDirectoryHandle(handle);
-        const folder = await collectFolderImportFiles(resource, filesService);
+        const folder = await collectFolderImportFiles(
+          resource,
+          filesService,
+          options,
+        );
         sources.push(...folder.files);
         readFailures.push(...folder.readFailures);
       } catch (error) {
@@ -2179,10 +2230,15 @@ const collectBrowserDroppedFiles = async (
   droppedItems: readonly DroppedDataTransferItem[],
   resolveFilePath: (file: File) => string | undefined,
   isHandledNativeFile: (file: File) => boolean,
+  options: DroppedFileCollectionOptions,
 ): Promise<FileSource[]> => {
   const droppedFiles: DroppedFile[] = [];
 
   for (let index = 0; index < droppedItems.length; index += 1) {
+    if (!shouldContinueCollecting(options)) {
+      break;
+    }
+
     const item = droppedItems[index];
     if (!item) {
       continue;
@@ -2196,7 +2252,7 @@ const collectBrowserDroppedFiles = async (
     }
 
     if (item.entry) {
-      await collectWebkitEntryFiles(item.entry, droppedFiles);
+      await collectWebkitEntryFiles(item.entry, droppedFiles, "", options);
       continue;
     }
 
@@ -2220,6 +2276,10 @@ const collectBrowserDroppedFiles = async (
     getDroppedFileKey(file, relativePath)
   ));
   for (const file of files) {
+    if (!shouldContinueCollecting(options)) {
+      break;
+    }
+
     if (isHandledNativeFile(file)) {
       continue;
     }
@@ -2265,6 +2325,7 @@ const collectNativeDroppedFiles = async (
   files: readonly File[],
   filesService: IFileService,
   resolveFilePath: (file: File) => string | undefined,
+  options: DroppedFileCollectionOptions,
 ): Promise<NativeDroppedFileCollection> => {
   const nativeFiles = files.flatMap(file => {
     const resource = resolveNativeDroppedFileResource(file, resolveFilePath);
@@ -2306,7 +2367,11 @@ const collectNativeDroppedFiles = async (
     NATIVE_DROP_FOLDER_SCAN_CONCURRENCY,
     async ({ index, nativeFile }) => ({
       index,
-      result: await collectNativeDroppedFolder(nativeFile, filesService),
+      result: await collectNativeDroppedFolder(
+        nativeFile,
+        filesService,
+        options,
+      ),
     }),
   );
   for (const { index, result } of folderResults) {
@@ -2327,9 +2392,14 @@ const collectNativeDroppedFiles = async (
 const collectNativeDroppedFolder = async (
   { file, resource }: ResolvedNativeDroppedFile,
   filesService: IFileService,
+  options: DroppedFileCollectionOptions,
 ): Promise<NativeDroppedFileResult> => {
   try {
-    const folder = await collectFolderImportFiles(resource, filesService);
+    const folder = await collectFolderImportFiles(
+      resource,
+      filesService,
+      options,
+    );
     return {
       handled: true,
       readFailures: folder.readFailures,
@@ -2441,13 +2511,13 @@ const getFileSourceKey = (source: FileSource): string =>
 
 const markDroppedFilesCollected = (
   startedAt: number,
-  dataTransfer: DataTransfer,
+  snapshot: DroppedDataTransferSnapshot,
   sources: readonly FileSource[],
 ): void => {
   markTemplateApplyPerformanceTrace("import.drop.collected", {
-    dataTransferFileCount: dataTransfer.files.length,
+    dataTransferFileCount: snapshot.files.length,
     durationMs: getPerfNow() - startedAt,
-    itemCount: dataTransfer.items.length,
+    itemCount: snapshot.items.length,
     sourceCount: sources.length,
     totalSizeBytes: sources.reduce((sum, source) => sum + getFileSourceSize(source), 0),
   });
@@ -2469,11 +2539,30 @@ function snapshotDroppedDataTransferItem(
   };
 }
 
+function snapshotDroppedDataTransfer(
+  dataTransfer: DataTransfer,
+): DroppedDataTransferSnapshot {
+  const files = Array.from(dataTransfer.files);
+  const items = Array.from(
+    dataTransfer.items,
+  ) as DataTransferItemWithWebkitEntry[];
+  return {
+    files,
+    items: items.map(snapshotDroppedDataTransferItem),
+    transferredHandles: extractFileSystemHandles(items),
+  };
+}
+
 async function collectWebkitEntryFiles(
   entry: WebkitFileSystemEntry,
   files: DroppedFile[],
   parentPath = "",
+  options: DroppedFileCollectionOptions = {},
 ): Promise<void> {
+  if (!shouldContinueCollecting(options)) {
+    return;
+  }
+
   const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
 
   if (entry.isFile) {
@@ -2495,8 +2584,11 @@ async function collectWebkitEntryFiles(
     return;
   }
 
-  for (const child of await readAllWebkitDirectoryEntries(entry as WebkitFileSystemDirectoryEntry)) {
-    await collectWebkitEntryFiles(child, files, relativePath);
+  for (const child of await readAllWebkitDirectoryEntries(
+    entry as WebkitFileSystemDirectoryEntry,
+    options,
+  )) {
+    await collectWebkitEntryFiles(child, files, relativePath, options);
   }
 }
 
@@ -2517,11 +2609,16 @@ function tryReadWebkitEntryFile(
 
 async function readAllWebkitDirectoryEntries(
   entry: WebkitFileSystemDirectoryEntry,
+  options: DroppedFileCollectionOptions,
 ): Promise<WebkitFileSystemEntry[]> {
   const reader = entry.createReader();
   const collected: WebkitFileSystemEntry[] = [];
 
   while (true) {
+    if (!shouldContinueCollecting(options)) {
+      break;
+    }
+
     const batch = await new Promise<WebkitFileSystemEntry[]>((resolve) => {
       try {
         reader.readEntries(resolve, () => resolve([]));
@@ -2600,8 +2697,9 @@ export async function collectFolderFiles(
 export async function collectFolderImportFiles(
   folder: URI,
   filesService: IFileService,
+  options: CollectFolderImportFilesOptions = {},
 ): Promise<FolderFileCollection> {
-  return collectFolderImportFilesIncrementally(folder, filesService);
+  return collectFolderImportFilesIncrementally(folder, filesService, options);
 }
 
 export async function collectFolderImportFilesIncrementally(

@@ -28,7 +28,7 @@ export function getPathForFile(file: File): string | undefined {
 }
 
 export async function extractFileSystemHandles(
-  items: DataTransferItemList,
+  items: DataTransferItemList | readonly DataTransferItem[],
 ): Promise<FileSystemHandle[]> {
   const results = await Promise.all(
     Array.from(items, async item => {

@@ -60,7 +60,7 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 			},
 		);
 
-		assert.equal(
+		assert.deepEqual(
 			createExplorerDecorationDataFromReviewSummary({
 				resource,
 				sheetId: "table-a",
@@ -87,6 +87,21 @@ suite("workbench/contrib/files/browser/views/explorerDecorationsProvider", () =>
 				color: "charts.red",
 				letter: "!",
 				tooltip: "Review invalid.",
+			},
+		);
+
+		assert.deepEqual(
+			createExplorerDecorationDataFromReviewSummary({
+				resource,
+				sheetId: "table-a",
+				state: "invalid",
+				findingCodes: ["review.parserFatalDiagnostic"],
+				message: "Quoted field unterminated.",
+			}),
+			{
+				color: "charts.red",
+				letter: "!",
+				tooltip: "Quoted field unterminated.",
 			},
 		);
 	});

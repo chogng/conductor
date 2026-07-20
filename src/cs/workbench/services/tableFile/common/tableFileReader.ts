@@ -26,6 +26,7 @@ import {
 } from "src/cs/workbench/services/table/common/tableFormatRegistry";
 import {
 	decodeTableFileContent,
+	decodeTableFileTextChunks,
 	getTableFileMimeType,
 	getTableFileReadMode,
 	type TableFileReadMode,
@@ -107,14 +108,29 @@ export const readTableFile = async (
 				resource,
 				stat,
 			});
+			let buffer: TableReadBuffer;
+			try {
+				buffer = isDelimitedTableFormat(format)
+					? createTableTextChunkBuffer(
+						decodeTableFileTextChunks(chunks),
+						"utf8",
+					)
+					: createTableByteChunkBuffer(chunks);
+			} catch (error) {
+				throw createReadDiagnosticError({
+					format,
+					message: getErrorMessage(error, "The table file content could not be decoded."),
+					resource,
+					stat,
+				});
+			}
 			endReadPerf({
+				bufferKind: buffer.kind,
 				chunkCount: chunks.length,
 				success: true,
 			});
 			return {
-				buffer: isDelimitedTableFormat(format)
-					? createTableTextChunkBuffer(chunks, "utf8")
-					: createTableByteChunkBuffer(chunks),
+				buffer,
 				format,
 				mime: getTableFileMimeType(format),
 				resource,

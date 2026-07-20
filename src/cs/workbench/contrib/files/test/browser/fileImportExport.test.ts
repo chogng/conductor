@@ -536,6 +536,34 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(result.length, 1);
   });
 
+  test("collectDroppedFiles snapshots handles before the live item list is invalidated", async () => {
+    const file = createCsvFile("transfer.csv", "Vg,Id\n0,1");
+    const item = {
+      getAsFileSystemHandle: async () => createStableFileHandle(file),
+    };
+    let itemListReadCount = 0;
+    const dataTransfer = {
+      files: [],
+      get items(): readonly TestDataTransferItem[] {
+        itemListReadCount += 1;
+        return itemListReadCount === 1 ? [item] : [];
+      },
+    } as unknown as DataTransfer;
+
+    const { sources } = await collectDroppedFiles(
+      dataTransfer,
+      browserFilesService,
+    );
+
+    assert.deepEqual({
+      itemListReadCount,
+      relativePaths: sources.map(source => source.relativePath),
+    }, {
+      itemListReadCount: 1,
+      relativePaths: ["transfer.csv"],
+    });
+  });
+
   test("collectDroppedFiles preserves dropped directory relative paths", async () => {
     const { sources: result } = await collectDroppedFiles(createDataTransfer({
       files: [],
@@ -1028,6 +1056,120 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     }]);
     assert.deepEqual(replacedFileNames, []);
     workflow.dispose();
+  });
+
+  test("dropped directory collection stays inside the import lifetime", async () => {
+    const appendedFileNames: string[] = [];
+    const importingStates: boolean[] = [];
+    let resolveHandle = (_handle: FileSystemHandle | null): void => {
+      throw new Error("Dropped handle resolver was not initialized.");
+    };
+    const workflow = new FileSourceWorkflow({
+      commandService: {
+        executeCommand: async <R,>() => undefined as R | undefined,
+      },
+      filesService: browserFilesService,
+      getFiles: () => [],
+      getSelectedRelativePath: () => null,
+      isDisposed: () => false,
+      notificationService,
+      progressService: createProgressServiceForTest(),
+      uriIdentityService: store.add(new UriIdentityService(browserFilesService)),
+      onAppendExplorerFiles: entries => {
+        appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
+      },
+      onDraggingChange: () => undefined,
+      onImportingSourcesChange: isImportingSources => {
+        importingStates.push(isImportingSources);
+      },
+      onRemoveSourceItems: () => undefined,
+      onReplaceExplorerFiles: () => undefined,
+      syncView: () => undefined,
+    });
+    const importPromise = workflow.importDroppedFiles(createDataTransfer({
+      files: [],
+      items: [{
+        getAsFileSystemHandle: () => new Promise(resolve => {
+          resolveHandle = resolve;
+        }),
+      }],
+    }));
+
+    assert.deepEqual(importingStates, [true]);
+    resolveHandle(createDirectoryHandle({
+      children: [createFileHandle("A.csv", "Vg,Id\n0,1")],
+      name: "folder",
+    }));
+    await importPromise;
+
+    try {
+      assert.deepEqual({
+        appendedFileNames,
+        importingStates,
+      }, {
+        appendedFileNames: ["A.csv"],
+        importingStates: [true, false],
+      });
+    } finally {
+      workflow.dispose();
+    }
+  });
+
+  test("closing imported sources cancels dropped directory collection", async () => {
+    const appendedFileNames: string[] = [];
+    const importingStates: boolean[] = [];
+    let resolveHandle = (_handle: FileSystemHandle | null): void => {
+      throw new Error("Dropped handle resolver was not initialized.");
+    };
+    const workflow = new FileSourceWorkflow({
+      commandService: {
+        executeCommand: async <R,>() => undefined as R | undefined,
+      },
+      filesService: browserFilesService,
+      getFiles: () => [],
+      getSelectedRelativePath: () => null,
+      isDisposed: () => false,
+      notificationService,
+      progressService: createProgressServiceForTest(),
+      uriIdentityService: store.add(new UriIdentityService(browserFilesService)),
+      onAppendExplorerFiles: entries => {
+        appendedFileNames.push(...entries.map(file => file.fileName ?? ""));
+      },
+      onDraggingChange: () => undefined,
+      onImportingSourcesChange: isImportingSources => {
+        importingStates.push(isImportingSources);
+      },
+      onRemoveSourceItems: () => undefined,
+      onReplaceExplorerFiles: () => undefined,
+      syncView: () => undefined,
+    });
+    const importPromise = workflow.importDroppedFiles(createDataTransfer({
+      files: [],
+      items: [{
+        getAsFileSystemHandle: () => new Promise(resolve => {
+          resolveHandle = resolve;
+        }),
+      }],
+    }));
+
+    workflow.closeImportedSources();
+    resolveHandle(createDirectoryHandle({
+      children: [createFileHandle("A.csv", "Vg,Id\n0,1")],
+      name: "folder",
+    }));
+    await importPromise;
+
+    try {
+      assert.deepEqual({
+        appendedFileNames,
+        importingStates,
+      }, {
+        appendedFileNames: [],
+        importingStates: [true, false],
+      });
+    } finally {
+      workflow.dispose();
+    }
   });
 
   test("closing imported sources prevents delayed Explorer files from appending", async () => {

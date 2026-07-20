@@ -22,6 +22,7 @@ import {
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
 	readTableFile,
+	TableFileReadDiagnosticError,
 } from "src/cs/workbench/services/tableFile/common/tableFileReader";
 import {
 	readTableByteBuffer,
@@ -98,6 +99,122 @@ suite("workbench/services/tableFile/test/common/tableFileReader", () => {
 			{ position: 6, length: 6 },
 			{ position: 12, length: 3 },
 		]);
+	});
+
+	test("decodes UTF-8 characters split across text chunks", async () => {
+		const content = "Name,Value\n测试,😀";
+		const fileService = new TestFileService(content);
+		const resource = URI.file("/workspace/unicode.csv");
+
+		const result = await readTableFile(resource, fileService, {
+			chunkSizeBytes: 1,
+		});
+
+		assert.equal(result.buffer.kind, "text");
+		if (result.buffer.kind !== "text") {
+			assert.fail("Expected a text table buffer.");
+		}
+		assert.equal(await readTableTextBuffer(result.buffer), content);
+	});
+
+	test("decodes GB18030 text files", async () => {
+		const fileService = new TestFileService(new Uint8Array([
+			0x4e, 0x61, 0x6d, 0x65, 0x0a,
+			0xb2, 0xe2, 0xca, 0xd4,
+		]));
+		const resource = URI.file("/workspace/gb18030.csv");
+
+		const result = await readTableFile(resource, fileService);
+
+		assert.equal(result.buffer.kind, "text");
+		if (result.buffer.kind !== "text") {
+			assert.fail("Expected a text table buffer.");
+		}
+		assert.equal(await readTableTextBuffer(result.buffer), "Name\n测试");
+	});
+
+	test("rejects ZIP binary content disguised as a chunked CSV file", async () => {
+		const fileService = new TestFileService(new Uint8Array([
+			0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00,
+		]));
+		const resource = URI.file("/workspace/workbook.csv");
+
+		await assert.rejects(
+			() => readTableFile(resource, fileService, { chunkSizeBytes: 2 }),
+			error => {
+				assert.deepEqual(
+					error instanceof TableFileReadDiagnosticError
+						? {
+							code: error.diagnostic.code,
+							message: error.diagnostic.message,
+							severity: error.diagnostic.severity,
+						}
+						: error,
+					{
+						code: "table.reader.decodeFailed",
+						message: "The table file contains ZIP binary data and cannot be decoded as CSV or TSV text.",
+						severity: "fatal",
+					},
+				);
+				return true;
+			},
+		);
+	});
+
+	test("rejects ZIP binary content disguised as a CSV file", async () => {
+		const fileService = new TestFileService(new Uint8Array([
+			0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00,
+		]));
+		const resource = URI.file("/workspace/workbook.csv");
+
+		await assert.rejects(
+			() => readTableFile(resource, fileService),
+			error => {
+				assert.deepEqual(
+					error instanceof TableFileReadDiagnosticError
+						? {
+							code: error.diagnostic.code,
+							message: error.diagnostic.message,
+							severity: error.diagnostic.severity,
+						}
+						: error,
+					{
+						code: "table.reader.decodeFailed",
+						message: "The table file contains ZIP binary data and cannot be decoded as CSV or TSV text.",
+						severity: "fatal",
+					},
+				);
+				return true;
+			},
+		);
+	});
+
+	test("rejects invalid UTF-8 content before CSV parsing", async () => {
+		const fileService = new TestFileService(new Uint8Array([
+			0x56, 0x67, 0x2c, 0xff,
+		]));
+		const resource = URI.file("/workspace/invalid.csv");
+
+		await assert.rejects(
+			() => readTableFile(resource, fileService),
+			error => {
+				assert.deepEqual(
+					error instanceof TableFileReadDiagnosticError
+						? {
+							code: error.diagnostic.code,
+							message: error.diagnostic.message,
+							severity: error.diagnostic.severity,
+						}
+						: error,
+					{
+						code: "table.reader.decodeFailed",
+						message: "The table file is not valid UTF-8 or GB18030 text.",
+						severity: "fatal",
+					},
+				);
+				return true;
+			},
+		);
 	});
 
 	test("reads large workbook resources as table byte chunks", async () => {

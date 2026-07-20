@@ -551,6 +551,19 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 
       assert.deepEqual(rerenderedKeys, []);
       assert.equal(badge.dataset.color, "green");
+
+      decoration = {
+        color: "red",
+        tooltip: "Decode failed",
+      };
+      decorationChanged.fire({
+        affectsResource: () => true,
+      });
+
+      assert.deepEqual(rerenderedKeys, []);
+      assert.equal(badge.hidden, true);
+      assert.equal(badge.textContent, "");
+      assert.equal(badge.dataset.color, undefined);
     } finally {
       viewer.dispose();
       decorationChanged.dispose();
@@ -838,6 +851,69 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.equal(requestCount, 0);
       assert.equal(contextViewService.delegate, undefined);
       assert.equal(contextViewService.renderedElement, undefined);
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
+  test("does not inherit hover loading from another processing chart file", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const contextViewService = new TestContextViewService();
+    let requestCount = 0;
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = createViewer(host, hoverHost, {
+      ...createViewerProps(),
+      files: [{
+        chartState: "ready",
+        fileId: "file-a",
+        fileName: "A.csv",
+        hasChartData: false,
+        itemKey: "file-a",
+        resource: URI.file("/data/A.csv"),
+      }, {
+        chartState: "processing",
+        fileId: "file-b",
+        fileName: "B.csv",
+        itemKey: "file-b",
+        resource: URI.file("/data/B.csv"),
+      }],
+      mode: "chart",
+      thumbnailPreviewService: {
+        _serviceBrand: undefined,
+        get: () => ({ kind: "idle" }),
+        invalidate: () => undefined,
+        onDidChangePreview: NoThumbnailPreviewEvent,
+        prefetch: () => undefined,
+        request: () => {
+          requestCount += 1;
+          return { kind: "loading" };
+        },
+      },
+      thumbnailService: createThumbnailService(),
+      viewLayout: "tree",
+    }, labels, contextViewService);
+
+    try {
+      const item = host.querySelector<HTMLElement>(".file-list-item");
+      assert.ok(item);
+      item.dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: null,
+      }));
+
+      assert.deepEqual({
+        hasHover: Boolean(contextViewService.delegate),
+        requestCount,
+      }, {
+        hasHover: false,
+        requestCount: 0,
+      });
     } finally {
       viewer.dispose();
       labels.dispose();
