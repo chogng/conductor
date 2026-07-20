@@ -341,7 +341,7 @@ const createOriginExportToolbar = ({
   ));
 
   toolbar.appendChild(createField(
-    localize("origin.canvasScope.label", "Scope"),
+    localize("origin.canvasScope.label", "Export files"),
     createDropdown<OriginCanvasExportScope>({
       id: "analysis-origin-canvas-scope-select",
       store,
