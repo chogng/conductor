@@ -35,6 +35,44 @@ type TestTableWidget = TableWidget<TestBodyTemplateData, HTMLElement>;
 suite("base/test/browser/ui/table/tableWidget", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test("keeps the header outside the scroll viewport and synchronizes horizontal scroll", () => {
+		const { listener, widget } = createResizableTableWidget();
+		try {
+			const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+			const headerViewport = widget.element.querySelector<HTMLElement>(".table_view_header_viewport");
+			const header = widget.element.querySelector<HTMLElement>(".table_view_grid_header_content");
+			assert.ok(viewport);
+			assert.ok(headerViewport);
+			assert.ok(header);
+			assert.equal(viewport.contains(header), false);
+			assert.equal(headerViewport.contains(header), true);
+			setElementClientSize(headerViewport, 500, 28);
+			Object.defineProperty(viewport, "scrollWidth", { configurable: true, value: 1200 });
+			let bodyScrollLeft = 0;
+			Object.defineProperty(viewport, "scrollLeft", {
+				configurable: true,
+				get: () => bodyScrollLeft,
+				set: value => {
+					bodyScrollLeft = value;
+				},
+			});
+			let headerScrollLeft = 0;
+			Object.defineProperty(headerViewport, "scrollLeft", {
+				configurable: true,
+				get: () => headerScrollLeft,
+				set: value => {
+					headerScrollLeft = value;
+				},
+			});
+
+			assert.equal(widget.scrollHorizontally(120), true);
+			assert.equal(headerViewport.scrollLeft, 120);
+		} finally {
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
 	test("commits column resize once by default", () => {
 		const { events, listener, widget } = createResizableTableWidget();
 		try {

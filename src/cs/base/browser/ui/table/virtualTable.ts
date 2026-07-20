@@ -206,6 +206,7 @@ type VirtualTableClassNames = {
 	readonly headerContent: string;
 	readonly headerCorner: string;
 	readonly headerSpacer: string;
+	readonly headerViewport: string;
 	readonly root: string;
 	readonly rowHeaderCol: string;
 	readonly rowHeaderCell: string;
@@ -231,6 +232,7 @@ const VIRTUAL_TABLE_CLASS_NAMES: VirtualTableClassNames = {
 	headerContent: "table_view_grid_header_content",
 	headerCorner: "table_view_grid_header_corner",
 	headerSpacer: "table_view_grid_header_spacer",
+	headerViewport: "table_view_header_viewport",
 	root: "table_view",
 	rowHeaderCol: "table_view_row_header_col",
 	rowHeaderCell: "table_view_row_header_cell",
@@ -707,6 +709,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 	public readonly content: HTMLDivElement;
 	public readonly header: HTMLTableSectionElement;
 	public readonly headerContent: HTMLTableRowElement;
+	public readonly headerViewport: HTMLDivElement;
 	public readonly viewport: HTMLElement;
 	public readonly onDidChangeVisibleRange: Event<VirtualTableVisibleRangeChangeEvent>;
 	public readonly onDidScroll: Event<VirtualTableScrollEvent>;
@@ -725,14 +728,20 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 	private readonly onDidChangeVisibleRangeEmitter = this.disposables.add(new Emitter<VirtualTableVisibleRangeChangeEvent>());
 	private readonly onDidScrollEmitter = this.disposables.add(new Emitter<VirtualTableScrollEvent>());
 	private readonly headerCells: VirtualTableHeaderCell<TColumnHeaderTemplateData>[] = [];
+	private readonly headerColumnGroup = document.createElement("colgroup");
+	private readonly headerDataColumns: HTMLTableColElement[] = [];
 	private readonly headerCorner: HTMLTableCellElement;
+	private readonly headerLeadingSpacerColumn = document.createElement("col");
 	private readonly headerLeadingSpacer: HTMLTableCellElement;
+	private readonly headerRowHeaderColumn = document.createElement("col");
+	private readonly headerTable = document.createElement("table");
+	private readonly headerTrailingSpacerColumn = document.createElement("col");
 	private readonly headerTrailingSpacer: HTMLTableCellElement;
 	private readonly maxRenderedColumns: number;
 	private readonly maxRenderedRows: number;
 	private readonly rowHeaderColumn = document.createElement("col");
 	private readonly scrollArea: Scrollbar;
-	private readonly table = document.createElement("table");
+	private readonly bodyTable = document.createElement("table");
 	private readonly topSpacerCell = document.createElement("td");
 	private readonly topSpacerRow = document.createElement("tr");
 	private headerColumnCount = 0;
@@ -777,6 +786,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		this.element = document.createElement("div");
 		this.body = document.createElement("div");
 		this.header = document.createElement("thead");
+		this.headerViewport = document.createElement("div");
 		this.headerCorner = document.createElement("th");
 		this.headerContent = document.createElement("tr");
 		this.headerLeadingSpacer = document.createElement("td");
@@ -796,13 +806,18 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		this.element.className = this.classNames.root;
 		this.body.className = this.classNames.body;
 		this.header.className = this.classNames.header;
+		this.headerViewport.className = this.classNames.headerViewport;
 		this.headerCorner.className = this.classNames.headerCorner;
 		this.headerContent.className = this.classNames.headerContent;
 		this.headerLeadingSpacer.className = this.classNames.headerSpacer;
 		this.headerTrailingSpacer.className = this.classNames.headerSpacer;
 		this.columnResizeGuide.className = this.classNames.columnResizeGuide;
 		this.content.className = this.classNames.content;
-		this.table.className = this.classNames.grid;
+		this.headerTable.className = this.classNames.grid;
+		this.bodyTable.className = this.classNames.grid;
+		this.headerRowHeaderColumn.className = this.classNames.rowHeaderCol;
+		this.headerLeadingSpacerColumn.className = this.classNames.columnSpacerCol;
+		this.headerTrailingSpacerColumn.className = this.classNames.columnSpacerCol;
 		this.rowHeaderColumn.className = this.classNames.rowHeaderCol;
 		this.bodyLeadingSpacerColumn.className = this.classNames.columnSpacerCol;
 		this.bodyTrailingSpacerColumn.className = this.classNames.columnSpacerCol;
@@ -820,12 +835,19 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 
 		this.headerContent.append(this.headerCorner, this.headerLeadingSpacer, this.headerTrailingSpacer);
 		this.header.append(this.headerContent);
+		this.headerColumnGroup.append(
+			this.headerRowHeaderColumn,
+			this.headerLeadingSpacerColumn,
+			this.headerTrailingSpacerColumn,
+		);
+		this.headerTable.append(this.headerColumnGroup, this.header);
+		this.headerViewport.append(this.headerTable);
 		this.topSpacerRow.append(this.topSpacerCell);
 		this.bottomSpacerRow.append(this.bottomSpacerCell);
-		this.table.append(this.columnGroup, this.header, this.bodyRows);
-		this.content.append(this.table);
+		this.bodyTable.append(this.columnGroup, this.bodyRows);
+		this.content.append(this.bodyTable);
 		this.body.append(this.scrollArea.element, this.columnResizeGuide);
-		this.element.append(this.body);
+		this.element.append(this.headerViewport, this.body, this.columnResizeGuide);
 
 		this.options.renderer.renderCorner?.(this.headerCorner);
 	}
@@ -845,6 +867,17 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 
 	public layout(): void {
 		this.scrollArea.layout();
+		this.syncHeaderScrollLeft();
+	}
+
+	public setHeaderVisible(visible: boolean): void {
+		const hidden = !visible;
+		this.header.hidden = hidden;
+		this.headerViewport.hidden = hidden;
+	}
+
+	public isHeaderVisible(): boolean {
+		return !this.header.hidden;
 	}
 
 	public getState(): VirtualTableState {
@@ -877,20 +910,21 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 			return rowsChanged || bodyVisibilityChanged || columnLayoutChanged || visibleRangeChanged || zoomChanged;
 		}
 
-		setHidden(this.header, false);
+		this.setHeaderVisible(true);
 		const headerChanged = this.ensureHeaderGrid();
-		const columnsChanged = this.ensureBodyColumns();
+		const headerColumnsChanged = this.ensureHeaderColumns();
+		const bodyColumnsChanged = this.ensureBodyColumns();
 		const rowsChanged = this.syncBodyRows(rowCount);
 		const bodyVisibilityChanged = this.syncBodyGridVisibility(rowRange, columnRange, previousState);
 		const columnLayoutChanged = this.syncColumnLayout(columnRange);
 		this.renderVisibleHeaders(columnRange, options.headerRenderVersion);
 		this.renderVisibleBody(rowRange, columnRange, options.renderVersion);
-		setElementAttribute(this.table, "aria-rowcount", String(rowRange.totalCount));
-		setElementAttribute(this.table, "aria-colcount", String(columnRange.totalCount));
+		setElementAttribute(this.bodyTable, "aria-rowcount", String(rowRange.totalCount));
+		setElementAttribute(this.bodyTable, "aria-colcount", String(columnRange.totalCount));
 		if (visibleRangeChanged) {
 			this.onDidChangeVisibleRangeEmitter.fire({ previous: previousState, current: nextState });
 		}
-		return headerChanged || columnsChanged || rowsChanged || bodyVisibilityChanged || columnLayoutChanged || zoomChanged;
+		return headerChanged || headerColumnsChanged || bodyColumnsChanged || rowsChanged || bodyVisibilityChanged || columnLayoutChanged || zoomChanged;
 	}
 
 	public clearBodyCells(): void {
@@ -1023,6 +1057,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		}
 
 		this.viewport.replaceChildren(this.content);
+		this.syncHeaderScrollLeft();
 		return true;
 	}
 
@@ -1048,6 +1083,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		}
 
 		this.scrollArea.setScrollPosition({ scrollLeft: nextScrollLeft });
+		this.syncHeaderScrollLeft();
 		return true;
 	}
 
@@ -1090,12 +1126,20 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 	}
 
 	private onScroll(): void {
+		this.syncHeaderScrollLeft();
 		this.renderVisibleRangeFromScroll();
 		const { scrollLeft, scrollTop } = this.getScrollPosition();
 		this.onDidScrollEmitter.fire({
 			scrollLeft,
 			scrollTop,
 		});
+	}
+
+	private syncHeaderScrollLeft(): void {
+		const { scrollLeft } = this.scrollArea.getScrollPosition();
+		if (Math.abs(this.headerViewport.scrollLeft - scrollLeft) >= 0.5) {
+			this.headerViewport.scrollLeft = scrollLeft;
+		}
 	}
 
 	private renderVisibleRangeFromScroll(): void {
@@ -1170,6 +1214,21 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		}
 
 		return changed;
+	}
+
+	private ensureHeaderColumns(): boolean {
+		if (this.headerDataColumns.length > 0) {
+			return false;
+		}
+
+		for (let colIndex = 0; colIndex < this.maxRenderedColumns; colIndex += 1) {
+			const column = document.createElement("col");
+			column.className = this.classNames.dataCol;
+			this.headerDataColumns.push(column);
+			this.headerColumnGroup.insertBefore(column, this.headerTrailingSpacerColumn);
+		}
+
+		return true;
 	}
 
 	private ensureBodyColumns(): boolean {
@@ -1335,7 +1394,13 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		if (setElementWidth(this.headerLeadingSpacer, leadingWidth)) {
 			changed = true;
 		}
+		if (setColumnWidth(this.headerLeadingSpacerColumn, leadingWidth)) {
+			changed = true;
+		}
 		if (setElementWidth(this.headerTrailingSpacer, trailingWidth)) {
+			changed = true;
+		}
+		if (setColumnWidth(this.headerTrailingSpacerColumn, trailingWidth)) {
 			changed = true;
 		}
 		if (setColumnWidth(this.bodyLeadingSpacerColumn, leadingWidth)) {
@@ -1357,7 +1422,15 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 
 	private applyHeaderColumnWidth(columnOffset: number, width: string): boolean {
 		const cell = this.headerCells[columnOffset]?.element;
-		return cell ? setElementWidth(cell, width) : false;
+		let changed = false;
+		const column = this.headerDataColumns[columnOffset];
+		if (column && setColumnWidth(column, width)) {
+			changed = true;
+		}
+		if (cell && setElementWidth(cell, width)) {
+			changed = true;
+		}
+		return changed;
 	}
 
 	private applyBodyColumnWidth(columnOffset: number, width: string): boolean {
@@ -1562,6 +1635,7 @@ export class VirtualTable<TBodyTemplateData = unknown, TColumnHeaderTemplateData
 		}
 
 		this.scrollArea.setScrollPosition({ scrollLeft: Math.max(0, nextScrollLeft) });
+		this.syncHeaderScrollLeft();
 		return true;
 	}
 

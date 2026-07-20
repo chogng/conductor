@@ -437,7 +437,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.equal(widget.zoomIn(), true);
       assert.equal(widget.getZoomPercent(), 110);
       assert.equal(
-        widget.element.querySelector<HTMLElement>(".table_view_body")?.style.getPropertyValue("--table-view-zoom"),
+		widget.element.style.getPropertyValue("--table-view-zoom"),
         "1.1",
       );
       assert.equal(getVisibleCellText(widget.element, 0, 0), "A1");
@@ -836,7 +836,8 @@ suite("base/browser/workbench tableWidget layout", () => {
         for (const colIndex of [0, 1, 2]) {
           const header = getColumnHeaderCell(widget.element, colIndex);
           const bodyCell = getVisibleCell(widget.element, 0, colIndex);
-          assert.equal(header.closest("table"), bodyCell.closest("table"));
+			assert.equal(header.closest("table") === bodyCell.closest("table"), false);
+			assert.equal(header.style.width, bodyCell.style.width);
           assert.equal(header.getBoundingClientRect().left, bodyCell.getBoundingClientRect().left);
           assert.equal(header.getBoundingClientRect().right, bodyCell.getBoundingClientRect().right);
         }

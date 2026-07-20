@@ -905,10 +905,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	}
 
 	public setHeaderVisible(visible: boolean): void {
-		const hidden = !visible;
-		if (this.virtualTable.header.hidden !== hidden) {
-			this.virtualTable.header.hidden = hidden;
-		}
+		this.virtualTable.setHeaderVisible(visible);
 		if (!visible) {
 			this.cancelCellEdit();
 			this.endColumnResize(false);
@@ -916,7 +913,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	}
 
 	public isHeaderVisible(): boolean {
-		return !this.virtualTable.header.hidden;
+		return this.virtualTable.isHeaderVisible();
 	}
 
 	public startCellEdit(rowIndex: number, colIndex: number): boolean {
@@ -1310,7 +1307,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	}
 
 	private syncZoomStyle(): void {
-		this.virtualTable.body.style.setProperty(
+		this.virtualTable.element.style.setProperty(
 			"--table-view-zoom",
 			String(this.getZoomScale()),
 		);

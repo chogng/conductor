@@ -15,7 +15,7 @@
 	flex-direction: column;
 }
 
-.table_view_body {
+.table_view {
 	--table-view-zoom: 1;
 	--table-view-row-header-width: calc(48px * var(--table-view-zoom));
 	--table-view-column-width: calc(90px * var(--table-view-zoom));
@@ -23,6 +23,16 @@
 	--table-view-cell-padding-y: calc(4px * var(--table-view-zoom));
 	--table-view-cell-padding-x: calc(8px * var(--table-view-zoom));
 	--table-view-line-height: calc(20px * var(--table-view-zoom));
+}
+
+.table_view_header_viewport {
+	position: relative;
+	min-width: 0;
+	flex: 0 0 var(--table-view-row-height);
+	overflow: hidden;
+}
+
+.table_view_body {
 	display: flex;
 	position: relative;
 	min-width: 0;
@@ -38,10 +48,12 @@
 
 .table_view_scroll_area > .scrollAreaTrackY {
 	width: 10px;
+	z-index: 6;
 }
 
 .table_view_scroll_area > .scrollAreaTrackX {
 	height: 10px;
+	z-index: 6;
 }
 
 .table_view_grid_header {
@@ -56,9 +68,6 @@
 }
 
 .table_view_grid_header_content {
-	position: sticky;
-	top: 0;
-	z-index: 3;
 	background: #fff;
 	box-shadow: inset 0 -1px rgb(var(--border) / 1);
 }
