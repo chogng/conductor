@@ -54,17 +54,17 @@ suite("workbench/services/slice/test/common/sliceExecutor", () => {
 		assert.deepEqual(result.series.map(series => ({
 			id: series.id,
 			groupIndex: series.groupIndex,
-			name: series.name,
+			legendValue: series.legendValue,
 			y: series.y,
 		})), [{
 			id: "series-b0-s0-y1",
 			groupIndex: 0,
-			name: "#1",
+			legendValue: "#1",
 			y: [1, 2],
 		}, {
 			id: "series-b0-s1-y1",
 			groupIndex: 1,
-			name: "#2",
+			legendValue: "#2",
 			y: [3, 4],
 		}]);
 		assert.deepEqual(result.curves.map(curve => ({

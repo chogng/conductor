@@ -48,7 +48,7 @@ export const executeSlicePlan = ({
 			const seriesId = createSliceSeriesId(block.blockIndex, yColumn, block.segmentIndex);
 			series.push({
 				id: seriesId,
-				name: `#${series.length + 1}`,
+				legendValue: `#${series.length + 1}`,
 				groupIndex: block.segmentIndex ?? block.blockIndex,
 				yCol: yColumn,
 				y: points.map(point => point.y),

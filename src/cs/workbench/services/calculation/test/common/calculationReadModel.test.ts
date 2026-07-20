@@ -229,6 +229,27 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     assert.equal(calculated.source.sheetId, "Sheet 1");
   });
 
+  test("uses a series legend value before its source name", () => {
+    const result = createCalculationResourceResult();
+    const series = result.seriesById["series-a"];
+    assert.ok(series);
+    const calculated = createCalculatedDataForCalculationResourceResult({
+      plotType: "iv",
+      result: {
+        ...result,
+        seriesById: {
+          ...result.seriesById,
+          "series-a": {
+            ...series,
+            legendValue: "#1",
+          },
+        },
+      },
+    });
+
+    assert.equal(calculated.seriesList[0]?.name, "#1");
+  });
+
   test("createSecondCalculatedData derives drawable second-pass data from calculated data", () => {
     const source = createCalculatedData({
       activeFileId: "file-a",

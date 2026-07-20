@@ -143,7 +143,7 @@ export const createCalculatedDataForCalculationResourceResult = ({
         data,
         id,
         kind: plotType,
-        name: String(series?.labelOverride ?? series?.name ?? series?.legendValue ?? `Series ${index + 1}`),
+        name: String(series?.labelOverride ?? series?.legendValue ?? series?.name ?? `Series ${index + 1}`),
       };
     })
     .filter((series): series is CalculatedSeries => Boolean(series));
@@ -301,7 +301,7 @@ const createCalculationSourceSeriesFromCalculationResourceResult = (
       groupIndex: index,
       id: curve.seriesId || `series-${index + 1}`,
       legendValue: series?.legendValue,
-      name: series?.labelOverride ?? series?.name ?? series?.legendValue,
+      name: series?.labelOverride ?? series?.legendValue ?? series?.name,
       y: curve.points.map(point => point.y),
       yCol: Number.isInteger(Number(series?.yCol)) ? series?.yCol : index + 1,
     };
@@ -383,7 +383,7 @@ export const createCalculatedSeries = (
       return {
         kind: plotType,
         id,
-        name: String(series?.name ?? series?.legendValue ?? `Series ${index + 1}`),
+        name: String(series?.legendValue ?? series?.name ?? `Series ${index + 1}`),
         data,
       };
     })
