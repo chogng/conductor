@@ -2,6 +2,7 @@ import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ContextView } from "src/cs/base/browser/ui/contextview/contextview";
 import { Dropdown } from "src/cs/base/browser/ui/dropdown/dropdown";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { Emitter } from "src/cs/base/common/event";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 
@@ -22,7 +23,6 @@ export type SelectBoxOptions<T extends string> = {
     readonly disabled?: boolean;
     readonly id?: string;
     readonly matchAnchorWidth?: boolean;
-    readonly onDidSelect: (value: T) => void;
     readonly options: readonly SelectBoxOption<T>[];
     readonly dropdownClassName?: string;
     readonly dropdownZIndex?: number;
@@ -33,6 +33,7 @@ export class SelectBox<T extends string> extends Disposable {
     private readonly button: HTMLButtonElement;
     private readonly contentView: ContextView;
     private readonly dropdown: Dropdown;
+    private readonly onDidSelectEmitter = this._register(new Emitter<T>());
     private readonly optionDisposables = this._register(new DisposableStore());
     private options: SelectBoxOptions<T>;
 
@@ -85,25 +86,46 @@ export class SelectBox<T extends string> extends Disposable {
             this.dropdown.show();
         }));
 
-        this.update(options);
+        this.renderButton();
+        this.syncDropdownWidth();
     }
 
     public get domNode(): HTMLButtonElement {
         return this.button;
     }
 
-    public update(options: SelectBoxOptions<T>): void {
-        this.options = options;
+    public readonly onDidSelect = this.onDidSelectEmitter.event;
+
+    public setOptions(options: readonly SelectBoxOption<T>[], value: T): void {
+        this.options = { ...this.options, options, value };
         this.renderButton();
         this.syncOptionSelection();
         this.syncDropdownWidth();
         this.contentView.update({
-            anchor: this.button,
-            className: getDropdownClassName(options.dropdownClassName),
-            matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderOptions(container),
-            zIndex: options.dropdownZIndex,
         });
+    }
+
+    public select(value: T): void {
+        if (this.options.value === value) {
+            return;
+        }
+
+        this.options = { ...this.options, value };
+        this.renderButton();
+        this.syncOptionSelection();
+    }
+
+    public setEnabled(enabled: boolean): void {
+        if (this.options.disabled === !enabled) {
+            return;
+        }
+
+        this.options = { ...this.options, disabled: !enabled };
+        if (!enabled) {
+            this.dropdown.hide();
+        }
+        this.renderButton();
     }
 
     public hide(): void {
@@ -161,7 +183,7 @@ export class SelectBox<T extends string> extends Disposable {
         button.type = "button";
         button.className = "ui-selectbox__option";
         button.disabled = option.disabled === true;
-        button.dataset.selected = option.value === this.options.value ? "true" : "false";
+        button.classList.toggle("selected", option.value === this.options.value);
         button.dataset.value = option.value;
         button.setAttribute("role", "option");
         button.setAttribute("aria-selected", option.value === this.options.value ? "true" : "false");
@@ -227,8 +249,11 @@ export class SelectBox<T extends string> extends Disposable {
             return;
         }
 
-        this.setValue(option.value);
-        this.options.onDidSelect(option.value);
+        const changed = this.options.value !== option.value;
+        this.select(option.value);
+        if (changed) {
+            this.onDidSelectEmitter.fire(option.value);
+        }
         this.dropdown.hide();
         this.button.focus();
     }
@@ -236,28 +261,18 @@ export class SelectBox<T extends string> extends Disposable {
     private focusSelectedOption(): void {
         requestAnimationFrame(() => {
             const selected = this.contentView.domNode.querySelector<HTMLButtonElement>(
-                ".ui-selectbox__option[data-selected='true']:not(:disabled)",
+                ".ui-selectbox__option.selected:not(:disabled)",
             );
             const first = this.contentView.domNode.querySelector<HTMLButtonElement>(".ui-selectbox__option:not(:disabled)");
             (selected ?? first)?.focus();
         });
     }
 
-    private setValue(value: T): void {
-        if (this.options.value === value) {
-            return;
-        }
-
-        this.options = { ...this.options, value };
-        this.renderButton();
-        this.syncOptionSelection();
-    }
-
     private syncOptionSelection(): void {
         const optionButtons = this.contentView.domNode.querySelectorAll<HTMLButtonElement>(".ui-selectbox__option");
         for (const button of optionButtons) {
             const selected = button.dataset.value === this.options.value;
-            button.dataset.selected = selected ? "true" : "false";
+            button.classList.toggle("selected", selected);
             button.setAttribute("aria-selected", selected ? "true" : "false");
         }
     }
@@ -284,7 +299,7 @@ function getSelectedOption<T extends string>(
     options: readonly SelectBoxOption<T>[],
     value: T,
 ): SelectBoxOption<T> | undefined {
-    return options.find(option => option.value === value) ?? options[0];
+    return options.find(option => option.value === value);
 }
 
 function getButtonClassName(className: string | undefined): string {

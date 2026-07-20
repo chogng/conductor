@@ -192,6 +192,10 @@ class OriginExportToolbarController {
     this.curveModeSelect = this.store.add(createSelectBox(
       this.createCurveModeSelectOptions(props.resolvedCurveExportMode),
     ));
+    this.store.add(this.modeSelect.onDidSelect(value => this.props.onModeChange(value)));
+    this.store.add(this.canvasScopeSelect.onDidSelect(value => this.props.setOriginCanvasExportScope(value)));
+    this.store.add(this.filteredKindSelect.onDidSelect(value => this.props.setOriginFilteredCanvasKind(value)));
+    this.store.add(this.curveModeSelect.onDidSelect(value => this.props.setResolvedCurveExportMode(value)));
 
     this.modeField = createField(
       localize("origin.exportMode.label", "Export mode"),
@@ -273,25 +277,19 @@ class OriginExportToolbarController {
 
   private syncSelectBoxes(): void {
     if (this.modeSelectSignature !== this.props.mode) {
-      this.modeSelect.update(this.createModeSelectOptions(this.props.mode));
+      this.modeSelect.select(this.props.mode);
       this.modeSelectSignature = this.props.mode;
     }
     if (this.canvasScopeSelectSignature !== this.props.originCanvasExportScope) {
-      this.canvasScopeSelect.update(
-        this.createCanvasScopeSelectOptions(this.props.originCanvasExportScope),
-      );
+      this.canvasScopeSelect.select(this.props.originCanvasExportScope);
       this.canvasScopeSelectSignature = this.props.originCanvasExportScope;
     }
     if (this.filteredKindSelectSignature !== this.props.originFilteredCanvasKind) {
-      this.filteredKindSelect.update(
-        this.createFilteredKindSelectOptions(this.props.originFilteredCanvasKind),
-      );
+      this.filteredKindSelect.select(this.props.originFilteredCanvasKind);
       this.filteredKindSelectSignature = this.props.originFilteredCanvasKind;
     }
     if (this.curveModeSelectSignature !== this.props.resolvedCurveExportMode) {
-      this.curveModeSelect.update(
-        this.createCurveModeSelectOptions(this.props.resolvedCurveExportMode),
-      );
+      this.curveModeSelect.select(this.props.resolvedCurveExportMode);
       this.curveModeSelectSignature = this.props.resolvedCurveExportMode;
     }
   }
@@ -371,7 +369,6 @@ class OriginExportToolbarController {
       ariaLabel: localize("origin.exportMode.label", "Export mode"),
       className: "origin_export_toolbar_select_button",
       id: "analysis-origin-export-mode-select",
-      onDidSelect: next => this.props.onModeChange(next),
       options: [
         { value: "merged", label: localize("origin.exportMode.merged", "New columns") },
         { value: "workbookSheets", label: localize("origin.exportMode.workbookSheets", "New worksheet") },
@@ -389,7 +386,6 @@ class OriginExportToolbarController {
       ariaLabel: localize("origin.canvasScope.label", "Export files"),
       className: "origin_export_toolbar_select_button",
       id: "analysis-origin-canvas-scope-select",
-      onDidSelect: next => this.props.setOriginCanvasExportScope(next),
       options: [
         { value: "all", label: localize("origin.canvasScope.all", "All") },
         { value: "current", label: localize("origin.canvasScope.current", "Current") },
@@ -407,7 +403,6 @@ class OriginExportToolbarController {
       ariaLabel: localize("origin.filteredCanvasKind.label", "Type"),
       className: "origin_export_toolbar_select_button",
       id: "analysis-origin-filtered-canvas-kind-select",
-      onDidSelect: next => this.props.setOriginFilteredCanvasKind(next),
       options: [
         { value: "transfer", label: localize("origin.filteredCanvasKind.transfer", "Transfer") },
         { value: "output", label: localize("origin.filteredCanvasKind.output", "Output") },
@@ -423,7 +418,6 @@ class OriginExportToolbarController {
       ariaLabel: localize("origin.curveExportMode.label", "Export curves"),
       className: "origin_export_toolbar_select_button",
       id: "analysis-origin-curve-export-mode-select",
-      onDidSelect: next => this.props.setResolvedCurveExportMode(next),
       options: [
         { value: "all", label: localize("origin.curveExportMode.all", "All") },
         { value: "select", label: localize("origin.curveExportMode.select", "Select") },

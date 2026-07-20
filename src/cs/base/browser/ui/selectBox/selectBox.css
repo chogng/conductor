@@ -92,13 +92,13 @@
   outline: none;
 }
 
-.ui-selectbox__option[data-selected="true"] {
+.ui-selectbox__option.selected {
   background-color: rgb(var(--accent) / 0.12);
   color: rgb(var(--accent) / 1);
 }
 
-.ui-selectbox__option:not(:disabled):not([data-selected="true"]):hover,
-.ui-selectbox__option:not(:disabled):not([data-selected="true"]):focus-visible {
+.ui-selectbox__option:not(:disabled):not(.selected):hover,
+.ui-selectbox__option:not(:disabled):not(.selected):focus-visible {
   background-color: rgb(var(--bg-surface-hover) / 0.92);
   color: rgb(var(--text-primary) / 1);
 }
@@ -107,6 +107,6 @@
   color: rgb(var(--text-secondary) / 0.5);
 }
 
-.dark .ui-selectbox__option[data-selected="true"] {
+.dark .ui-selectbox__option.selected {
   background-color: rgb(var(--accent) / 0.18);
 }

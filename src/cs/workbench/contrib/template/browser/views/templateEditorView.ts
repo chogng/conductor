@@ -514,13 +514,13 @@ export class TemplateEditorView {
         ariaLabelledBy: labelId,
         className: "template_form_selectbox",
         id: fieldId,
-        onDidSelect: onSelect,
         options,
         dropdownClassName: "template_form_selectbox_surface",
         value,
       }),
     };
     this.disposables.add(field.select);
+    this.disposables.add(field.select.onDidSelect(onSelect));
     wrapper.append(field.select.domNode);
     container.append(wrapper);
     this.updateDropdownField(field, { options, value });
@@ -537,16 +537,7 @@ export class TemplateEditorView {
       options: Array<{ label: string; value: T }>;
     },
   ): void {
-    field.select.update({
-      ariaLabel: field.ariaLabel,
-      ariaLabelledBy: field.labelId,
-      className: "template_form_selectbox",
-      id: field.id,
-      onDidSelect: field.onSelect,
-      options,
-      dropdownClassName: "template_form_selectbox_surface",
-      value,
-    });
+    field.select.setOptions(options, value);
   }
 
   private updateXSegmentationFields(mode: TemplateEditorConfig["xSegmentationMode"]): void {

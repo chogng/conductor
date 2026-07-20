@@ -733,12 +733,12 @@ const createSettingsDropdown = <T extends string>({
   const select = createSelectBox({
     className: "export_settings_view_control origin_settings_dropdown",
     id,
-    onDidSelect: onSelect,
     options,
     dropdownClassName: "origin_settings_dropdown_surface",
     value,
   });
   store.add(select);
+  store.add(select.onDidSelect(onSelect));
   return select.domNode;
 };
 

@@ -90,11 +90,11 @@ const createScaleSelect = ({
     ariaLabel: localize("chart.yScale.selectLabel", "Y scale"),
     className: "chart_unit_select chart_scale_select",
     dropdownClassName: "chart_unit_select_surface",
-    onDidSelect: value => onDidChangeScale(value),
     options,
     value: state.yScale,
   });
   store.add(select);
+  store.add(select.onDidSelect(onDidChangeScale));
 
   field.append(text, select.domNode);
   return field;
@@ -133,7 +133,6 @@ const createUnitSelect = <T extends XUnit | YUnit>({
     }),
     className: "chart_unit_select",
     dropdownClassName: "chart_unit_select_surface",
-    onDidSelect: unit => onDidChangeUnit(axis, unit),
     options: options.map((optionValue) => ({
       label: optionValue,
       value: optionValue,
@@ -141,6 +140,7 @@ const createUnitSelect = <T extends XUnit | YUnit>({
     value,
   });
   store.add(select);
+  store.add(select.onDidSelect(unit => onDidChangeUnit(axis, unit)));
 
   field.append(text, select.domNode);
   return field;

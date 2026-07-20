@@ -2567,26 +2567,21 @@ export class SettingsView {
       disabled: options.disabled,
       value: options.value,
       options: options.options as readonly SelectBoxOption<string>[],
-      onDidSelect: options.onChange,
     });
     if (disposables) {
       disposables.add(select);
+      disposables.add(select.onDidSelect(options.onChange));
     }
     else {
       this.registerContentDisposable(select);
+      this.registerContentDisposable(select.onDidSelect(options.onChange));
     }
     return select;
   }
 
   private updateSelectWidget(select: SelectBox<string>, options: FieldOptions): void {
-    select.update({
-      id: options.id,
-      className: "settings-select",
-      disabled: options.disabled,
-      value: options.value,
-      options: options.options as readonly SelectBoxOption<string>[],
-      onDidSelect: options.onChange,
-    });
+    select.setOptions(options.options as readonly SelectBoxOption<string>[], options.value);
+    select.setEnabled(!options.disabled);
   }
 
   private createLocalSelectControl(

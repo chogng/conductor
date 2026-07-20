@@ -90,6 +90,10 @@ class SearchViewController {
     this.algorithmSelect = this.store.add(createSelectBox(
       this.createInterpolationSelectOptions(true, input.searchState.query.interpolationMode),
     ));
+    this.store.add(this.algorithmSelect.onDidSelect(mode => {
+      this.currentInput.onInterpolationModeChange(mode);
+      this.renderSearchResults();
+    }));
 
     this.summary.className = "search_summary";
     this.body.className = "search_results";
@@ -141,7 +145,8 @@ class SearchViewController {
       return;
     }
 
-    this.algorithmSelect.update(this.createInterpolationSelectOptions(disabled, value));
+    this.algorithmSelect.setEnabled(!disabled);
+    this.algorithmSelect.select(value);
     this.interpolationSelectSignature = signature;
   }
 
@@ -226,10 +231,6 @@ class SearchViewController {
   ): SelectBoxOptions<SearchInterpolationMode> {
     return createSearchInterpolationSelectOptions({
       disabled,
-      onInterpolationModeChange: mode => {
-        this.currentInput.onInterpolationModeChange(mode);
-        this.renderSearchResults();
-      },
       value,
     });
   }
@@ -449,18 +450,15 @@ const createSearchResultsSignature = (
 
 const createSearchInterpolationSelectOptions = ({
   disabled,
-  onInterpolationModeChange,
   value,
 }: {
   readonly disabled: boolean;
-  readonly onInterpolationModeChange: (mode: SearchInterpolationMode) => void;
   readonly value: SearchInterpolationMode;
 }): SelectBoxOptions<SearchInterpolationMode> => ({
     ariaLabel: localize("search.interpolation.selectLabel", "Search algorithm"),
     className: "search_select",
     disabled,
     dropdownClassName: "search_select_surface",
-    onDidSelect: onInterpolationModeChange,
     options: [
       {
         label: localize("search.interpolation.linear", "Linear interpolation"),
