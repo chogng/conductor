@@ -8,7 +8,6 @@ import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   createSelectBox,
   type SelectBox,
-  type SelectBoxOptions,
 } from "src/cs/base/browser/ui/selectBox/selectBox";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
@@ -87,9 +86,23 @@ class SearchViewController {
     algorithmLabel.className = "search_label";
     algorithmLabel.textContent = localize("search.interpolation.label", "Interpolation algorithm");
 
-    this.algorithmSelect = this.store.add(createSelectBox(
-      this.createInterpolationSelectOptions(true, input.searchState.query.interpolationMode),
-    ));
+    this.algorithmSelect = this.store.add(createSelectBox({
+      ariaLabel: localize("search.interpolation.selectLabel", "Search algorithm"),
+      className: "search_select",
+      disabled: true,
+      dropdownClassName: "search_select_surface",
+      options: [
+        {
+          label: localize("search.interpolation.linear", "Linear interpolation"),
+          value: "linear",
+        },
+        {
+          label: localize("search.interpolation.none", "No interpolation"),
+          value: "none",
+        },
+      ],
+      value: input.searchState.query.interpolationMode,
+    }));
     this.store.add(this.algorithmSelect.onDidSelect(mode => {
       this.currentInput.onInterpolationModeChange(mode);
       this.renderSearchResults();
@@ -223,16 +236,6 @@ class SearchViewController {
       return;
     }
     this.collapsedPaneIds.delete(paneId);
-  }
-
-  private createInterpolationSelectOptions(
-    disabled: boolean,
-    value: SearchInterpolationMode,
-  ): SelectBoxOptions<SearchInterpolationMode> {
-    return createSearchInterpolationSelectOptions({
-      disabled,
-      value,
-    });
   }
 
   private dispose(): void {
@@ -447,27 +450,3 @@ const createSearchResultsSignature = (
   }
   return parts.join("\u001f");
 };
-
-const createSearchInterpolationSelectOptions = ({
-  disabled,
-  value,
-}: {
-  readonly disabled: boolean;
-  readonly value: SearchInterpolationMode;
-}): SelectBoxOptions<SearchInterpolationMode> => ({
-    ariaLabel: localize("search.interpolation.selectLabel", "Search algorithm"),
-    className: "search_select",
-    disabled,
-    dropdownClassName: "search_select_surface",
-    options: [
-      {
-        label: localize("search.interpolation.linear", "Linear interpolation"),
-        value: "linear",
-      },
-      {
-        label: localize("search.interpolation.none", "No interpolation"),
-        value: "none",
-      },
-    ],
-    value,
-  });

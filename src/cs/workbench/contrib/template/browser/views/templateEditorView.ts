@@ -99,10 +99,10 @@ export class TemplateEditorView {
   public readonly element: HTMLElement;
   private readonly disposables = new DisposableStore();
   private readonly inputs: Record<TemplateEditorInputName, HTMLInputElement>;
-  private readonly xSegmentationMode: SelectField<TemplateEditorConfig["xSegmentationMode"]>;
-  private readonly xUnit: SelectField<TemplateEditorConfig["xUnit"]>;
-  private readonly yLegendTarget: SelectField<TemplateEditorConfig["yLegendTarget"]>;
-  private readonly yUnit: SelectField<TemplateEditorConfig["yUnit"]>;
+  private readonly xSegmentationMode: SelectBox<TemplateEditorConfig["xSegmentationMode"]>;
+  private readonly xUnit: SelectBox<TemplateEditorConfig["xUnit"]>;
+  private readonly yLegendTarget: SelectBox<TemplateEditorConfig["yLegendTarget"]>;
+  private readonly yUnit: SelectBox<TemplateEditorConfig["yUnit"]>;
   private readonly xRangeInput: TemplateChipInput;
   private readonly yColumnsInput: TemplateChipInput;
   private readonly focusInputValues = new Map<TemplateEditorInputName, string>();
@@ -492,7 +492,7 @@ export class TemplateEditorView {
     options: Array<{ label: string; value: T }>,
     value: T,
     onSelect: (value: T) => void,
-  ): SelectField<T> {
+  ): SelectBox<T> {
     const fieldId = `template_editor_${labelToId(label)}`;
     const labelId = `${fieldId}_label`;
     const wrapper = document.createElement("div");
@@ -504,31 +504,25 @@ export class TemplateEditorView {
     labelElement.textContent = label;
     wrapper.append(labelElement);
 
-    const field: SelectField<T> = {
+    const select = createSelectBox({
       ariaLabel: label,
+      ariaLabelledBy: labelId,
+      className: "template_form_selectbox",
       id: fieldId,
-      labelId,
-      onSelect,
-      select: createSelectBox({
-        ariaLabel: label,
-        ariaLabelledBy: labelId,
-        className: "template_form_selectbox",
-        id: fieldId,
-        options,
-        dropdownClassName: "template_form_selectbox_surface",
-        value,
-      }),
-    };
-    this.disposables.add(field.select);
-    this.disposables.add(field.select.onDidSelect(onSelect));
-    wrapper.append(field.select.domNode);
+      options,
+      dropdownClassName: "template_form_selectbox_surface",
+      value,
+    });
+    this.disposables.add(select);
+    this.disposables.add(select.onDidSelect(onSelect));
+    wrapper.append(select.domNode);
     container.append(wrapper);
-    this.updateDropdownField(field, { options, value });
-    return field;
+    this.updateDropdownField(select, { options, value });
+    return select;
   }
 
   private updateDropdownField<T extends string>(
-    field: SelectField<T>,
+    select: SelectBox<T>,
     {
       options,
       value,
@@ -537,7 +531,7 @@ export class TemplateEditorView {
       options: Array<{ label: string; value: T }>;
     },
   ): void {
-    field.select.setOptions(options, value);
+    select.setOptions(options, value);
   }
 
   private updateXSegmentationFields(mode: TemplateEditorConfig["xSegmentationMode"]): void {
@@ -562,14 +556,6 @@ export class TemplateEditorView {
   }
 
 }
-
-type SelectField<T extends string> = {
-  ariaLabel: string;
-  id: string;
-  labelId: string;
-  onSelect: (value: T) => void;
-  select: SelectBox<T>;
-};
 
 class TemplateFormSection {
   public readonly body: HTMLElement;
