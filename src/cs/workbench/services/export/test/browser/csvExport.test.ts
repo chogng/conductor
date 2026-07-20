@@ -469,7 +469,9 @@ suite("workbench/services/export/browser/csvExport", () => {
     assert.equal(payload.canvasCount, 2);
     assert.equal(payload.curveCount, 2);
     assert.equal(payload.xyPairCount, 2);
-    assert.equal(payload.xyPairs, "((1,2),(3,4))");
+    assert.equal(payload.columnLayout, "shared-x");
+    assert.equal(payload.xyPairs, "((1,2),(1,3))");
+    assert.deepEqual(payload.columnDesignations, ["x", "y", "y"]);
     assert.deepEqual(payload.curveLabels, ["Vg=0", "Vg=0.5"]);
     assert.equal(payload.xMin, 0);
     assert.equal(payload.xMax, 2);
@@ -483,12 +485,12 @@ suite("workbench/services/export/browser/csvExport", () => {
 
     const csvText = payload.csvText.replace(/^\uFEFF/, "");
     const rows = csvText.split(/\r?\n/);
-    assert.equal(rows[0], "0,10,0,20");
-    assert.equal(rows[1], "1,11,0.5,21");
-    assert.equal(rows[2], "2,12,,");
+    assert.equal(rows[0], "0,10,20");
+    assert.equal(rows[1], "1,11,21");
+    assert.equal(rows[2], "2,12,");
   });
 
-  test("buildOriginSelectionExport shares X within each source file only", () => {
+  test("buildOriginSelectionExport keeps only the first X column for a merged worksheet", () => {
     const payload = buildOriginSelectionExport([
       {
         fileName: "file_a.csv",
@@ -513,16 +515,14 @@ suite("workbench/services/export/browser/csvExport", () => {
     ]);
 
     assert.ok(payload);
-    assert.equal(payload.columnLayout, "grouped-x");
-    assert.equal(payload.xyPairs, "((1,2),(1,3),(4,5),(4,6))");
-    assert.deepEqual(payload.columnDesignations, ["x", "y", "y", "x", "y", "y"]);
-    assert.deepEqual(payload.columnLongNames, ["Vg", "Vd=0.05", "Vd=1", "Vg", "Vd=0.05", "Vd=1"]);
-    assert.deepEqual(payload.columnUnits, ["V", "", "", "V", "", ""]);
-    assert.deepEqual(payload.xColumnLongNames, ["Vg", "Vg"]);
+    assert.equal(payload.columnLayout, "shared-x");
+    assert.equal(payload.xyPairs, "((1,2),(1,3),(1,4),(1,5))");
+    assert.deepEqual(payload.columnDesignations, ["x", "y", "y", "y", "y"]);
+    assert.deepEqual(payload.xColumnLongNames, ["Vg"]);
     const rows = payload.csvText.replace(/^\uFEFF/, "").split(/\r?\n/);
-    assert.equal(rows[0], "0,1,4,0,7,10");
-    assert.equal(rows[1], "1,2,5,1,8,11");
-    assert.equal(rows[2], "2,3,6,2,9,12");
+    assert.equal(rows[0], "0,1,4,7,10");
+    assert.equal(rows[1], "1,2,5,8,11");
+    assert.equal(rows[2], "2,3,6,9,12");
   });
 
   test("buildOriginSelectionExport defaults to all live series when no explicit selection is stored", () => {
@@ -552,6 +552,7 @@ suite("workbench/services/export/browser/csvExport", () => {
     assert.equal(payload.columnLayout, "shared-x");
     assert.equal(payload.curveCount, 2);
     assert.equal(payload.xyPairs, "((1,2),(1,3))");
+    assert.deepEqual(payload.columnDesignations, ["x", "y", "y"]);
     assert.deepEqual(payload.curveLabels, ["Drain A", "Vg=1"]);
     assert.deepEqual(payload.xColumnLongNames, ["X"]);
     assert.deepEqual(payload.xColumnUnits, [""]);
@@ -682,7 +683,7 @@ suite("workbench/services/export/browser/csvExport", () => {
     assert.equal(plan.payloads.length, 1);
     assert.equal(plan.payloads[0].csvText, "");
     assert.equal(plan.payloads[0].canvasCount, 2);
-    assert.equal(plan.payloads[0].columnLayout, "xy-pairs");
+    assert.equal(plan.payloads[0].columnLayout, "shared-x");
     assert.equal(plan.payloads[0].curveCount, 2);
   });
 

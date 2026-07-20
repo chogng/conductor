@@ -104,7 +104,6 @@ export type OriginImportMode =
 export type OriginYAxisScaleMode = "linear" | "log";
 
 type OriginCurveEntry = {
-  canvasIndex: number;
   canvasLabel: string;
   label: string;
   rowCount: number;
@@ -442,33 +441,8 @@ const buildOriginPairGroupsExpr = (
   return `(${pairs.join(",")})`;
 };
 
-const buildOriginPairsExpr = (xyPairCount: unknown): string =>
-  buildOriginPairGroupsExpr(xyPairCount, (index) => [index * 2 + 1, index * 2 + 2]);
-
 const buildOriginSharedXPairsExpr = (curveCountRaw: unknown): string =>
   buildOriginPairGroupsExpr(curveCountRaw, (index) => [1, index + 2]);
-
-const buildOriginPairsExprFromPairs = (
-  pairs: Array<[number, number]>,
-): string => {
-  const normalizedPairs = pairs.length ? pairs : [[1, 2] as [number, number]];
-  return `(${normalizedPairs.map(([x, y]) => `(${x},${y})`).join(",")})`;
-};
-
-const normalizeOriginXValueForKey = (value: unknown): string => {
-  const numeric = Number(value);
-  if (Number.isFinite(numeric)) return String(Number(numeric.toPrecision(12)));
-  return String(value ?? "");
-};
-
-const buildOriginXGroupKey = (entry: OriginCurveEntry): string =>
-  [
-    entry.canvasIndex,
-    entry.xLongName,
-    entry.xUnits,
-    entry.rowCount,
-    entry.xArr.map(normalizeOriginXValueForKey).join(","),
-  ].join("\u0001");
 
 export const isOriginExportMode = (
   value: unknown,
@@ -510,7 +484,6 @@ const resolveSelectedSeriesForOriginCanvas = (
 
 const buildOriginCurveEntriesForCanvas = (
   file: OriginExportFileLike | null | undefined,
-  canvasIndex: number,
   resolveSelectedSeriesIdsForFile: ResolveSelectedSeriesIdsForFile = () => undefined,
   resolveXScaleFactorForFile: ResolveXScaleFactorForFile = () => 1,
   resolveYScaleFactorForFile: ResolveYScaleFactorForFile = () => 1,
@@ -569,7 +542,6 @@ const buildOriginCurveEntriesForCanvas = (
         Number.isFinite(value) ? resolveYValueForOriginFile(file, value) : value,
       );
       return {
-        canvasIndex,
         canvasLabel,
         label: resolveCurveLabel(series, index),
         rowCount,
@@ -609,23 +581,7 @@ const buildWorksheetExport = ({
   yAxisTitle: string;
 }): OriginSelectionExport | null => {
   if (!curveEntries.length) return null;
-  const xGroups: Array<{
-    entries: OriginCurveEntry[];
-    key: string;
-  }> = [];
-  const xGroupByKey = new Map<string, number>();
-  for (const entry of curveEntries) {
-    const key = buildOriginXGroupKey(entry);
-    const groupIndex = xGroupByKey.get(key);
-    if (groupIndex === undefined) {
-      xGroupByKey.set(key, xGroups.length);
-      xGroups.push({ entries: [entry], key });
-    } else {
-      xGroups[groupIndex]!.entries.push(entry);
-    }
-  }
-  const useSharedXLayout = xGroups.length === 1 && curveEntries.length > 1;
-  const useGroupedXLayout = xGroups.length > 1 && xGroups.some((group) => group.entries.length > 1);
+  const sharedXEntry = curveEntries[0];
 
   let xMin = Number.POSITIVE_INFINITY;
   let xMax = Number.NEGATIVE_INFINITY;
@@ -640,7 +596,7 @@ const buildWorksheetExport = ({
       const x = Number(entry.xArr[idx]);
       const y = Number(entry.yArr[idx]);
 
-      if (Number.isFinite(x)) {
+      if (entry === sharedXEntry && Number.isFinite(x)) {
         if (x < xMin) xMin = x;
         if (x > xMax) xMax = x;
       }
@@ -663,56 +619,15 @@ const buildWorksheetExport = ({
   const omitCsvText =
     canvases.length > 0 &&
     canvases.every((canvas) => Boolean(canvas?.originExportOmitIvCsvText));
-  const columnLongNames: string[] = [];
-  const columnUnits: string[] = [];
-  const columnComments: string[] = [];
-  const columnDesignations: string[] = [];
-  const xyPairs: Array<[number, number]> = [];
-  if (useGroupedXLayout) {
-    let columnIndex = 1;
-    for (const group of xGroups) {
-      const sharedXEntry = group.entries[0]!;
-      columnLongNames.push(sharedXEntry.xLongName);
-      columnUnits.push(sharedXEntry.xUnits);
-      columnComments.push(sharedXEntry.canvasLabel);
-      columnDesignations.push("x");
-      const xColumnIndex = columnIndex;
-      columnIndex += 1;
-      for (const entry of group.entries) {
-        columnLongNames.push(entry.yLongName);
-        columnUnits.push(entry.yUnits);
-        columnComments.push("");
-        columnDesignations.push("y");
-        xyPairs.push([xColumnIndex, columnIndex]);
-        columnIndex += 1;
-      }
-    }
-  }
   const rows = omitCsvText ? [] : new Array<Array<number | string>>(maxRowCount);
   if (!omitCsvText) {
     for (let rowIndex = 0; rowIndex < maxRowCount; rowIndex += 1) {
-      const row: Array<number | string> = [];
-      if (useSharedXLayout) {
-        const sharedXEntry = curveEntries[0];
-        row.push(rowIndex < sharedXEntry.rowCount ? (sharedXEntry.xArr[rowIndex] ?? "") : "");
-        for (const entry of curveEntries) {
-          row.push(rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "");
-        }
-      } else if (useGroupedXLayout) {
-        for (const group of xGroups) {
-          const sharedXEntry = group.entries[0]!;
-          row.push(rowIndex < sharedXEntry.rowCount ? (sharedXEntry.xArr[rowIndex] ?? "") : "");
-          for (const entry of group.entries) {
-            row.push(rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "");
-          }
-        }
-      } else {
-        for (const entry of curveEntries) {
-          row.push(
-            rowIndex < entry.rowCount ? (entry.xArr[rowIndex] ?? "") : "",
-            rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "",
-          );
-        }
+      const sharedXEntry = curveEntries[0];
+      const row: Array<number | string> = [
+        rowIndex < sharedXEntry.rowCount ? (sharedXEntry.xArr[rowIndex] ?? "") : "",
+      ];
+      for (const entry of curveEntries) {
+        row.push(rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "");
       }
       rows[rowIndex] = row;
     }
@@ -722,15 +637,11 @@ const buildWorksheetExport = ({
     ? resolveOriginLogPositiveMinForRange(yPositiveValues, yPositiveMin)
     : null;
   const curveLabels = dedupeCurveLabels(curveEntries);
-  const sharedXEntry = curveEntries[0];
 
   return {
     canvasCount: canvases.length,
-    columnComments: useGroupedXLayout ? columnComments : undefined,
-    columnDesignations: useGroupedXLayout ? columnDesignations : undefined,
-    columnLayout: useSharedXLayout ? "shared-x" : useGroupedXLayout ? "grouped-x" : "xy-pairs",
-    columnLongNames: useGroupedXLayout ? columnLongNames : undefined,
-    columnUnits: useGroupedXLayout ? columnUnits : undefined,
+    columnDesignations: ["x", ...curveEntries.map(() => "y")],
+    columnLayout: "shared-x",
     csvName: `${csvBase}.csv`,
     csvText: omitCsvText ? "" : "\uFEFF" + Papa.unparse(rows),
     curveCount: curveEntries.length,
@@ -739,24 +650,12 @@ const buildWorksheetExport = ({
     sheetName,
     workbookName,
     xAxisTitle,
-    xColumnLongNames: useGroupedXLayout
-      ? xGroups.map((group) => group.entries[0]!.xLongName)
-      : useSharedXLayout
-      ? [sharedXEntry.xLongName]
-      : curveEntries.map((entry) => entry.xLongName),
-    xColumnUnits: useGroupedXLayout
-      ? xGroups.map((group) => group.entries[0]!.xUnits)
-      : useSharedXLayout
-      ? [sharedXEntry.xUnits]
-      : curveEntries.map((entry) => entry.xUnits),
+    xColumnLongNames: [sharedXEntry.xLongName],
+    xColumnUnits: [sharedXEntry.xUnits],
     xMax: Number.isFinite(xMax) ? xMax : null,
     xMin: Number.isFinite(xMin) ? xMin : null,
     xyPairCount: curveEntries.length,
-    xyPairs: useGroupedXLayout
-      ? buildOriginPairsExprFromPairs(xyPairs)
-      : useSharedXLayout
-      ? buildOriginSharedXPairsExpr(curveEntries.length)
-      : buildOriginPairsExpr(curveEntries.length),
+    xyPairs: buildOriginSharedXPairsExpr(curveEntries.length),
     yAxisTitle,
     yColumnLongNames: curveEntries.map((entry) => entry.yLongName),
     yColumnUnits: curveEntries.map((entry) => entry.yUnits),
@@ -792,7 +691,6 @@ export const buildOriginCanvasExport = (
 
   const curveEntries = buildOriginCurveEntriesForCanvas(
     canvas,
-    0,
     resolveSelectedSeriesIdsForFile,
     resolveXScaleFactorForFile,
     resolveYScaleFactorForFile,
@@ -848,10 +746,9 @@ export const buildOriginSelectionExport = (
   );
   if (!liveCanvases.length) return null;
 
-  const curveEntries = liveCanvases.flatMap((file, canvasIndex) =>
+  const curveEntries = liveCanvases.flatMap((file) =>
     buildOriginCurveEntriesForCanvas(
       file,
-      canvasIndex,
       resolveSelectedSeriesIdsForFile,
       resolveXScaleFactorForFile,
       resolveYScaleFactorForFile,
