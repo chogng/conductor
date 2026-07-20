@@ -1689,6 +1689,32 @@ suite("workbench/services/review/test/browser/reviewService", () => {
 		assert.equal(reviewExecution?.summary.findingCodes.includes("review.parserFatalDiagnostic"), true);
 	});
 
+	test("surfaces fatal missing-content diagnostics in URI review summaries", async () => {
+		const userTemplateService = createUserTemplateServiceForTest();
+		const resource = URI.file("/workspace/EncodedAsCsv.csv");
+		const dataResourceService = store.add(new ControlledDataResourceService());
+		const service = createReviewServiceForTest(userTemplateService, dataResourceService);
+		const target = { resource };
+
+		const summaryPromise = service.resolveReviewSummary(target);
+		await waitUntil(() => dataResourceService.resolveStructuredContentCalls === 1);
+		dataResourceService.resolveNext({
+			kind: "invalidContent",
+			diagnostics: [{
+				code: "table.reader.decodeFailed",
+				message: "The table file contains ZIP binary data and cannot be decoded as CSV or TSV text.",
+				severity: "fatal",
+			}],
+		});
+
+		assert.deepEqual(await summaryPromise, {
+			resource,
+			state: "invalid",
+			findingCodes: ["review.parserFatalDiagnostic"],
+			message: "The table file contains ZIP binary data and cannot be decoded as CSV or TSV text.",
+		});
+	});
+
 	test("does not treat recoverable URI parser errors as fatal review findings", async () => {
 		const userTemplateService = createUserTemplateServiceForTest();
 		const resource = URI.file("/workspace/Recoverable.csv");

@@ -465,7 +465,7 @@ const createStructuredContentResolution = async (
 		? selectedSheet.content
 		: snapshot.content;
 	if (!content) {
-		return { kind: "missingContent" };
+		return createMissingContentResolution(snapshot, selectedSheet);
 	}
 
 	const fileName = getStructuredContentFileName(target.resource, selectedSheet);
@@ -521,7 +521,7 @@ const createStructuredEvidenceResolution = async (
 		? selectedSheet.content
 		: snapshot.content;
 	if (!content) {
-		return { kind: "missingContent" };
+		return createMissingContentResolution(snapshot, selectedSheet);
 	}
 
 	const fileName = getStructuredContentFileName(target.resource, selectedSheet);
@@ -3679,6 +3679,16 @@ const getStructuredContentDiagnostics = (
 	...snapshot.diagnostics,
 	...(sheet?.diagnostics ?? []),
 ];
+
+const createMissingContentResolution = (
+	snapshot: DataResourceContentSnapshot,
+	sheet: DataResourceContentSheetSnapshot | null,
+): Exclude<DataResourceStructuredContentResolution, { readonly kind: "ready" }> => {
+	const diagnostics = getStructuredContentDiagnostics(snapshot, sheet);
+	return diagnostics.some(diagnostic => diagnostic.severity === "fatal")
+		? { kind: "invalidContent", diagnostics }
+		: { kind: "missingContent" };
+};
 
 const getStructuredContentFileName = (
 	resource: URI,

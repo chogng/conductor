@@ -11,6 +11,7 @@ import type {
 	StructuredContentEvidence,
 	StructuredContentGridSnapshot,
 } from "src/cs/workbench/services/dataResource/common/structuredContent";
+import type { TableParseDiagnostic } from "src/cs/workbench/services/table/common/model";
 
 export const IDataResourceService = createDecorator<IDataResourceService>("dataResourceService");
 
@@ -67,6 +68,10 @@ export type DataResourceStructuredContentResolution =
 	}
 	| {
 		readonly kind: "missingContent";
+	}
+	| {
+		readonly kind: "invalidContent";
+		readonly diagnostics: readonly TableParseDiagnostic[];
 	};
 
 export type DataResourceStructuredEvidenceResolution =

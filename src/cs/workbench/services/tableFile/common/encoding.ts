@@ -23,7 +23,9 @@ export const decodeTableFileContent = (
 	mode: TableFileReadMode,
 ): TableFileDecodedContent => {
 	const bytes = ByteBuffer.wrap(content).toArrayBuffer();
-	const text = mode === "text" ? decodeTableFileTextChunks([content]).join("") : null;
+	const text = mode === "text"
+		? new TextDecoder(resolveTableFileTextEncoding([content])).decode(content)
+		: null;
 	const filePart = text ?? bytes;
 	return {
 		bytes,
@@ -32,19 +34,17 @@ export const decodeTableFileContent = (
 	};
 };
 
-export const decodeTableFileTextChunks = (
+export const resolveTableFileTextEncoding = (
 	chunks: readonly Uint8Array[],
-): readonly string[] => {
+): string => {
 	validateTableFileTextChunks(chunks);
-	try {
-		return decodeTableFileTextChunksWithEncoding(chunks, "utf-8");
-	} catch {
-		try {
-			return decodeTableFileTextChunksWithEncoding(chunks, "gb18030");
-		} catch {
-			throw new Error("The table file is not valid UTF-8 or GB18030 text.");
-		}
+	if (canDecodeTableFileTextChunks(chunks, "utf-8")) {
+		return "utf-8";
 	}
+	if (canDecodeTableFileTextChunks(chunks, "gb18030")) {
+		return "gb18030";
+	}
+	throw new Error("The table file is not valid UTF-8 or GB18030 text.");
 };
 
 export const getTableFileMimeType = (format: TableFormatId): string => {
@@ -69,21 +69,21 @@ const validateTableFileTextChunks = (
 	}
 };
 
-const decodeTableFileTextChunksWithEncoding = (
+const canDecodeTableFileTextChunks = (
 	chunks: readonly Uint8Array[],
 	encoding: string,
-): readonly string[] => {
+): boolean => {
 	const decoder = new TextDecoder(encoding, { fatal: true });
-	const decodedChunks: string[] = [];
-	for (let index = 0; index < chunks.length; index += 1) {
-		const text = decoder.decode(chunks[index], {
-			stream: index < chunks.length - 1,
-		});
-		if (text) {
-			decodedChunks.push(text);
+	try {
+		for (let index = 0; index < chunks.length; index += 1) {
+			decoder.decode(chunks[index], {
+				stream: index < chunks.length - 1,
+			});
 		}
+		return true;
+	} catch {
+		return false;
 	}
-	return decodedChunks;
 };
 
 const getTableFileBytePrefix = (

@@ -161,6 +161,25 @@ suite("workbench/services/tableFile/test/common/tableFileReader", () => {
 		);
 	});
 
+	test("keeps chunked CSV resources as bytes when the caller requests byte mode", async () => {
+		const content = new Uint8Array([
+			0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00,
+		]);
+		const fileService = new TestFileService(content);
+		const resource = URI.file("/workspace/workbook.csv");
+
+		const result = await readTableFile(resource, fileService, {
+			chunkSizeBytes: 2,
+			readMode: "bytes",
+		});
+
+		assert.equal(result.buffer.kind, "bytes");
+		if (result.buffer.kind !== "bytes") {
+			assert.fail("Expected a byte table buffer.");
+		}
+		assert.deepEqual(await readTableByteBuffer(result.buffer), content);
+	});
+
 	test("rejects ZIP binary content disguised as a CSV file", async () => {
 		const fileService = new TestFileService(new Uint8Array([
 			0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00,

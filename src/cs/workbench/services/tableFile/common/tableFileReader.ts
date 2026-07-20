@@ -26,9 +26,9 @@ import {
 } from "src/cs/workbench/services/table/common/tableFormatRegistry";
 import {
 	decodeTableFileContent,
-	decodeTableFileTextChunks,
 	getTableFileMimeType,
 	getTableFileReadMode,
+	resolveTableFileTextEncoding,
 	type TableFileReadMode,
 } from "src/cs/workbench/services/tableFile/common/encoding";
 
@@ -110,10 +110,10 @@ export const readTableFile = async (
 			});
 			let buffer: TableReadBuffer;
 			try {
-				buffer = isDelimitedTableFormat(format)
+				buffer = readMode === "text"
 					? createTableTextChunkBuffer(
-						decodeTableFileTextChunks(chunks),
-						"utf8",
+						chunks,
+						resolveTableFileTextEncoding(chunks),
 					)
 					: createTableByteChunkBuffer(chunks);
 			} catch (error) {
@@ -229,12 +229,6 @@ const normalizeChunkSizeBytes = (
 		? normalized
 		: DefaultTableFileReadChunkSizeBytes;
 };
-
-const isDelimitedTableFormat = (
-	format: TableFormatId,
-): boolean =>
-	format === "csv" ||
-	format === "tsv";
 
 const createReadDiagnosticError = ({
 	format,

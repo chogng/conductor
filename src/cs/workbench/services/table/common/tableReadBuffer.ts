@@ -45,12 +45,12 @@ export const createTableTextBuffer = (
 };
 
 export const createTableTextChunkBuffer = (
-	chunks: readonly string[],
+	chunks: readonly Uint8Array[],
 	encoding: string,
 ): TableTextBuffer => ({
 	kind: "text",
 	encoding,
-	chunks: createTextChunkIterable(chunks),
+	chunks: createDecodedTextChunkIterable(chunks, encoding),
 });
 
 export const createTableByteBuffer = (
@@ -166,11 +166,18 @@ const createByteChunkIterable = (chunks: readonly Uint8Array[]): AsyncIterable<U
 	},
 });
 
-const createTextChunkIterable = (chunks: readonly string[]): AsyncIterable<TableTextChunk> => ({
+const createDecodedTextChunkIterable = (
+	chunks: readonly Uint8Array[],
+	encoding: string,
+): AsyncIterable<TableTextChunk> => ({
 	async *[Symbol.asyncIterator]() {
+		const decoder = new TextDecoder(encoding);
 		let lineStart = 1;
 		let previousChunkEndedWithCarriageReturn = false;
-		for (const text of chunks) {
+		for (let index = 0; index < chunks.length; index += 1) {
+			const text = decoder.decode(chunks[index], {
+				stream: index < chunks.length - 1,
+			});
 			if (!text) {
 				continue;
 			}

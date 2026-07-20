@@ -473,6 +473,12 @@ export class ReviewService extends Disposable implements IReviewService {
     if (resolution.kind === "missingSheet") {
       return createInvalidManualReviewResult("review.manual.sheetNotFound", "Manual review needs the requested sheet.");
     }
+    if (resolution.kind === "invalidContent") {
+      return createInvalidManualReviewResult(
+        "review.manual.parserFatalDiagnostic",
+        getFatalDiagnosticMessage(resolution.diagnostics),
+      );
+    }
     if (resolution.kind === "missingContent") {
       return createInvalidManualReviewResult("review.manual.noStructuredContent", "Manual review needs resolved structured content.");
     }
@@ -971,6 +977,20 @@ export class ReviewService extends Disposable implements IReviewService {
           state: "invalid",
           findingCodes: ["review.sheetNotFound"],
           message: "Review needs the requested sheet.",
+        },
+      };
+    }
+    if (resolution.kind === "invalidContent") {
+      return {
+        modelSignature,
+        reviewEngineVersion: REVIEW_ENGINE_VERSION,
+        reviewPolicyVersion: REVIEW_POLICY_VERSION,
+        summary: {
+          resource: target.resource,
+          ...(target.sheetId ? { sheetId: target.sheetId } : {}),
+          state: "invalid",
+          findingCodes: ["review.parserFatalDiagnostic"],
+          message: getFatalDiagnosticMessage(resolution.diagnostics),
         },
       };
     }
@@ -1656,6 +1676,9 @@ const createUriReviewModelSignature = ({
   resolution.kind === "ready" ? resolution.snapshot.sourceModelVersion : "",
   resolution.kind === "ready" ? resolution.snapshot.sourceVersion : "",
   resolution.kind === "loadError" ? resolution.loadState.message : "",
+  resolution.kind === "invalidContent"
+    ? resolution.diagnostics.map(diagnostic => [diagnostic.code, diagnostic.message, diagnostic.severity].join("\u001e")).join("\u001d")
+    : "",
   target.contentHash ?? "",
   resolution.kind === "ready" ? resolution.snapshot.structuredContent.semanticRulesFingerprint : "",
   schemaProfileVersion,
@@ -1677,6 +1700,12 @@ const getErrorMessage = (
 ): string => error instanceof Error
   ? error.message
   : String(error ?? "Review failed.");
+
+const getFatalDiagnosticMessage = (
+  diagnostics: readonly { readonly message: string; readonly severity: string }[],
+): string => diagnostics.find(diagnostic => diagnostic.severity === "fatal")?.message
+  ?? diagnostics[0]?.message
+  ?? "Review needs valid structured content.";
 
 const normalizeResourceIdentity = (
   resource: URI | undefined,
