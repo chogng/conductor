@@ -1430,6 +1430,8 @@ interface TableModelSnapshot {
 
 这些占位只记录 owner 和边界，不代表现在创建文件或把 `.txt` 加入支持列表。在 detector 和 parser 都没有落地前，`.txt` 仍然是 unsupported source，不能通过 `languageId`、编码类型、URI scheme 或文本 `files.associations` 绕进表格导入链路。
 
+编码预埋：未来 `txtDelimited` / `txtFixedWidth` 一旦具备明确的格式和 parser，只复用 TableFile 的严格流式文本解码（UTF-8，失败后 GB18030）。不要把 `.txt` 当作 CSV 别名，也不要增加宽松的单字节编码自动兜底或用户编码选择；这些策略会把二进制或错误编码误显示为看似可读的乱码。只有有明确产品需求和对应样本时，才扩展编码候选。
+
 <a id="migration-reference"></a>
 
 ## 迁移参考
