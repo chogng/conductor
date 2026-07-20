@@ -237,7 +237,6 @@ export class TableWidget {
   private bodyRangeSelectionState: BodyRangeSelectionState | null = null;
   private suppressNextBodyClick = false;
   private bodyClickSuppressionTimeout: number | null = null;
-  private columnScaleBadgeMeasureElement: HTMLButtonElement | null = null;
   private tracedBodyCellRenderCount = 0;
   private tracedHeaderCellRenderCount = 0;
   private props: TableWidgetProps;
@@ -402,8 +401,6 @@ export class TableWidget {
     this.disposeStateListener = null;
     this.endBodyRangeSelection();
     this.clearBodyClickSuppression();
-    this.columnScaleBadgeMeasureElement?.remove();
-    this.columnScaleBadgeMeasureElement = null;
     this.store.dispose();
   }
 
@@ -451,7 +448,7 @@ export class TableWidget {
           this.grid.layout();
         }
       }
-      this.syncHeaderScroll();
+      this.syncColumnResizeGuide();
     } finally {
       endTrace({
         renderedTable,
@@ -631,7 +628,6 @@ export class TableWidget {
     const profile = this.props.tableViewModel.getColumnDisplayProfile(colIndex);
     return this.grid.measureColumnAutoFitWidth({
       bodyTexts: this.getAutoFitColumnBodyTexts(file, colIndex, profile),
-      headerAccessoryWidth: this.measureColumnScaleBadgeWidth(profile),
       headerText: VirtualTableGridModel.getColumnLabel(colIndex),
       maximumWidth: TableColumnLayout.maxWidth,
       minimumWidth: TableColumnLayout.autoFitMinWidth,
@@ -673,37 +669,6 @@ export class TableWidget {
     }
 
     texts.add(formatCell(this.props.tableViewModel.get(rowIndex)[colIndex], profile));
-  }
-
-  private measureColumnScaleBadgeWidth(profile: ColumnDisplayProfile): number {
-    if (!isTableColumnScaleBadgeVisible(profile)) {
-      return 0;
-    }
-
-    const badge = this.getColumnScaleBadgeMeasureElement();
-    badge.textContent = getColumnScaleValueText(profile);
-    badge.dataset.interactive = "false";
-    const style = badge.ownerDocument.defaultView?.getComputedStyle(badge);
-    const rect = badge.getBoundingClientRect();
-    return rect.width + getCssPixelValue(style?.marginLeft) + getCssPixelValue(style?.marginRight);
-  }
-
-  private getColumnScaleBadgeMeasureElement(): HTMLButtonElement {
-    if (this.columnScaleBadgeMeasureElement) {
-      return this.columnScaleBadgeMeasureElement;
-    }
-
-    const badge = this.element.ownerDocument.createElement("button");
-    badge.type = "button";
-    badge.className = "table_view_column_scale_badge";
-    badge.style.position = "absolute";
-    badge.style.visibility = "hidden";
-    badge.style.pointerEvents = "none";
-    badge.style.contain = "layout style";
-    badge.tabIndex = -1;
-    this.element.append(badge);
-    this.columnScaleBadgeMeasureElement = badge;
-    return badge;
   }
 
   private syncColumnWidthSheet(): void {
@@ -890,7 +855,7 @@ export class TableWidget {
           didAttachContent = this.grid.attachContent();
           this.grid.setHeaderVisible(true);
           this.layoutNow();
-          this.syncHeaderScroll();
+          this.syncColumnResizeGuide();
           return;
         }
 
@@ -934,7 +899,7 @@ export class TableWidget {
           if (didAttachContent) {
             this.layoutNow();
           }
-          this.syncHeaderScroll();
+          this.syncColumnResizeGuide();
           return;
         }
 
@@ -955,7 +920,7 @@ export class TableWidget {
       if (didAttachContent || needsLayout) {
         this.layoutNow();
       }
-      this.syncHeaderScroll();
+      this.syncColumnResizeGuide();
     } finally {
       endTrace({
         didAttachContent,
@@ -1133,7 +1098,7 @@ export class TableWidget {
         if (this.renderTable()) {
           this.layoutNow();
         }
-        this.syncHeaderScroll();
+        this.syncColumnResizeGuide();
         return;
       }
 
@@ -1141,7 +1106,7 @@ export class TableWidget {
       if (patchResult === "full") {
         this.renderTable();
       }
-      this.syncHeaderScroll();
+      this.syncColumnResizeGuide();
     } finally {
       endTrace({
         bodyCellRenderCount: this.tracedBodyCellRenderCount - bodyCellRenderCountStart,
@@ -1522,7 +1487,7 @@ export class TableWidget {
       cell.colIndex,
     )) {
       this.renderTable();
-      this.syncHeaderScroll();
+      this.syncColumnResizeGuide();
     }
   }
 
@@ -1708,8 +1673,8 @@ export class TableWidget {
     }
   }
 
-  private syncHeaderScroll(): void {
-    this.grid.syncHeaderScroll();
+  private syncColumnResizeGuide(): void {
+    this.grid.syncColumnResizeGuide();
   }
 
   private onTableScroll(): void {
@@ -1717,7 +1682,7 @@ export class TableWidget {
     let tableVisible = false;
     const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
     try {
-      this.syncHeaderScroll();
+      this.syncColumnResizeGuide();
       tableVisible = this.isTableVisible();
     } finally {
       endTrace({
@@ -1846,11 +1811,6 @@ const createAutoFitLengthSample = (maxCellLength: unknown): string => {
     Math.max(0, Math.floor(Number(maxCellLength) || 0)),
   );
   return cellLength > 0 ? "0".repeat(cellLength) : "";
-};
-
-const getCssPixelValue = (value: string | undefined): number => {
-  const parsed = Number.parseFloat(value ?? "");
-  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 const getTableWidgetInputKey = ({

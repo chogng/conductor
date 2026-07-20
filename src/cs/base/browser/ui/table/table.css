@@ -45,49 +45,26 @@
 }
 
 .table_view_grid_header {
-	display: flex;
-	position: relative;
-	min-width: 0;
-	flex: 0 0 auto;
-	overflow: hidden;
 	background: #fff;
 	color: rgb(var(--text-secondary) / 1);
 	font-size: calc(12px * var(--table-view-zoom));
 	line-height: var(--table-view-line-height);
 }
 
-.table_view_grid_header::after {
-	content: "";
-	position: absolute;
-	right: 0;
-	bottom: 0;
-	left: 0;
-	z-index: 3;
-	height: 1px;
-	background: rgb(var(--border) / 1);
-	pointer-events: none;
-}
-
 .table_view_grid_header[hidden] {
 	display: none;
 }
 
-.table_view_grid_header_scroll {
-	min-width: 0;
-	flex: 1 1 0%;
-	overflow: hidden;
-	background: #fff;
-}
-
 .table_view_grid_header_content {
-	display: flex;
-	width: max-content;
+	position: sticky;
+	top: 0;
+	z-index: 3;
 	background: #fff;
-	will-change: transform;
+	box-shadow: inset 0 -1px rgb(var(--border) / 1);
 }
 
-.table_view_grid_header_corner,
-.table_view_grid_header_cell {
+.table_view_grid .table_view_grid_header_corner,
+.table_view_grid .table_view_grid_header_cell {
 	box-sizing: border-box;
 	height: var(--table-view-row-height);
 	padding: var(--table-view-cell-padding-y) 0;
@@ -100,15 +77,17 @@
 	white-space: nowrap;
 }
 
-.table_view_grid_header_corner {
+.table_view_grid .table_view_grid_header_corner {
+	position: sticky;
+	left: 0;
+	z-index: 4;
 	width: var(--table-view-row-header-width);
 	min-width: var(--table-view-row-header-width);
 	max-width: var(--table-view-row-header-width);
 	flex: 0 0 var(--table-view-row-header-width);
 }
 
-.table_view_grid_header_cell {
-	display: flex;
+.table_view_grid .table_view_grid_header_cell {
 	position: relative;
 	width: var(--table-view-column-width);
 	min-width: var(--table-view-column-width);
@@ -134,10 +113,11 @@
 	user-select: none;
 }
 
-.table_view_grid_header_spacer {
+.table_view_grid .table_view_grid_header_spacer {
+	box-sizing: border-box;
 	height: var(--table-view-row-height);
 	min-width: 0;
-	flex: 0 0 auto;
+	padding: 0;
 	border-top: 1px solid rgb(var(--border) / 1);
 	background: #fff;
 }
@@ -164,6 +144,12 @@
 
 .table_view_grid .table_view_row_header_col {
 	width: var(--table-view-row-header-width);
+}
+
+.table_view_grid .table_view_row_header_cell {
+	width: var(--table-view-row-header-width);
+	min-width: var(--table-view-row-header-width);
+	max-width: var(--table-view-row-header-width);
 }
 
 .table_view_grid .table_view_data_col {

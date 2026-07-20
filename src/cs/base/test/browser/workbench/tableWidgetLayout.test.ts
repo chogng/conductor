@@ -752,6 +752,100 @@ suite("base/browser/workbench tableWidget layout", () => {
     }
   });
 
+  test("keeps column scale badges out of header layout", async () => {
+    const widget = new TableWidget({
+      columnSizingMode: "fixed",
+      onSelect: () => true,
+      tableViewModel: createSmartTableWidgetModel(),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 300, 280);
+      widget.layout();
+      await timeout(120);
+
+      const badge = getVisibleScaleBadge(widget.element);
+      const style = badge.ownerDocument.defaultView?.getComputedStyle(badge);
+      assert.equal(style?.position, "absolute");
+      assert.equal(style?.right, "12px");
+      assert.equal(style?.marginRight, "0px");
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("draws selected column borders inside table cells", async () => {
+    const widget = new TableWidget({
+      columnSizingMode: "fixed",
+      onSelect: () => true,
+      tableViewModel: createTableWidgetModel(),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      widget.element.style.setProperty("--accent", "0 0 0");
+      setElementClientSize(viewport, 300, 280);
+      widget.layout();
+      await timeout(120);
+
+      const header = getColumnHeaderCell(widget.element, 0);
+      header.classList.add("column-selected");
+      assert.equal(header.ownerDocument.defaultView?.getComputedStyle(header).boxShadow === "none", false);
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("keeps header and first-row column boundaries aligned across zoom levels", async () => {
+    const widget = new TableWidget({
+      columnSizingMode: "fixed",
+      onSelect: () => true,
+      tableViewModel: createTableWidgetModel(),
+      tableState: createTableWidgetState(),
+    });
+    widget.element.style.width = "800px";
+    widget.element.style.height = "400px";
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 800, 400);
+      widget.layout();
+      await timeout(120);
+
+      const zoomChanges = [
+        () => {
+          for (let count = 0; count < 4; count += 1) {
+            widget.zoomOut();
+          }
+        },
+        () => widget.zoomIn(),
+        () => widget.resetZoom(),
+      ];
+      for (const changeZoom of zoomChanges) {
+        changeZoom();
+
+        for (const colIndex of [0, 1, 2]) {
+          const header = getColumnHeaderCell(widget.element, colIndex);
+          const bodyCell = getVisibleCell(widget.element, 0, colIndex);
+          assert.equal(header.closest("table"), bodyCell.closest("table"));
+          assert.equal(header.getBoundingClientRect().left, bodyCell.getBoundingClientRect().left);
+          assert.equal(header.getBoundingClientRect().right, bodyCell.getBoundingClientRect().right);
+        }
+      }
+    } finally {
+      widget.dispose();
+    }
+  });
+
   test("refreshes column scale headers when rows version changes", async () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({

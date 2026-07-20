@@ -848,11 +848,6 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		return !this.virtualTable.header.hidden;
 	}
 
-	public syncHeaderScroll(): void {
-		this.virtualTable.syncHeaderScroll();
-		this.syncColumnResizeGuide();
-	}
-
 	public startCellEdit(rowIndex: number, colIndex: number): boolean {
 		const cellEditing = this.options.cellEditing;
 		if (cellEditing?.enabled !== true) {
@@ -1654,7 +1649,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		return this.options.columnResize?.mode ?? "commit";
 	}
 
-	private syncColumnResizeGuide(): void {
+	public syncColumnResizeGuide(): void {
 		this.virtualTable.syncColumnResizeGuide(this.columnResizeState?.guideLeft ?? null);
 	}
 
