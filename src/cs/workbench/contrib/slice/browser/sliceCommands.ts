@@ -3,9 +3,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from "src/cs/nls";
+import type { IAction } from "src/cs/base/common/actions";
+import { basename } from "src/cs/base/common/resources";
 import { URI } from "src/cs/base/common/uri";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
+import {
+	ExplorerViewContainerId,
+	IExplorerService,
+	type IExplorerService as IExplorerServiceType,
+} from "src/cs/workbench/contrib/files/browser/files";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
 	INotificationService,
@@ -46,6 +52,7 @@ export type RunSliceWithTemplateCommandOptions = {
 };
 
 type SliceCommandResource = {
+	readonly label: string;
 	readonly resource: URI;
 	readonly sheetId?: string | null;
 };
@@ -107,6 +114,7 @@ export const runSliceWithTemplateHandler = (
 
 	sliceCommandRunActive = true;
 	void runResourcesWithTemplate({
+		explorerService,
 		notificationService,
 		reviewService,
 		selection: templateOptions.selection,
@@ -162,6 +170,7 @@ const createSliceCommandTemplateOptions = (
 };
 
 const runResourcesWithTemplate = async ({
+	explorerService,
 	notificationService,
 	reviewService,
 	selection,
@@ -169,6 +178,7 @@ const runResourcesWithTemplate = async ({
 	viewsService,
 	resources,
 }: {
+	readonly explorerService: IExplorerServiceType;
 	readonly notificationService: Pick<INotificationService, "notify">;
 	readonly reviewService: IReviewServiceType;
 	readonly selection: TemplateSelection;
@@ -177,7 +187,7 @@ const runResourcesWithTemplate = async ({
 	readonly resources: readonly SliceCommandResource[];
 }): Promise<void> => {
 	const requests: SliceResourceRequest[] = [];
-	let skippedCount = 0;
+	const skippedResources: SliceCommandResource[] = [];
 	for (let index = 0; index < resources.length; index += 1) {
 		const resource = resources[index];
 		if (!resource) {
@@ -241,7 +251,7 @@ const runResourcesWithTemplate = async ({
 			continue;
 		}
 
-		skippedCount += 1;
+		skippedResources.push(resource);
 		sliceService.markResourceSkipped(
 			resource.resource,
 			resource.sheetId,
@@ -249,30 +259,57 @@ const runResourcesWithTemplate = async ({
 			skip.message,
 		);
 	}
+	const skippedActions = createSkippedResourceActions({
+		explorerService,
+		resources: skippedResources,
+		viewsService,
+	});
 
 	if (!requests.length) {
 		notificationService.notify({
+			actions: skippedActions.length ? { primary: skippedActions } : undefined,
 			id: "slice.notification",
 			message: localize("slice.runWithTemplate.noReviewedResourceTables", "No reviewed table resources are available to slice."),
-			severity: skippedCount ? Severity.Warning : Severity.Info,
+			severity: skippedResources.length ? Severity.Warning : Severity.Info,
 		});
 		return;
 	}
 
 	sliceService.submitResource(requests);
-	if (skippedCount) {
+	if (skippedResources.length) {
 		notificationService.notify({
+			actions: { primary: skippedActions },
 			id: "slice.notification",
 			message: localize(
 				"slice.runWithTemplate.partial",
 				"Queued {0} resource(s) and skipped {1}",
-				{ 0: requests.length, 1: skippedCount },
+				{ 0: requests.length, 1: skippedResources.length },
 			),
 			severity: Severity.Warning,
 		});
 	}
 	void viewsService.openViewContainer(ChartViewContainerId);
 };
+
+const createSkippedResourceActions = ({
+	explorerService,
+	resources,
+	viewsService,
+}: {
+	readonly explorerService: IExplorerServiceType;
+	readonly resources: readonly SliceCommandResource[];
+	readonly viewsService: Pick<IViewsService, "openViewContainer">;
+}): IAction[] => resources.map((resource, index) => ({
+	id: `slice.runWithTemplate.revealSkippedResource.${index}`,
+	label: resource.label,
+	tooltip: resource.label,
+	class: undefined,
+	enabled: true,
+	run: async () => {
+		await viewsService.openViewContainer(ExplorerViewContainerId);
+		explorerService.select(resource.resource, "force", resource.sheetId ?? null);
+	},
+}));
 
 const getManualReviewedTemplate = async (
 	reviewService: IReviewServiceType,
@@ -431,7 +468,10 @@ const createSliceCommandResource = (
 ): SliceCommandResource | null => {
 	const resource = URI.revive(file.resource);
 	const sheetId = normalizeText(file.sheetId) || null;
+	const fileLabel = normalizeText(file.relativePath) || normalizeText(file.fileName) || basename(resource);
+	const sheetName = normalizeText(file.sheetName);
 	return {
+		label: sheetName ? `${fileLabel} (${sheetName})` : fileLabel,
 		resource,
 		sheetId,
 	};

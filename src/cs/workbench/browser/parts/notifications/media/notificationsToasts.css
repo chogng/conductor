@@ -41,7 +41,7 @@
 .conductor-toast {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   min-width: 280px;
   max-width: min(450px, calc(100vw - 64px));
   padding: 12px 14px;
@@ -87,8 +87,15 @@
   color: var(--conductor-notificationsSuccessIcon-foreground);
 }
 
-.conductor-toast-message-scroll {
+.conductor-toast-content {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+}
+
+.conductor-toast-message-scroll {
   min-width: 0;
 }
 
@@ -111,11 +118,22 @@
   gap: 8px;
 }
 
+.conductor-toast-actions {
+  display: flex;
+  max-height: 120px;
+  flex-direction: column;
+  align-items: flex-start;
+  overflow: auto;
+}
+
 .conductor-toast-action {
+  max-width: 100%;
   color: var(--conductor-notificationLink-foreground);
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .conductor-toast-action:hover {

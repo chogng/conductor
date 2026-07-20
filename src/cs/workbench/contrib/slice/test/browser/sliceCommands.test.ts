@@ -8,7 +8,10 @@ import { Event } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
-import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
+import {
+	IExplorerService,
+	type ExplorerRevealMode,
+} from "src/cs/workbench/contrib/files/browser/files";
 import {
 	runSliceWithTemplateHandler,
 } from "src/cs/workbench/contrib/slice/browser/sliceCommands";
@@ -24,8 +27,8 @@ import {
 } from "src/cs/workbench/services/review/common/review";
 import type { ReviewedTemplate } from "src/cs/workbench/services/review/common/reviewModel";
 import {
-	IWorkbenchLayoutService,
-} from "src/cs/workbench/services/layout/browser/layoutService";
+	IViewsService,
+} from "src/cs/workbench/services/views/common/viewsService";
 import {
 	ISliceService,
 	type SliceState,
@@ -419,6 +422,52 @@ suite("workbench/contrib/slice/test/browser/sliceCommands", () => {
 		assert.ok(notifications.some(notification => notification.id === "slice.notification"));
 	});
 
+	test("lists skipped resources and reveals the selected resource in Explorer", async () => {
+		const sliceService = new TestSliceService();
+		const readyResource = URI.file("/workspace/ready.csv");
+		const firstSkippedResource = URI.file("/workspace/first-skipped.csv");
+		const secondSkippedResource = URI.file("/workspace/second-skipped.csv");
+		const reviewedTemplate = createReviewedTemplate();
+		const notifications: INotification[] = [];
+		const explorerSelections: Array<{ readonly resource: string; readonly reveal: ExplorerRevealMode | undefined; readonly sheetId: string | null }> = [];
+
+		runSliceWithTemplateHandler(createAccessor({
+			explorerFiles: [
+				{ fileId: "ready", fileName: "ready.csv", resource: readyResource, sheetId: "sheet-a" },
+				{ fileId: "first-skipped", fileName: "first-skipped.csv", resource: firstSkippedResource, sheetId: "sheet-b" },
+				{ fileId: "second-skipped", fileName: "second-skipped.csv", resource: secondSkippedResource, sheetId: "sheet-c" },
+			],
+			explorerSelections,
+			notifications,
+			reviewService: createReviewServiceForTest({
+				reviewResourceForExecution: async target =>
+					target.resource.toString() === readyResource.toString()
+						? createReadyResourceExecution({
+							applicationKind: "systemRecommended",
+							reviewedTemplate,
+							reviewSignature: "review:ready",
+							target,
+						})
+						: null,
+			}),
+			sliceService,
+			templateState: createTemplateState({ selectedTemplateId: null }),
+		}));
+
+		await waitForMicrotasks();
+
+		const actions = notifications.find(notification =>
+			notification.actions?.primary?.length === 2,
+		)?.actions?.primary ?? [];
+		assert.deepEqual(actions.map(action => action.label), ["first-skipped.csv", "second-skipped.csv"]);
+		await actions[1]?.run();
+		assert.deepEqual(explorerSelections, [{
+			resource: secondSkippedResource.toString(),
+			reveal: "force",
+			sheetId: "sheet-c",
+		}]);
+	});
+
 	test("continues bulk preparation after an invalid resource", async () => {
 		const sliceService = new TestSliceService();
 		const firstResource = URI.file("/workspace/failed.csv");
@@ -539,6 +588,7 @@ const createResourceSheetKey = (
 
 const createAccessor = ({
 	explorerFiles = [],
+	explorerSelections,
 	isImportingSources = false,
 	notifications = [],
 	reviewService = createReviewServiceForTest(),
@@ -547,6 +597,7 @@ const createAccessor = ({
 	userTemplateService = createUserTemplateServiceForTest(),
 }: {
 	readonly explorerFiles?: readonly unknown[];
+	readonly explorerSelections?: Array<{ readonly resource: string; readonly reveal: ExplorerRevealMode | undefined; readonly sheetId: string | null }>;
 	readonly isImportingSources?: boolean;
 	readonly notifications?: INotification[];
 	readonly reviewService?: IReviewServiceType;
@@ -561,6 +612,12 @@ const createAccessor = ({
 			isImportingSources,
 			selectedResource: null,
 			selectedSheetId: null,
+			select: (resource: URI | null, reveal?: ExplorerRevealMode, sheetId?: string | null) => {
+				if (resource) {
+					explorerSelections?.push({ resource: resource.toString(), reveal, sheetId: sheetId ?? null });
+				}
+				return null;
+			},
 		}],
 		[INotificationService, {
 			_serviceBrand: undefined,
@@ -570,9 +627,9 @@ const createAccessor = ({
 		}],
 		[IReviewService, reviewService],
 		[ISliceService, sliceService],
-		[IWorkbenchLayoutService, {
+		[IViewsService, {
 			_serviceBrand: undefined,
-			navigateToView: () => undefined,
+			openViewContainer: async () => null,
 		}],
 		[ITemplateViewStateService, createTemplateViewStateService(templateState)],
 		[IUserTemplateService, userTemplateService],

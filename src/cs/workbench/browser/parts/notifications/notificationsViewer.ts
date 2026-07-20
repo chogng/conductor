@@ -8,7 +8,7 @@ import type {
   NotificationToastOptions,
   NotificationToastType,
 } from "src/cs/workbench/common/notifications";
-import { getPrimaryNotificationAction } from "src/cs/workbench/browser/parts/notifications/notificationsActions";
+import { getNotificationActions } from "src/cs/workbench/browser/parts/notifications/notificationsActions";
 import { localize } from "src/cs/nls";
 
 export type NotificationRendererOptions = {
@@ -31,10 +31,11 @@ export class NotificationRenderer implements IDisposable {
   private readonly icon: HTMLDivElement;
   private readonly messageScroll: Scrollbar;
   private readonly message: HTMLSpanElement;
+  private readonly content: HTMLDivElement;
   private readonly controls: HTMLDivElement;
-  private readonly actionButton: HTMLButtonElement;
+  private readonly actions: HTMLDivElement;
   private readonly closeButton: HTMLButtonElement;
-  private currentAction: IAction | undefined;
+  private readonly actionDisposables = this.disposables.add(new DisposableStore());
 
   public constructor(private readonly options: NotificationRendererOptions) {
     this.element = document.createElement("div");
@@ -44,33 +45,25 @@ export class NotificationRenderer implements IDisposable {
       viewportClassName: "conductor-toast-message-viewport",
     }));
     this.message = document.createElement("span");
+    this.content = document.createElement("div");
     this.controls = document.createElement("div");
-    this.actionButton = document.createElement("button");
+    this.actions = document.createElement("div");
     this.closeButton = document.createElement("button");
 
     this.icon.className = "conductor-toast-icon";
+    this.content.className = "conductor-toast-content";
     this.message.className = "conductor-toast-message";
     this.controls.className = "conductor-toast-controls";
-    this.actionButton.type = "button";
-    this.actionButton.className = "conductor-toast-action";
+    this.actions.className = "conductor-toast-actions";
     this.closeButton.type = "button";
     this.closeButton.className = "conductor-toast-close";
     this.closeButton.setAttribute("aria-label", localize("notifications.closeToast", "Close toast"));
     appendIcon(this.closeButton, LxIcon.close, 16);
 
     this.messageScroll.viewport.append(this.message);
-    this.controls.append(this.actionButton, this.closeButton);
-    this.element.append(this.icon, this.messageScroll.element, this.controls);
-
-    this.disposables.add(addDisposableListener(
-      this.actionButton,
-      EventType.CLICK,
-      () => {
-        if (this.currentAction) {
-          this.options.onAction(this.currentAction);
-        }
-      },
-    ));
+    this.content.append(this.messageScroll.element, this.actions);
+    this.controls.append(this.closeButton);
+    this.element.append(this.icon, this.content, this.controls);
     this.disposables.add(addDisposableListener(
       this.closeButton,
       EventType.CLICK,
@@ -118,20 +111,23 @@ export class NotificationRenderer implements IDisposable {
     options: NotificationToastOptions,
     uiMarker: string | undefined,
   ): void {
-    this.currentAction = getPrimaryNotificationAction(options.actions);
+    this.actionDisposables.clear();
+    this.actions.replaceChildren();
 
-    if (this.currentAction) {
-      this.actionButton.hidden = false;
-      this.actionButton.textContent = this.currentAction.label;
+    for (const action of getNotificationActions(options.actions)) {
+      const actionButton = document.createElement("button");
+      actionButton.type = "button";
+      actionButton.className = "conductor-toast-action";
+      actionButton.textContent = action.label;
       if (uiMarker) {
-        this.actionButton.setAttribute("data-ui", `${uiMarker}-action`);
-      } else {
-        this.actionButton.removeAttribute("data-ui");
+        actionButton.setAttribute("data-ui", `${uiMarker}-action`);
       }
-    } else {
-      this.actionButton.hidden = true;
-      this.actionButton.textContent = "";
-      this.actionButton.removeAttribute("data-ui");
+      this.actionDisposables.add(addDisposableListener(
+        actionButton,
+        EventType.CLICK,
+        () => this.options.onAction(action),
+      ));
+      this.actions.appendChild(actionButton);
     }
   }
 
