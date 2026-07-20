@@ -15,7 +15,7 @@ import {
 } from "src/cs/base/browser/ui/modal/modal";
 import { createInputBox, type InputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { InputBoxWidget, type IInputBoxWidgetItem } from "src/cs/base/browser/ui/inputbox/inputBoxWidget";
-import { createSelectBox, type SelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
+import { SelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { Action, type IAction } from "src/cs/base/common/actions";
@@ -2561,7 +2561,7 @@ export class SettingsView {
   }
 
   private createSelectWidget(options: FieldOptions, disposables?: DisposableStore): SelectBox<string> {
-    const select = createSelectBox({
+    const select = new SelectBox({
       id: options.id,
       className: "settings-select",
       disabled: options.disabled,

@@ -291,10 +291,6 @@ export class SelectBox<T extends string> extends Disposable {
 
 }
 
-export function createSelectBox<T extends string>(options: SelectBoxOptions<T>): SelectBox<T> {
-    return new SelectBox(options);
-}
-
 function getSelectedOption<T extends string>(
     options: readonly SelectBoxOption<T>[],
     value: T,

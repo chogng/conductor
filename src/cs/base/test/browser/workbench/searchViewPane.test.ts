@@ -168,6 +168,38 @@ suite("base/browser/workbench/searchViewPane", () => {
       service.dispose();
     }
   });
+
+  test("synchronizes interpolation selection after user changes", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const service = new TestSearchService(createSearchPointLookupModel("a", [0, 2]));
+    const pane = new SearchViewPane(service as unknown as ISearchService);
+    document.body.append(pane.element);
+
+    const select = pane.element.querySelector<HTMLButtonElement>(".search_select");
+    assert.ok(select);
+
+    try {
+      select.click();
+      const option = Array.from(document.body.querySelectorAll<HTMLButtonElement>(".ui-selectbox__option"))
+        .find(candidate => candidate.textContent === "No interpolation");
+      assert.ok(option);
+      option.click();
+      await Promise.resolve();
+
+      assert.equal(service.getState().query.interpolationMode, "none");
+      assert.equal(select.querySelector(".ui-selectbox__label")?.textContent, "No interpolation");
+
+      service.setPointLookupModel(null);
+      await Promise.resolve();
+      assert.equal(select.disabled, true);
+    } finally {
+      pane.dispose();
+      service.dispose();
+    }
+  });
 });
 
 class TestSearchService extends Disposable {

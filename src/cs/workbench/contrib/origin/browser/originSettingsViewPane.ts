@@ -6,7 +6,7 @@ import { localize } from "src/cs/nls";
 
 import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { createSelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
+import { SelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
@@ -730,7 +730,7 @@ const createSettingsDropdown = <T extends string>({
   readonly store: DisposableStore;
   readonly value: T;
 }): HTMLElement => {
-  const select = createSelectBox({
+  const select = new SelectBox({
     className: "export_settings_view_control origin_settings_dropdown",
     id,
     options,

@@ -5,11 +5,7 @@
 import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import {
-  createSelectBox,
-  type SelectBox,
-  type SelectBoxOptions,
-} from "src/cs/base/browser/ui/selectBox/selectBox";
+import { SelectBox, type SelectBoxOptions } from "src/cs/base/browser/ui/selectBox/selectBox";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
@@ -182,14 +178,14 @@ class OriginExportToolbarController {
     this.curveChipGroup.className = "origin_export_toolbar_chip_group";
     this.contentChipGroup.className = "origin_export_toolbar_chip_group";
 
-    this.modeSelect = this.store.add(createSelectBox(this.createModeSelectOptions(props.mode)));
-    this.canvasScopeSelect = this.store.add(createSelectBox(
+    this.modeSelect = this.store.add(new SelectBox(this.createModeSelectOptions(props.mode)));
+    this.canvasScopeSelect = this.store.add(new SelectBox(
       this.createCanvasScopeSelectOptions(props.originCanvasExportScope),
     ));
-    this.filteredKindSelect = this.store.add(createSelectBox(
+    this.filteredKindSelect = this.store.add(new SelectBox(
       this.createFilteredKindSelectOptions(props.originFilteredCanvasKind),
     ));
-    this.curveModeSelect = this.store.add(createSelectBox(
+    this.curveModeSelect = this.store.add(new SelectBox(
       this.createCurveModeSelectOptions(props.resolvedCurveExportMode),
     ));
     this.store.add(this.modeSelect.onDidSelect(value => this.props.onModeChange(value)));

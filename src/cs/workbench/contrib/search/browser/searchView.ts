@@ -5,10 +5,7 @@
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import {
-  createSelectBox,
-  type SelectBox,
-} from "src/cs/base/browser/ui/selectBox/selectBox";
+import { SelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
@@ -80,13 +77,14 @@ class SearchViewController {
     const label = document.createElement("span");
     label.className = "search_label";
     label.textContent = localize("search.xInput", "X value");
+    this.input.classList.add("search_input_native");
     this.input.inputMode = "decimal";
 
     const algorithmLabel = document.createElement("span");
     algorithmLabel.className = "search_label";
     algorithmLabel.textContent = localize("search.interpolation.label", "Interpolation algorithm");
 
-    this.algorithmSelect = this.store.add(createSelectBox({
+    this.algorithmSelect = this.store.add(new SelectBox({
       ariaLabel: localize("search.interpolation.selectLabel", "Search algorithm"),
       className: "search_select",
       disabled: true,

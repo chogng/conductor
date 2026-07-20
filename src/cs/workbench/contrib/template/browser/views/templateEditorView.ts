@@ -2,7 +2,7 @@ import { createButton } from "src/cs/base/browser/ui/button/button";
 import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { createSelectBox, type SelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
+import { SelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
@@ -504,7 +504,7 @@ export class TemplateEditorView {
     labelElement.textContent = label;
     wrapper.append(labelElement);
 
-    const select = createSelectBox({
+    const select = new SelectBox({
       ariaLabel: label,
       ariaLabelledBy: labelId,
       className: "template_form_selectbox",

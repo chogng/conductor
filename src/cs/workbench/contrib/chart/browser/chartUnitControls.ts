@@ -1,4 +1,4 @@
-import { createSelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
+import { SelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import type { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import {
@@ -86,7 +86,7 @@ const createScaleSelect = ({
     { label: localize("chart.yScale.linear", "Linear"), value: "linear" },
     { label: localize("chart.yScale.log", "Log"), value: "log" },
   ];
-  const select = createSelectBox({
+  const select = new SelectBox({
     ariaLabel: localize("chart.yScale.selectLabel", "Y scale"),
     className: "chart_unit_select chart_scale_select",
     dropdownClassName: "chart_unit_select_surface",
@@ -127,7 +127,7 @@ const createUnitSelect = <T extends XUnit | YUnit>({
   text.className = "chart_unit_label";
   text.textContent = label;
 
-  const select = createSelectBox({
+  const select = new SelectBox({
     ariaLabel: localize("chart.units.selectLabel", "{axis} unit", {
       axis: label,
     }),

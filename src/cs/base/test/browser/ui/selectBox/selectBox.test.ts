@@ -62,4 +62,49 @@ suite("base/test/browser/ui/selectBox/selectBox", () => {
       select.domNode.remove();
     }
   });
+
+  test("synchronizes replaced options and closes when disabled", () => {
+    const select = disposables.add(new SelectBox<string>({
+      options: [
+        { label: "Template 1", value: "template-1" },
+        { label: "Template 2", value: "template-2" },
+      ],
+      value: "template-1",
+    }));
+    const selected: string[] = [];
+    const listener = select.onDidSelect(value => selected.push(value));
+    document.body.append(select.domNode);
+
+    try {
+      select.domNode.click();
+      select.setOptions([
+        { label: "Template 3", value: "template-3" },
+        { label: "Template 4", value: "template-4" },
+      ], "template-3");
+
+      const option = document.body.querySelector<HTMLButtonElement>(".ui-selectbox__option.selected");
+      assert.ok(option);
+      assert.equal(option.textContent, "Template 3");
+      assert.equal(option.getAttribute("aria-selected"), "true");
+      assert.equal(select.domNode.querySelector(".ui-selectbox__label")?.textContent, "Template 3");
+
+      document.body.querySelectorAll<HTMLButtonElement>(".ui-selectbox__option")[1]
+        .dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true }));
+      assert.deepEqual(selected, ["template-4"]);
+
+      select.domNode.click();
+      select.setEnabled(false);
+      assert.equal(select.domNode.disabled, true);
+      assert.equal(select.domNode.getAttribute("aria-expanded"), "false");
+
+      select.setEnabled(true);
+      assert.equal(select.domNode.disabled, false);
+      select.domNode.click();
+      assert.equal(document.body.querySelectorAll(".ui-selectbox__option").length, 2);
+    } finally {
+      listener.dispose();
+      select.hide();
+      select.domNode.remove();
+    }
+  });
 });
