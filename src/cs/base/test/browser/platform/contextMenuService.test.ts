@@ -113,6 +113,53 @@ suite("base/test/browser/platform/contextMenuService", () => {
       anchor.remove();
     }
   });
+
+  test("reports handler visibility through the service contract", () => {
+    const contextViewService = new TestContextViewService();
+    const contextMenuService = new ContextMenuService(contextViewService);
+    const anchor = document.createElement("button");
+    const action = new Action("context.action", "Action");
+    action.checked = true;
+    let didShow = 0;
+    let didHide = 0;
+    let didCancel: boolean | undefined;
+    document.body.append(anchor);
+
+    const showDisposable = contextMenuService.onDidShowContextMenu(() => didShow++);
+    const hideDisposable = contextMenuService.onDidHideContextMenu(() => didHide++);
+    try {
+      contextMenuService.showContextMenu({
+        getAnchor: () => anchor,
+        getActions: () => [],
+      });
+      assert.equal(didShow, 0);
+
+      contextMenuService.showContextMenu({
+        getAnchor: () => anchor,
+        getActions: () => [action],
+        getCheckedActionsRepresentation: () => "checkbox",
+        getKeyBinding: () => ({
+          getElectronAccelerator: () => undefined,
+          getLabel: () => "Ctrl+K",
+        }),
+        onHide: value => didCancel = value,
+      });
+      assert.equal(didShow, 1);
+      assert.ok(contextViewService.getContextViewElement().querySelector(".ui-menu__check-indicator"));
+      assert.equal(contextViewService.getContextViewElement().querySelector(".ui-menu__item-right")?.textContent, "Ctrl+K");
+
+      contextMenuService.hideContextMenu(false);
+      assert.equal(didCancel, false);
+      assert.equal(didHide, 1);
+    } finally {
+      showDisposable.dispose();
+      hideDisposable.dispose();
+      contextMenuService.dispose();
+      contextViewService.dispose();
+      action.dispose();
+      anchor.remove();
+    }
+  });
 });
 
 const getSubmenus = (): HTMLElement[] =>

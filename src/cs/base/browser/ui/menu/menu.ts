@@ -11,6 +11,8 @@ import "src/cs/base/browser/ui/menu/menu.css";
 
 export type MenuOptions = {
     className?: string;
+    getActionRight?: (action: IAction) => Node | string | undefined;
+    getCheckedActionRepresentation?: (action: IAction) => "checkbox" | "radio" | undefined;
     role?: string;
     withScrollArea?: boolean;
 };
@@ -174,33 +176,6 @@ export function createMenuAction(options: MenuActionOptions): IAction {
     return action;
 }
 
-export function createMenuActionFromAction(
-    action: IAction,
-    overrides: Pick<MenuActionOptions, "checked" | "left" | "right" | "run"> &
-        Partial<Pick<MenuActionOptions, "onMouseEnter">>,
-): IAction {
-    const data = getMenuItemData(action);
-    return createMenuAction({
-        autoHide: data?.autoHide,
-        checked: overrides.checked ?? action.checked,
-        className: action.class,
-        enabled: action.enabled,
-        id: action.id,
-        label: action.label,
-        left: overrides.left ?? data?.left,
-        onMouseEnter: overrides.onMouseEnter ?? data?.onMouseEnter,
-        right: overrides.right ?? data?.right,
-        rightAction: data?.rightAction,
-        rightActions: data?.rightActions,
-        role: data?.role,
-        run: overrides.run,
-        selected: data?.selected,
-        tabIndex: data?.tabIndex,
-        tooltip: action.tooltip || action.label,
-        value: data?.value,
-    });
-}
-
 export function createMenuItemLabel(label: string, icon?: MenuIcon): HTMLSpanElement {
     const wrapper = document.createElement("span");
     wrapper.className = "ui-menu__item-left ui-menu__item-label";
@@ -220,7 +195,7 @@ export function createMenuItemLabel(label: string, icon?: MenuIcon): HTMLSpanEle
     return wrapper;
 }
 
-export function createCheckedMenuItemLabel(
+function createCheckedMenuItemLabel(
     label: string,
     checkedRepresentation: "checkbox" | "radio",
 ): HTMLSpanElement {
@@ -290,7 +265,7 @@ const createMenuActionViewItem = (
         return new SubmenuMenuActionViewItem(action, options, submenuData, menuOptions);
     }
 
-    return new MenuActionViewItem(action, options, submenuData);
+    return new MenuActionViewItem(action, options, submenuData, menuOptions);
 };
 
 class MenuActionViewItem extends BaseActionViewItem {
@@ -300,6 +275,7 @@ class MenuActionViewItem extends BaseActionViewItem {
         action: IAction,
         options: IActionViewItemOptions,
         protected readonly submenuData: MenuSubmenuData,
+        menuOptions: MenuOptions,
         private readonly closeSubmenuOnMouseEnter = true,
     ) {
         super(undefined, action, {
@@ -307,7 +283,25 @@ class MenuActionViewItem extends BaseActionViewItem {
             className: action.class,
             role: getMenuItemData(action)?.role ?? "menuitem",
         });
-        this.data = getMenuItemData(action);
+        const data = getMenuItemData(action);
+        const checkedRepresentation = action.checked !== undefined
+            ? menuOptions.getCheckedActionRepresentation?.(action)
+            : undefined;
+        const right = menuOptions.getActionRight?.(action) ?? data?.right;
+        this.data = checkedRepresentation || right !== data?.right
+            ? {
+                autoHide: data?.autoHide ?? true,
+                left: checkedRepresentation ? createCheckedMenuItemLabel(action.label, checkedRepresentation) : data?.left,
+                onMouseEnter: data?.onMouseEnter,
+                right,
+                rightAction: data?.rightAction,
+                rightActions: data?.rightActions,
+                role: data?.role,
+                selected: data?.selected ?? false,
+                tabIndex: data?.tabIndex,
+                value: data?.value,
+            }
+            : data;
     }
 
     public override render(container: HTMLElement): void {
@@ -458,7 +452,7 @@ class SubmenuMenuActionViewItem extends MenuActionViewItem {
         submenuData: MenuSubmenuData,
         private readonly menuOptions: MenuOptions,
     ) {
-        super(submenuAction, options, submenuData, false);
+        super(submenuAction, options, submenuData, menuOptions, false);
     }
 
     public override render(container: HTMLElement): void {
@@ -532,6 +526,8 @@ class SubmenuMenuActionViewItem extends MenuActionViewItem {
 
         const menu = new Menu({
             className: this.menuOptions.className,
+            getActionRight: this.menuOptions.getActionRight,
+            getCheckedActionRepresentation: this.menuOptions.getCheckedActionRepresentation,
             withScrollArea: this.menuOptions.withScrollArea,
         });
         menu.actionRunner = this.actionRunner;
