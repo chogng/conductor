@@ -1,9 +1,8 @@
 import type { Event } from "src/cs/base/common/event";
-import type { ITableSize } from "src/cs/base/browser/ui/table/table";
+import type { ITableColumnHeaderSelection, ITableSize } from "src/cs/base/browser/ui/table/table";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import {
   TableWidget,
-  type TableWidgetColumnHeaderSelection,
   type TableWidgetColumnWidthTarget,
   type TableWidgetModel,
   type TableWidgetProps,
@@ -20,7 +19,7 @@ type TableSelection = ReturnType<TableControllerViewModel["getSelection"]>;
 
 export type TableControllerProps = {
   readonly canAdjustColumnScale?: boolean;
-  readonly columnHeaderSelection?: TableWidgetColumnHeaderSelection;
+  readonly columnHeaderSelection?: ITableColumnHeaderSelection;
   readonly columnSizingMode: TableColumnSizingMode;
   readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly getColumnWidths?: (source: TableSource | null | undefined) => readonly TableColumnWidth[];

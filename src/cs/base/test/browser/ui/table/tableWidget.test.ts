@@ -172,7 +172,9 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 	test("emits normalized table mouse events with body and header targets", () => {
 		const bodyEvents: unknown[] = [];
 		const headerEvents: unknown[] = [];
+		const headerSelectionEvents: unknown[] = [];
 		const pointerEvents: unknown[] = [];
+		const rowHeaderEvents: unknown[] = [];
 		const { listener, widget } = createResizableTableWidget();
 		const bodyListener = widget.onDidClickBody(event => {
 			bodyEvents.push({
@@ -189,6 +191,9 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 				type: event.browserEvent.type,
 			});
 		});
+		const headerSelectionListener = widget.onDidSelectHeader(event => {
+			headerSelectionEvents.push(event);
+		});
 		const pointerListener = widget.onDidPointerDownBody(event => {
 			pointerEvents.push({
 				cell: event.cell,
@@ -196,13 +201,22 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 				pointerId: event.browserEvent.pointerId,
 			});
 		});
+		const rowHeaderListener = widget.onDidClickRowHeader(event => {
+			rowHeaderEvents.push({
+				leftButton: event.mouseEvent.leftButton,
+				row: event.row,
+				type: event.browserEvent.type,
+			});
+		});
 		try {
 			const bodyCell = widget.getBodyCellElement(2, 3);
 			const bodyContent = bodyCell?.querySelector(".table_view_cell_content");
 			const headerCell = widget.getColumnHeaderCellElement(3);
+			const rowHeaderCell = widget.element.querySelector<HTMLTableCellElement>(".table_view_row_header_cell");
 			assert.ok(bodyCell);
 			assert.ok(bodyContent);
 			assert.ok(headerCell);
+			assert.ok(rowHeaderCell);
 
 			bodyContent.dispatchEvent(new MouseEvent("click", {
 				bubbles: true,
@@ -212,14 +226,26 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 				bubbles: true,
 				cancelable: true,
 			}));
+			rowHeaderCell.dispatchEvent(new MouseEvent("click", {
+				bubbles: true,
+				cancelable: true,
+			}));
 			bodyContent.dispatchEvent(createPointerEvent(widget, "pointerdown", 16, 1));
 
-			assert.deepEqual(bodyEvents, [{
-				cell: { rowIndex: 2, colIndex: 3 },
-				leftButton: true,
-				posx: 0,
-				type: "click",
-			}]);
+			assert.deepEqual(bodyEvents, [
+				{
+					cell: { rowIndex: 2, colIndex: 3 },
+					leftButton: true,
+					posx: 0,
+					type: "click",
+				},
+				{
+					cell: null,
+					leftButton: true,
+					posx: 0,
+					type: "click",
+				},
+			]);
 			assert.deepEqual(headerEvents, [{
 				column: { colIndex: 3 },
 				leftButton: true,
@@ -230,7 +256,28 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 				leftButton: true,
 				pointerId: 1,
 			}]);
+			assert.deepEqual(rowHeaderEvents, [{
+				leftButton: true,
+				row: { rowIndex: 0 },
+				 type: "click",
+			}]);
+			assert.deepEqual(headerSelectionEvents, [
+				{ selection: { kind: "columns", columns: [3] } },
+				{
+					selection: {
+						kind: "range",
+						anchorCell: { rowIndex: 0, colIndex: 0 },
+						focusCell: { rowIndex: 0, colIndex: 4 },
+						range: { startRow: 0, endRow: 0, startCol: 0, endCol: 4 },
+					},
+				},
+			]);
+			for (let colIndex = 0; colIndex < 5; colIndex += 1) {
+				assert.equal(widget.getBodyCellElement(0, colIndex)?.classList.contains("selected"), true);
+			}
 		} finally {
+			rowHeaderListener.dispose();
+			headerSelectionListener.dispose();
 			pointerListener.dispose();
 			headerListener.dispose();
 			bodyListener.dispose();

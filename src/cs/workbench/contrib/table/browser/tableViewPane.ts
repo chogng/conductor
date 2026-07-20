@@ -36,10 +36,7 @@ import {
   ZOOM_OUT_TABLE_COMMAND_ID,
 } from "src/cs/workbench/contrib/table/browser/tableCommands";
 import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
-import type { ITableSize } from "src/cs/base/browser/ui/table/table";
-import {
-  type TableWidgetColumnHeaderSelection,
-} from "src/cs/workbench/contrib/table/browser/tableWidget";
+import type { ITableColumnHeaderSelection, ITableSize } from "src/cs/base/browser/ui/table/table";
 import {
   areTableSourcesEqual,
   ITableService,
@@ -434,7 +431,7 @@ const getSheetTabButtonIndex = (
 
 export const getTableColumnHeaderSelection = (
   templateMode: TemplateMode,
-): TableWidgetColumnHeaderSelection =>
+): ITableColumnHeaderSelection =>
   templateMode === "editor" ? "multi" : "single";
 
 export const getCanAdjustColumnScale = (

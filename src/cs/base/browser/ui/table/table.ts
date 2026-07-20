@@ -78,6 +78,10 @@ export interface ITableColumnHeaderPosition {
 	readonly colIndex: number;
 }
 
+export interface ITableRowHeaderPosition {
+	readonly rowIndex: number;
+}
+
 export interface ITableCellRange {
 	readonly endCol: number;
 	readonly endRow: number;
@@ -126,6 +130,16 @@ export interface ITableColumnHeaderMouseEvent<T extends MouseEvent = MouseEvent>
 	readonly browserEvent: T;
 	readonly column: ITableColumnHeaderPosition | null;
 	readonly mouseEvent: IMouseEvent;
+}
+
+export interface ITableRowHeaderMouseEvent<T extends MouseEvent = MouseEvent> {
+	readonly browserEvent: T;
+	readonly mouseEvent: IMouseEvent;
+	readonly row: ITableRowHeaderPosition | null;
+}
+
+export interface ITableHeaderSelectionEvent {
+	readonly selection: ITableHeaderSelectionTarget;
 }
 
 export interface ITableKeyboardNavigationEvent<T extends KeyboardEvent = KeyboardEvent> {
@@ -210,6 +224,7 @@ export interface ITablePagedWidgetRenderer<TRow, TBodyTemplateData = unknown, TC
 export interface ITableWidgetOptions<TBodyTemplateData = unknown, TColumnHeaderTemplateData = unknown> {
 	readonly cellEditing?: ITableCellEditOptions;
 	readonly className?: string;
+	readonly columnHeaderSelection?: ITableColumnHeaderSelection;
 	readonly columnResize?: ITableColumnResizeOptions;
 	readonly getColumnWidth: (colIndex: number) => number;
 	readonly keyboardNavigation?: ITableKeyboardNavigationOptions;
@@ -231,6 +246,8 @@ export interface ITableKeyboardNavigationOptions {
 	readonly enabled?: boolean;
 }
 
+export type ITableColumnHeaderSelection = "disabled" | "single" | "multi";
+
 export interface ITableZoomOptions {
 	readonly wheel?: boolean;
 }
@@ -243,6 +260,10 @@ export type ITableCellSelectionTarget =
 		readonly focusCell: ITableCellPosition;
 		readonly range: ITableCellRange;
 	};
+
+export type ITableHeaderSelectionTarget =
+	| ITableCellSelectionTarget
+	| { readonly kind: "columns"; readonly columns: readonly number[] };
 
 export interface ITableColumnResizeOptions {
 	readonly enabled?: boolean;

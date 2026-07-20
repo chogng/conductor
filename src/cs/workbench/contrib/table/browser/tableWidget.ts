@@ -24,7 +24,8 @@ import {
   type ITableCellSelectionTarget,
   type ITableDirtyPatchOutcome,
   type ITableDirtyRange,
-  type ITableColumnHeaderMouseEvent,
+  type ITableColumnHeaderSelection,
+  type ITableHeaderSelectionTarget,
   type ITableKeyboardNavigationEvent,
   type ITableSize,
 } from "src/cs/base/browser/ui/table/table";
@@ -164,11 +165,9 @@ export type TableWidgetSelectionTarget =
   | { readonly kind: "range"; readonly range: TableRange }
   | { readonly kind: "columns"; readonly columns: readonly number[] };
 
-export type TableWidgetColumnHeaderSelection = "disabled" | "single" | "multi";
-
 export type TableWidgetProps = {
   readonly canAdjustColumnScale?: boolean;
-  readonly columnHeaderSelection?: TableWidgetColumnHeaderSelection;
+  readonly columnHeaderSelection?: ITableColumnHeaderSelection;
   readonly columnSizingMode: TableColumnSizingMode;
   readonly commandService?: Pick<ICommandService, "executeCommand">;
   readonly getColumnWidths?: (source: TableSource | null | undefined) => readonly TableColumnWidth[];
@@ -286,6 +285,7 @@ export class TableWidget {
       },
     }));
     this.grid = this.store.add(new BaseTableWidget({
+      columnHeaderSelection: props.columnHeaderSelection,
       columnResize: { enabled: this.isFixedColumnSizingMode(), mode: "commit" },
       getColumnWidth: colIndex => this.getColumnWidth(colIndex),
       keyboardNavigation: { enabled: true },
@@ -325,12 +325,12 @@ export class TableWidget {
       reset: this.columnScaleResetAction,
     }));
     this.element.append(this.columnScaleControl.element);
-    // Base table events describe viewport facts; this widget keeps data and selection ownership.
+    // The base table owns selection gestures; this widget syncs their facts to the table service.
     this.store.add(this.grid.onDidScroll(() => {
       this.onTableScroll();
     }));
-    this.store.add(this.grid.onDidClickHeader(event => {
-      this.onHeaderClick(event);
+    this.store.add(this.grid.onDidSelectHeader(event => {
+      this.onHeaderSelection(event.selection);
     }));
     this.store.add(this.grid.onDidResizeColumn(event => {
       this.setColumnWidth(event);
@@ -364,11 +364,15 @@ export class TableWidget {
   public update(props: TableWidgetProps): void {
     const previousModel = this.props.tableViewModel;
     const previousColumnSizingMode = this.props.columnSizingMode;
+    const previousColumnHeaderSelection = this.props.columnHeaderSelection;
     const nextInputKey = getTableWidgetInputKey(props);
     this.props = props;
     if (previousColumnSizingMode !== props.columnSizingMode) {
       this.grid.setColumnResizeEnabled(this.isFixedColumnSizingMode());
       this.autoFitColumnWidthSignature = null;
+    }
+    if (previousColumnHeaderSelection !== props.columnHeaderSelection) {
+      this.grid.setColumnHeaderSelection(props.columnHeaderSelection ?? "single");
     }
     if (previousModel !== props.tableViewModel) {
       this.rowRenderer.setModel(props.tableViewModel);
@@ -1264,28 +1268,12 @@ export class TableWidget {
     }
   }
 
-  private onHeaderClick(event: ITableColumnHeaderMouseEvent): void {
-    const mouseEvent = event.mouseEvent;
-    const colIndex = event.column?.colIndex;
-    if (typeof colIndex !== "number") {
-      return;
+  private onHeaderSelection(selection: ITableHeaderSelectionTarget): void {
+    if (selection.kind === "columns") {
+      this.select({ kind: "columns", columns: selection.columns });
+    } else {
+      this.selectBaseCellTarget(selection, false);
     }
-
-    const selectionMode = this.props.columnHeaderSelection ?? "single";
-    if (selectionMode === "disabled") {
-      mouseEvent.preventDefault();
-      mouseEvent.stopPropagation();
-      return;
-    }
-
-    this.select({
-      kind: "columns",
-      columns: resolveHeaderSelectedColumns(
-        this.getSelection(),
-        colIndex,
-        selectionMode,
-      ),
-    });
     this.focus();
   }
 
@@ -1693,20 +1681,6 @@ export class TableWidget {
   }
 }
 
-const toggleSelectedColumn = (
-  selection: TableSelection,
-  colIndex: number,
-): readonly number[] => {
-  const columns = new Set(selection.selectedColumns ?? []);
-  if (columns.has(colIndex)) {
-    columns.delete(colIndex);
-  } else {
-    columns.add(colIndex);
-  }
-
-  return Array.from(columns).sort((a, b) => a - b);
-};
-
 const toTableCellDecorationRange = (
   decoration: TableRangeDecoration,
 ): ITableCellDecorationRange => ({
@@ -1716,24 +1690,6 @@ const toTableCellDecorationRange = (
   endCol: decoration.endCol,
   token: decoration.kind,
 });
-
-const resolveHeaderSelectedColumns = (
-  selection: TableSelection,
-  colIndex: number,
-  mode: TableWidgetColumnHeaderSelection,
-): readonly number[] => {
-  if (mode === "disabled") {
-    return selection.selectedColumns ?? [];
-  }
-
-  if (mode === "multi") {
-    return toggleSelectedColumn(selection, colIndex);
-  }
-
-  return selection.selectedColumns?.length === 1 && selection.selectedColumns[0] === colIndex
-    ? []
-    : [colIndex];
-};
 
 const normalizeWidgetColumnIndex = (value: unknown): number | null => {
   const index = Math.floor(Number(value));

@@ -33,6 +33,19 @@ const TABLE_WIDGET_ZOOM_WHEEL_GESTURE_RESET_MS = 200;
 // Ctrl/Cmd+wheel zoom more sensitive; remaining delta is kept for the gesture.
 const TABLE_WIDGET_ZOOM_WHEEL_STEP_DELTA = 90;
 
+const toggleSelectedColumn = (columns: readonly number[] | undefined, colIndex: number): readonly number[] => {
+	const selectedColumns = new Set(columns ?? []);
+	if (selectedColumns.has(colIndex)) {
+		selectedColumns.delete(colIndex);
+	} else {
+		selectedColumns.add(colIndex);
+	}
+	return [...selectedColumns].sort((first, second) => first - second);
+};
+
+const resolveSingleSelectedColumn = (columns: readonly number[] | undefined, colIndex: number): readonly number[] =>
+	columns?.length === 1 && columns[0] === colIndex ? [] : [colIndex];
+
 type TableWidgetColumnResizeState = {
 	readonly colIndex: number;
 	readonly guideLeft: number;
@@ -245,6 +258,8 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	public readonly onDidCommitCellEdit: Event<Table.ITableCellEditCommitEvent>;
 	public readonly onDidClickBody: Event<Table.ITableBodyMouseEvent>;
 	public readonly onDidClickHeader: Event<Table.ITableColumnHeaderMouseEvent>;
+	public readonly onDidClickRowHeader: Event<Table.ITableRowHeaderMouseEvent>;
+	public readonly onDidSelectHeader: Event<Table.ITableHeaderSelectionEvent>;
 	public readonly onDidNavigateKeyboard: Event<Table.ITableKeyboardNavigationEvent>;
 	public readonly onDidPointerDownBody: Event<Table.ITableBodyMouseEvent<PointerEvent>>;
 
@@ -256,6 +271,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private readonly onDidResizeColumnEmitter = this.disposables.add(new Emitter<Table.ITableColumnResizeEvent>());
 	private readonly onDidDoubleClickColumnResizeBoundaryEmitter = this.disposables.add(new Emitter<Table.ITableColumnResizeBoundaryDoubleClickEvent>());
 	private readonly onDidCommitCellEditEmitter = this.disposables.add(new Emitter<Table.ITableCellEditCommitEvent>());
+	private readonly onDidSelectHeaderEmitter = this.disposables.add(new Emitter<Table.ITableHeaderSelectionEvent>());
 	private readonly onDidNavigateKeyboardEmitter = this.disposables.add(new Emitter<Table.ITableKeyboardNavigationEvent>());
 	private readonly bodyCellTraits = new Map<TBodyTemplateData, TableBodyCellTraits>();
 	private readonly bodyCellTraitsByElement = new WeakMap<HTMLTableCellElement, TableBodyCellTraits>();
@@ -273,6 +289,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private size: Table.ITableSize = { columnCount: 0, rowCount: 0 };
 	private readonly virtualTable: VirtualTable<TBodyTemplateData, TColumnHeaderTemplateData>;
 	private columnResizeEnabled: boolean;
+	private columnHeaderSelection: Table.ITableColumnHeaderSelection;
 	private zoomPercent: number = TABLE_WIDGET_ZOOM_OPTIONS.defaultPercent;
 	private zoomWheelAccumulatedDelta = 0;
 	private zoomWheelLastEventTime = 0;
@@ -294,9 +311,18 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.onDidCommitCellEdit = this.onDidCommitCellEditEmitter.event;
 		this.onDidClickBody = this.createBodyClickEvent();
 		this.onDidClickHeader = this.createColumnHeaderClickEvent();
+		this.onDidClickRowHeader = this.createRowHeaderClickEvent();
+		this.onDidSelectHeader = this.onDidSelectHeaderEmitter.event;
 		this.onDidNavigateKeyboard = this.onDidNavigateKeyboardEmitter.event;
 		this.onDidPointerDownBody = this.createBodyPointerDownEvent();
 		this.columnResizeEnabled = options.columnResize?.enabled === true;
+		this.columnHeaderSelection = options.columnHeaderSelection ?? "single";
+		this.disposables.add(this.onDidClickHeader(event => {
+			this.onColumnHeaderClick(event);
+		}));
+		this.disposables.add(this.onDidClickRowHeader(event => {
+			this.onRowHeaderClick(event);
+		}));
 		this.disposables.add(this.virtualTable.onDidChangeVisibleRange(() => {
 			this.clearHoveredTraits();
 			this.resetAppliedCellState();
@@ -389,14 +415,19 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.syncCellState();
 	}
 
+	public setColumnHeaderSelection(selection: Table.ITableColumnHeaderSelection): void {
+		this.columnHeaderSelection = selection;
+	}
+
 	public selectCell(cell: Table.ITableCellPosition | null): Table.ITableCellSelectionTarget | null {
 		if (!cell) {
 			this.selectionAnchorCell = null;
 			this.selectionFocusCell = null;
 			this.cellState = {
-				...this.cellState,
-				activeCell: null,
-				selectedRanges: [],
+			...this.cellState,
+			activeCell: null,
+			selectedColumns: [],
+			selectedRanges: [],
 			};
 			this.syncCellState();
 			return { kind: "cell", cell: null };
@@ -412,6 +443,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.cellState = {
 			...this.cellState,
 			activeCell: normalizedCell,
+			selectedColumns: [],
 			selectedRanges: [],
 		};
 		this.syncCellState();
@@ -433,6 +465,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.cellState = {
 			...this.cellState,
 			activeCell: focusCell,
+			selectedColumns: [],
 			selectedRanges: [range],
 		};
 		this.syncCellState();
@@ -442,6 +475,48 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 			focusCell,
 			range,
 		};
+	}
+
+	public selectRow(rowIndex: number): Table.ITableCellSelectionTarget | null {
+		const normalizedRowIndex = Math.floor(Number(rowIndex));
+		if (!Number.isInteger(normalizedRowIndex) || normalizedRowIndex < 0 || normalizedRowIndex >= this.size.rowCount) {
+			return null;
+		}
+
+		const lastColumnIndex = this.size.columnCount - 1;
+		if (lastColumnIndex < 0) {
+			return null;
+		}
+
+		const anchorCell = { rowIndex: normalizedRowIndex, colIndex: 0 };
+		const focusCell = { rowIndex: normalizedRowIndex, colIndex: lastColumnIndex };
+		const range = VirtualTableGridModel.resolveCellRange(anchorCell, focusCell);
+		this.selectionAnchorCell = anchorCell;
+		this.selectionFocusCell = focusCell;
+		this.cellState = {
+			...this.cellState,
+			activeCell: focusCell,
+			selectedColumns: [],
+			selectedRanges: [range],
+		};
+		this.syncCellState();
+		return { kind: "range", anchorCell, focusCell, range };
+	}
+
+	public selectColumns(columns: readonly number[]): Table.ITableHeaderSelectionTarget {
+		const selectedColumns = [...new Set(columns.map(column => Math.floor(Number(column))))]
+			.filter(column => column >= 0 && column < this.size.columnCount)
+			.sort((first, second) => first - second);
+		this.selectionAnchorCell = null;
+		this.selectionFocusCell = null;
+		this.cellState = {
+			...this.cellState,
+			activeCell: null,
+			selectedColumns,
+			selectedRanges: [],
+		};
+		this.syncCellState();
+		return { kind: "columns", columns: selectedColumns };
 	}
 
 	public setBodyCellTraits(templateData: TBodyTemplateData, state: Table.ITableBodyCellTraitState): void {
@@ -703,6 +778,25 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		}
 
 		return { colIndex: ariaColIndex - 1 };
+	}
+
+	public getRowHeaderPositionFromTarget(target: EventTarget | null): Table.ITableRowHeaderPosition | null {
+		const targetElement = this.getElementFromEventTarget(target);
+		if (!targetElement) {
+			return null;
+		}
+
+		const cell = targetElement.closest<HTMLTableCellElement>(".table_view_row_header_cell");
+		if (!cell || cell.hidden || !this.virtualTable.bodyRows.contains(cell)) {
+			return null;
+		}
+
+		const ariaRowIndex = Number(cell.parentElement?.getAttribute("aria-rowindex"));
+		if (!Number.isInteger(ariaRowIndex) || ariaRowIndex <= 0) {
+			return null;
+		}
+
+		return { rowIndex: ariaRowIndex - 1 };
 	}
 
 	public forEachBodyCellElement(callback: (cell: HTMLTableCellElement) => void): void {
@@ -1006,6 +1100,42 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		);
 	}
 
+	private createRowHeaderClickEvent(): Event<Table.ITableRowHeaderMouseEvent> {
+		const emitter = this.disposables.add(new DomEmitter(this.virtualTable.bodyRows, "click"));
+		return EventUtil.map(
+			EventUtil.filter(emitter.event, event => this.getRowHeaderPositionFromTarget(event.target) !== null),
+			event => this.toRowHeaderMouseEvent(event),
+		);
+	}
+
+	private onColumnHeaderClick(event: Table.ITableColumnHeaderMouseEvent): void {
+		const colIndex = event.column?.colIndex;
+		if (typeof colIndex !== "number" || this.columnHeaderSelection === "disabled") {
+			return;
+		}
+
+		event.mouseEvent.preventDefault();
+		event.mouseEvent.stopPropagation();
+		const selectedColumns = this.columnHeaderSelection === "multi"
+			? toggleSelectedColumn(this.cellState.selectedColumns, colIndex)
+			: resolveSingleSelectedColumn(this.cellState.selectedColumns, colIndex);
+		this.onDidSelectHeaderEmitter.fire({ selection: this.selectColumns(selectedColumns) });
+	}
+
+	private onRowHeaderClick(event: Table.ITableRowHeaderMouseEvent): void {
+		const rowIndex = event.row?.rowIndex;
+		if (typeof rowIndex !== "number") {
+			return;
+		}
+
+		event.mouseEvent.preventDefault();
+		event.mouseEvent.stopPropagation();
+		const selection = this.selectRow(rowIndex);
+		if (selection) {
+			this.onDidSelectHeaderEmitter.fire({ selection });
+		}
+	}
+
 	private onBodyPointerMove(event: PointerEvent): void {
 		this.setHoveredBodyCellTraits(this.getBodyCellTraitsFromTarget(event.target));
 	}
@@ -1027,6 +1157,14 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 			browserEvent,
 			column: this.getColumnHeaderPositionFromTarget(browserEvent.target),
 			mouseEvent: new StandardMouseEvent(getWindow(this.element), browserEvent),
+		};
+	}
+
+	private toRowHeaderMouseEvent<T extends MouseEvent>(browserEvent: T): Table.ITableRowHeaderMouseEvent<T> {
+		return {
+			browserEvent,
+			mouseEvent: new StandardMouseEvent(getWindow(this.element), browserEvent),
+			row: this.getRowHeaderPositionFromTarget(browserEvent.target),
 		};
 	}
 
