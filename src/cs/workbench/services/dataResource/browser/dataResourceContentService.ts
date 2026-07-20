@@ -24,6 +24,23 @@ import {
 	type TableFileResolvedContent,
 } from "src/cs/workbench/services/tableFile/common/tablefiles";
 
+const Mebibyte = 1024 * 1024;
+// Keep adjacent Review, Slice, and Table consumers on one physical snapshot
+// without extending the public model-reference lifetime or retaining files unboundedly.
+const RetainedFileContentByteLimit = 128 * Mebibyte;
+const RetainedFileContentEntryLimit = 16;
+
+type FileSnapshotCacheEntry = {
+	readonly estimatedBytes: number;
+	readonly resolved: TableFileResolvedContent;
+	readonly snapshot: DataResourceContentSnapshot;
+};
+
+type RetainedFileContentEntry = {
+	readonly estimatedBytes: number;
+	readonly resource: URI;
+};
+
 export class DataResourceContentService extends Disposable implements IDataResourceContentService {
 	public declare readonly _serviceBrand: undefined;
 
@@ -33,10 +50,7 @@ export class DataResourceContentService extends Disposable implements IDataResou
 	private readonly contentProviders: IDataResourceContentProvider[] = [];
 	private readonly contentVersions = new Map<string, number>();
 	private readonly fileErrorSnapshots = new Map<string, DataResourceContentSnapshot>();
-	private readonly fileSnapshots = new Map<string, {
-		readonly resolved: TableFileResolvedContent;
-		readonly snapshot: DataResourceContentSnapshot;
-	}>();
+	private readonly fileSnapshots = new Map<string, FileSnapshotCacheEntry>();
 	private readonly pendingFileResolves = new Map<string, Promise<DataResourceContentSnapshot>>();
 	private readonly pendingProviderResolves = new Map<string, Promise<DataResourceContentSnapshot>>();
 	private readonly providerSnapshots = new Map<string, DataResourceContentSnapshot>();
@@ -45,6 +59,8 @@ export class DataResourceContentService extends Disposable implements IDataResou
 		readonly kind: DataResourceContentKind;
 		readonly resource: URI;
 	}>();
+	private readonly retainedFileContents = new Map<string, RetainedFileContentEntry>();
+	private retainedFileContentBytes = 0;
 	private readonly memoryEstimator = new DataResourceContentMemoryEstimator();
 	private readonly memoryGate: DataResourceContentMemoryGate;
 
@@ -105,10 +121,14 @@ export class DataResourceContentService extends Disposable implements IDataResou
 		if (providerSnapshot) {
 			return providerSnapshot;
 		}
+		if (!this.referenceCounts.has(key)) {
+			return undefined;
+		}
 		const fileContent = this.tableFileService.getResolvedContent(resource);
-		return fileContent
-			? this.getOrCreateFileSnapshot(resource, fileContent)
-			: this.fileErrorSnapshots.get(key);
+		if (fileContent) {
+			return this.getOrCreateFileSnapshot(resource, fileContent).snapshot;
+		}
+		return this.fileSnapshots.get(key)?.snapshot ?? this.fileErrorSnapshots.get(key);
 	}
 
 	public getContentKind(resource: URI): DataResourceContentKind | null {
@@ -135,7 +155,12 @@ export class DataResourceContentService extends Disposable implements IDataResou
 		const key = resource.toString();
 		const cached = this.tableFileService.getResolvedContent(resource);
 		if (cached) {
-			return this.getOrCreateFileSnapshot(resource, cached);
+			const stat = await this.tableFileService.stat(resource);
+			return this.getOrCreateFileSnapshot(
+				resource,
+				cached,
+				this.memoryEstimator.estimate(stat.size, tableFormatService.resolveFormat(resource)),
+			).snapshot;
 		}
 		const pending = this.pendingFileResolves.get(key);
 		if (pending) {
@@ -193,7 +218,7 @@ export class DataResourceContentService extends Disposable implements IDataResou
 				);
 			}
 			this.fileErrorSnapshots.delete(resource.toString());
-			return this.getOrCreateFileSnapshot(resource, resolved);
+			return this.getOrCreateFileSnapshot(resource, resolved, estimatedBytes).snapshot;
 		} catch (error) {
 			return this.storeFileErrorSnapshot(resource, error);
 		} finally {
@@ -256,6 +281,9 @@ export class DataResourceContentService extends Disposable implements IDataResou
 		kind: DataResourceContentKind,
 	): void {
 		const reference = this.referenceCounts.get(key);
+		if (!reference && kind === "file") {
+			this.forgetRetainedFileContent(key);
+		}
 		this.referenceCounts.set(key, {
 			count: (reference?.count ?? 0) + 1,
 			kind,
@@ -276,33 +304,93 @@ export class DataResourceContentService extends Disposable implements IDataResou
 		}
 
 		this.referenceCounts.delete(key);
+		if (reference?.kind === "file") {
+			this.fileErrorSnapshots.delete(key);
+			this.pendingFileResolves.delete(key);
+			if ((this.fileSnapshots.get(key)?.estimatedBytes ?? 0) > 0) {
+				this.retainFileContent(key, reference.resource);
+				return;
+			}
+			this.tableFileService.remove(reference.resource);
+		}
 		this.contentVersions.delete(key);
 		this.fileErrorSnapshots.delete(key);
 		this.fileSnapshots.delete(key);
 		this.pendingFileResolves.delete(key);
 		this.providerSnapshots.delete(key);
 		this.pendingProviderResolves.delete(key);
-		if (reference?.kind === "file") {
-			this.tableFileService.remove(reference.resource);
-		}
 	}
 
 	private getOrCreateFileSnapshot(
 		resource: URI,
 		resolved: TableFileResolvedContent,
-	): DataResourceContentSnapshot {
+		estimatedBytes = 0,
+	): FileSnapshotCacheEntry {
 		const key = resource.toString();
 		const cached = this.fileSnapshots.get(key);
 		if (cached?.resolved === resolved) {
-			return cached.snapshot;
+			if (estimatedBytes <= 0 || cached.estimatedBytes === estimatedBytes) {
+				return cached;
+			}
+			const updated = { ...cached, estimatedBytes };
+			this.fileSnapshots.set(key, updated);
+			return updated;
 		}
 		const snapshot = toDataResourceContentSnapshot(
 			resolved,
 			resource,
 			this.nextContentVersion(key),
 		);
-		this.fileSnapshots.set(key, { resolved, snapshot });
-		return snapshot;
+		const entry = { estimatedBytes, resolved, snapshot };
+		this.fileSnapshots.set(key, entry);
+		return entry;
+	}
+
+	private retainFileContent(key: string, resource: URI): void {
+		const cached = this.fileSnapshots.get(key);
+		if (!cached) {
+			return;
+		}
+		this.forgetRetainedFileContent(key);
+		this.retainedFileContents.set(key, {
+			estimatedBytes: cached.estimatedBytes,
+			resource,
+		});
+		this.retainedFileContentBytes += cached.estimatedBytes;
+		this.trimRetainedFileContent();
+	}
+
+	private forgetRetainedFileContent(key: string): void {
+		const retained = this.retainedFileContents.get(key);
+		if (!retained) {
+			return;
+		}
+		this.retainedFileContents.delete(key);
+		this.retainedFileContentBytes = Math.max(
+			0,
+			this.retainedFileContentBytes - retained.estimatedBytes,
+		);
+	}
+
+	private trimRetainedFileContent(): void {
+		while (
+			this.retainedFileContents.size > RetainedFileContentEntryLimit ||
+			this.retainedFileContentBytes > RetainedFileContentByteLimit
+		) {
+			const oldest = this.retainedFileContents.entries().next().value as
+				| [string, RetainedFileContentEntry]
+				| undefined;
+			if (!oldest) {
+				return;
+			}
+			const [key, retained] = oldest;
+			this.forgetRetainedFileContent(key);
+			this.contentVersions.delete(key);
+			this.fileErrorSnapshots.delete(key);
+			this.fileSnapshots.delete(key);
+			this.pendingFileResolves.delete(key);
+			this.tableFileService.remove(retained.resource);
+		}
 	}
 
 	private storeFileErrorSnapshot(

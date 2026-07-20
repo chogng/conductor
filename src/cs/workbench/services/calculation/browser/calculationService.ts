@@ -59,7 +59,7 @@ export class CalculationService extends Disposable implements ICalculationServic
 	private readonly resultsByCacheKey = new Map<string, CalculationResourceResult>();
 	private readonly pendingByCacheKey = new Map<string, PendingCalculation>();
 	private readonly queue: string[] = [];
-	private activeCacheKey: string | null = null;
+	private activeCalculation: PendingCalculation | null = null;
 	private activeCancellation: CancellationTokenSource | null = null;
 	private nextRequestId = 1;
 	private disposed = false;
@@ -108,6 +108,9 @@ export class CalculationService extends Disposable implements ICalculationServic
 		if (this.resultsByCacheKey.get(pending.cacheKey)?.inputSignature === pending.inputSignature) {
 			return;
 		}
+		if (this.activeCalculation?.inputSignature === pending.inputSignature) {
+			return;
+		}
 
 		const existing = this.pendingByCacheKey.get(pending.cacheKey);
 		if (existing?.inputSignature === pending.inputSignature) {
@@ -142,8 +145,8 @@ export class CalculationService extends Disposable implements ICalculationServic
 		const shouldRecalculate =
 			this.resultsByCacheKey.has(cacheKey) ||
 			this.pendingByCacheKey.has(cacheKey) ||
-			this.activeCacheKey === cacheKey;
-		if (this.activeCacheKey === cacheKey) {
+			this.activeCalculation?.cacheKey === cacheKey;
+		if (this.activeCalculation?.cacheKey === cacheKey) {
 			this.activeCancellation?.cancel();
 		}
 		this.resultsByCacheKey.delete(cacheKey);
@@ -159,7 +162,7 @@ export class CalculationService extends Disposable implements ICalculationServic
 
 	private invalidateResource(resource: URI, sheetId?: string | null): void {
 		const cacheKey = createCalculationResourceCacheKey(resource, sheetId);
-		if (this.activeCacheKey === cacheKey) {
+		if (this.activeCalculation?.cacheKey === cacheKey) {
 			this.activeCancellation?.cancel();
 		}
 		const deletedResult = this.resultsByCacheKey.delete(cacheKey);
@@ -182,7 +185,7 @@ export class CalculationService extends Disposable implements ICalculationServic
 	}
 
 	private async drainQueue(): Promise<void> {
-		if (this.disposed || this.activeCacheKey !== null) {
+		if (this.disposed || this.activeCalculation !== null) {
 			return;
 		}
 
@@ -198,7 +201,7 @@ export class CalculationService extends Disposable implements ICalculationServic
 			return;
 		}
 
-		this.activeCacheKey = cacheKey;
+		this.activeCalculation = pending;
 		const cancellation = new CancellationTokenSource();
 		this.activeCancellation = cancellation;
 		this.pendingByCacheKey.delete(cacheKey);
@@ -248,7 +251,9 @@ export class CalculationService extends Disposable implements ICalculationServic
 			if (this.activeCancellation === cancellation) {
 				this.activeCancellation = null;
 			}
-			this.activeCacheKey = null;
+			if (this.activeCalculation === pending) {
+				this.activeCalculation = null;
+			}
 			if (!this.disposed && this.queue.length) {
 				void this.drainQueue();
 			}

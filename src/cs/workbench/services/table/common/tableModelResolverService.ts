@@ -132,9 +132,13 @@ export class TableModelResolverService extends Disposable implements ITableModel
 
   public get(resource: URI | null | undefined): ITableModel | undefined {
     const key = resource?.toString();
-    return key
-      ? this.providerModels.get(key) ?? this.tableFileService.get(resource)
-      : undefined;
+    if (
+      !key ||
+      (!this.references.has(key) && !this.contentService.get(resource))
+    ) {
+      return undefined;
+    }
+    return this.providerModels.get(key) ?? this.tableFileService.get(resource);
   }
 
   public resolve(resource: URI, source?: TableSource | null): void {

@@ -90,6 +90,26 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
 		assert.equal(backend.calculateCount, 1);
 	});
 
+	test("does not queue an unchanged calculation while it is active", async () => {
+		const resource = URI.file("/data/transfer.csv");
+		const sliceService = store.add(new TestSliceService(
+			createSliceResourceResult(resource, null, 1),
+		));
+		const backend = new TestCalculationRecordsBackend(false);
+		const service = store.add(new CalculationService(backend, sliceService));
+
+		service.prioritizeResource(resource);
+		service.prioritizeResource(resource);
+		service.prioritizeResource(resource);
+		assert.equal(backend.calculateCount, 1);
+
+		backend.complete(0);
+		await waitForCalculation();
+
+		assert.equal(backend.calculateCount, 1);
+		assert.ok(service.getResourceResult(resource));
+	});
+
 	test("drops stale backend output and recalculates the changed Slice result", async () => {
 		const resource = URI.file("/data/transfer.csv");
 		const sliceService = store.add(new TestSliceService(

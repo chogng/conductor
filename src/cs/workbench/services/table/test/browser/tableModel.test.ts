@@ -650,7 +650,7 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 		firstReference.dispose();
 	});
 
-	test("releases file-backed model cache after the last reference is disposed", async () => {
+	test("releases the file model while retaining reusable physical content", async () => {
 		let readCount = 0;
 		const resource = URI.file("/workspace/data/release.csv");
 		const service = createResolverService(createFileServiceStub({
@@ -673,8 +673,69 @@ suite("workbench/services/table/test/browser/tableModel", () => {
 			readCount,
 		}, {
 			hasModel: false,
-			readCount: 2,
+			readCount: 1,
 		});
+	});
+
+	test("refreshes retained physical content after a file change", async () => {
+		let text = "A,B\n1,2";
+		let mtime = 10;
+		let readCount = 0;
+		const fileChanges = store.add(new Emitter<readonly IFileChange[]>());
+		const resource = URI.file("/workspace/data/retained-refresh.csv");
+		const service = createResolverService(createFileServiceStub({
+			onDidFilesChange: fileChanges.event,
+			readFile: async () => {
+				readCount += 1;
+				return textFileContent(text);
+			},
+			stat: async () => ({
+				ctime: 1,
+				mtime,
+				path: resource.path,
+				size: text.length,
+				type: FileType.File,
+			}),
+		}));
+
+		const firstReference = await service.createModelReference(resource);
+		firstReference.dispose();
+		text = "A,B\n3,4";
+		mtime = 20;
+		fileChanges.fire([{ resource, type: FileChangeType.UPDATED }]);
+		await waitForTestCondition(() => readCount === 2);
+
+		const nextReference = await service.createModelReference(resource);
+		const rows = nextReference.object.getSnapshot().content?.rows;
+		nextReference.dispose();
+
+		assert.deepStrictEqual({ readCount, rows }, {
+			readCount: 2,
+			rows: [["A", "B"], ["3", "4"]],
+		});
+	});
+
+	test("bounds retained physical content by the memory budget", async () => {
+		let readCount = 0;
+		const service = createResolverService(createFileServiceStub({
+			readFile: async () => {
+				readCount += 1;
+				return textFileContent("A,B\n1,2");
+			},
+		}));
+		const resources = Array.from(
+			{ length: 9 },
+			(_, index) => URI.file(`/workspace/data/retained-${index}.csv`),
+		);
+
+		for (const resource of resources) {
+			const reference = await service.createModelReference(resource);
+			reference.dispose();
+		}
+		const firstReference = await service.createModelReference(resources[0]!);
+		firstReference.dispose();
+
+		assert.equal(readCount, 10);
 	});
 
 	test("resolves provider-backed virtual table resources", async () => {
