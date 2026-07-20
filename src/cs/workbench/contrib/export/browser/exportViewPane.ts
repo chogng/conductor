@@ -2,59 +2,31 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import { localize } from "src/cs/nls";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import OriginExportToolbar from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
+import {
+  createOriginExportToolbar,
+  type OriginExportToolbarElement,
+  type OriginExportToolbarProps,
+} from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
 import {
   ExportViewId,
   IExportService,
   type ExportViewState,
-  OriginCanvasExportScope,
-  OriginCurveExportMode,
-  OriginFilteredCanvasKind,
 } from "src/cs/workbench/services/export/common/export";
-import type {
-  OriginCurveExportSeriesOption,
-  OriginExportContentOption,
-} from "src/cs/workbench/services/export/common/exportModel";
 import { ORIGIN_EXPORT_CONTENT_OPTIONS } from "src/cs/workbench/services/export/common/exportModel";
-import type {
-  OriginExportContentKey,
-  OriginExportMode,
-} from "src/cs/workbench/services/export/common/originExport";
 
 import "src/cs/workbench/contrib/export/browser/media/export.css";
 import "src/cs/workbench/browser/parts/views/media/views.css";
 
-type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
-
-export type ExportViewOptions = {
-  curveOptions: OriginCurveExportSeriesOption[];
-  hasMixedExportYScales: boolean;
-  mode: OriginExportMode;
-  onExportOriginZip: () => void | Promise<void>;
-  onModeChange: (next: OriginExportMode) => void;
-  onOpenInOrigin: () => void | Promise<void>;
-  onSelectedCurveOptionKeysChange: (nextKeys: string[]) => void;
-  originCanvasExportScope: OriginCanvasExportScope;
-  originExportContentOptions: OriginExportContentOption[];
-  originFilteredCanvasKind: OriginFilteredCanvasKind;
-  resolvedCurveExportMode: OriginCurveExportMode;
-  selectedContentKeys: OriginExportContentKey[];
-  selectedCurveOptionKeySet: Set<string>;
-  setContentKeys: StateSetter<OriginExportContentKey[]>;
-  setOriginCanvasExportScope: StateSetter<OriginCanvasExportScope>;
-  setOriginFilteredCanvasKind: StateSetter<OriginFilteredCanvasKind>;
-  setResolvedCurveExportMode: (next: OriginCurveExportMode) => void;
-  showFilteredCanvasKindSelect: boolean;
-};
+export type ExportViewOptions = OriginExportToolbarProps;
 
 export class ExportViewPane extends ViewPane {
-  private readonly toolbarStore = new DisposableStore();
   private readonly pane = document.createElement("div");
   private readonly view = document.createElement("div");
   private readonly content = document.createElement("div");
+  private currentToolbar: OriginExportToolbarElement | null = null;
 
   constructor(
     @IExportService private readonly exportService: IExportService,
@@ -113,20 +85,23 @@ export class ExportViewPane extends ViewPane {
   }
 
   render(options: ExportViewOptions): void {
-    this.toolbarStore.clear();
-    this.content.replaceChildren(OriginExportToolbar({
-      ...options,
-      store: this.toolbarStore,
-    }));
+    if (!this.currentToolbar) {
+      this.currentToolbar = createOriginExportToolbar(options);
+    } else {
+      this.currentToolbar.update(options);
+    }
+    replaceChildrenIfChanged(this.content, this.currentToolbar);
   }
 
   renderEmpty(_message: string): void {
-    this.toolbarStore.clear();
+    this.currentToolbar?.dispose();
+    this.currentToolbar = null;
     this.content.replaceChildren();
   }
 
   public override dispose(): void {
-    this.toolbarStore.dispose();
+    this.currentToolbar?.dispose();
+    this.currentToolbar = null;
     this.content.replaceChildren();
     this.pane.remove();
     super.dispose();

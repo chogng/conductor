@@ -232,7 +232,7 @@
   "origin.canvasScope.all": "All",
   "origin.canvasScope.current": "Current",
   "origin.canvasScope.filtered": "Filtered",
-  "origin.canvasScope.label": "Scope",
+  "origin.canvasScope.label": "Export files",
   "origin.canvasScope.selected": "Choose",
   "origin.canvasScope.summary.all": "All {count} thumbnails will export.",
   "origin.canvasScope.summary.current": "The current thumbnail will export as a single result unit.",

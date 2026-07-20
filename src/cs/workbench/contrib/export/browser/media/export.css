@@ -71,10 +71,6 @@
   font-weight: 500;
 }
 
-.origin_export_toolbar_select_menu {
-  width: 100%;
-}
-
 .origin_export_toolbar_button_row {
   display: grid;
   min-width: 0;
@@ -87,7 +83,7 @@
   overflow: visible;
 }
 
-.origin_export_toolbar_select_actions .ui-dropdown-button {
+.origin_export_toolbar_select_actions .ui-selectbox {
   grid-column: 1 / -1;
   height: 30px;
   font-size: 12px;

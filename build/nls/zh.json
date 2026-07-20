@@ -235,7 +235,7 @@
   "origin.canvasScope.all": "所有",
   "origin.canvasScope.current": "当前",
   "origin.canvasScope.filtered": "筛选",
-  "origin.canvasScope.label": "导出范围",
+  "origin.canvasScope.label": "导出文件",
   "origin.canvasScope.selected": "选择",
   "origin.canvasScope.summary.all": "将导出全部 {count} 个缩略图",
   "origin.canvasScope.summary.current": "当前缩略图将导出为一个结果单元",
