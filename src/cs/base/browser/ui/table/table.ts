@@ -126,28 +126,9 @@ export interface ITableBodyMouseEvent<T extends MouseEvent = MouseEvent> {
 	readonly mouseEvent: IMouseEvent;
 }
 
-export interface ITableColumnHeaderMouseEvent<T extends MouseEvent = MouseEvent> {
-	readonly browserEvent: T;
-	readonly column: ITableColumnHeaderPosition | null;
-	readonly mouseEvent: IMouseEvent;
-}
-
-export interface ITableRowHeaderMouseEvent<T extends MouseEvent = MouseEvent> {
-	readonly browserEvent: T;
-	readonly mouseEvent: IMouseEvent;
-	readonly row: ITableRowHeaderPosition | null;
-}
-
-export interface ITableHeaderSelectionEvent {
-	readonly selection: ITableHeaderSelectionTarget;
-}
-
-export interface ITableKeyboardNavigationEvent<T extends KeyboardEvent = KeyboardEvent> {
-	readonly browserEvent: T;
-	readonly cell: ITableCellPosition;
-	readonly extendSelection: boolean;
-	readonly keyboardEvent: IKeyboardEvent;
-	readonly selection: ITableCellSelectionTarget;
+export interface ITableSelectionRequestEvent {
+	readonly reveal: boolean;
+	readonly selection: ITableSelectionTarget;
 }
 
 export interface ITableCellEditCommitEvent extends ITableCellPosition {
@@ -261,7 +242,7 @@ export type ITableCellSelectionTarget =
 		readonly range: ITableCellRange;
 	};
 
-export type ITableHeaderSelectionTarget =
+export type ITableSelectionTarget =
 	| ITableCellSelectionTarget
 	| { readonly kind: "columns"; readonly columns: readonly number[] };
 

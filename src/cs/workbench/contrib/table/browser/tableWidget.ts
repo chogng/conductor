@@ -25,8 +25,7 @@ import {
   type ITableDirtyPatchOutcome,
   type ITableDirtyRange,
   type ITableColumnHeaderSelection,
-  type ITableHeaderSelectionTarget,
-  type ITableKeyboardNavigationEvent,
+  type ITableSelectionRequestEvent,
   type ITableSize,
 } from "src/cs/base/browser/ui/table/table";
 import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
@@ -329,8 +328,8 @@ export class TableWidget {
     this.store.add(this.grid.onDidScroll(() => {
       this.onTableScroll();
     }));
-    this.store.add(this.grid.onDidSelectHeader(event => {
-      this.onHeaderSelection(event.selection);
+    this.store.add(this.grid.onDidRequestSelection(event => {
+      this.onSelectionRequest(event);
     }));
     this.store.add(this.grid.onDidResizeColumn(event => {
       this.setColumnWidth(event);
@@ -343,9 +342,6 @@ export class TableWidget {
     }));
     this.store.add(this.grid.onDidPointerDownBody(event => {
       this.onBodyPointerDown(event);
-    }));
-    this.store.add(this.grid.onDidNavigateKeyboard(event => {
-      this.onKeyboardNavigation(event);
     }));
     this.store.add(addDisposableListener(this.element, EventType.KEY_DOWN, event => {
       this.onShortcutKeyDown(event as KeyboardEvent);
@@ -1268,12 +1264,15 @@ export class TableWidget {
     }
   }
 
-  private onHeaderSelection(selection: ITableHeaderSelectionTarget): void {
-    if (selection.kind === "columns") {
-      this.select({ kind: "columns", columns: selection.columns });
-    } else {
-      this.selectBaseCellTarget(selection, false);
+  private onSelectionRequest(event: ITableSelectionRequestEvent): void {
+    const didSelect = event.selection.kind === "columns"
+      ? this.select({ kind: "columns", columns: event.selection.columns })
+      : this.selectBaseCellTarget(event.selection, event.reveal);
+    if (!didSelect) {
+      return;
     }
+
+    this.syncCellState();
     this.focus();
   }
 
@@ -1358,12 +1357,6 @@ export class TableWidget {
     }
     if (keyboardEvent.metaKey) {
       return;
-    }
-  }
-
-  private onKeyboardNavigation(event: ITableKeyboardNavigationEvent): void {
-    if (this.selectBaseCellTarget(event.selection, true)) {
-      this.focus();
     }
   }
 
@@ -1503,7 +1496,7 @@ export class TableWidget {
     const selection = mouseEvent.shiftKey
       ? this.grid.selectRangeToCell(target)
       : this.grid.selectCell(target);
-    if (!selection || !this.selectBaseCellTarget(selection, false)) {
+    if (!selection) {
       return;
     }
 
@@ -1561,7 +1554,7 @@ export class TableWidget {
     }
 
     const selection = this.grid.selectRangeToCell(target);
-    if (selection && this.selectBaseCellTarget(selection, false)) {
+    if (selection) {
       this.beginBodyClickSuppression();
     }
   }
@@ -1649,14 +1642,14 @@ export class TableWidget {
 
     if (mouseEvent.shiftKey) {
       const selection = this.grid.selectRangeToCell(target);
-      if (selection && this.selectBaseCellTarget(selection, true)) {
+      if (selection) {
         this.focus();
       }
       return;
     }
 
     const selection = this.grid.selectCell(target);
-    if (selection && this.selectBaseCellTarget(selection, false)) {
+    if (selection) {
       this.focus();
     }
   }

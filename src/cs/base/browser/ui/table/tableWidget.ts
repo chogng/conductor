@@ -257,10 +257,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	public readonly onDidDoubleClickColumnResizeBoundary: Event<Table.ITableColumnResizeBoundaryDoubleClickEvent>;
 	public readonly onDidCommitCellEdit: Event<Table.ITableCellEditCommitEvent>;
 	public readonly onDidClickBody: Event<Table.ITableBodyMouseEvent>;
-	public readonly onDidClickHeader: Event<Table.ITableColumnHeaderMouseEvent>;
-	public readonly onDidClickRowHeader: Event<Table.ITableRowHeaderMouseEvent>;
-	public readonly onDidSelectHeader: Event<Table.ITableHeaderSelectionEvent>;
-	public readonly onDidNavigateKeyboard: Event<Table.ITableKeyboardNavigationEvent>;
+	public readonly onDidRequestSelection: Event<Table.ITableSelectionRequestEvent>;
 	public readonly onDidPointerDownBody: Event<Table.ITableBodyMouseEvent<PointerEvent>>;
 
 	private readonly disposables = new DisposableStore();
@@ -271,8 +268,7 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 	private readonly onDidResizeColumnEmitter = this.disposables.add(new Emitter<Table.ITableColumnResizeEvent>());
 	private readonly onDidDoubleClickColumnResizeBoundaryEmitter = this.disposables.add(new Emitter<Table.ITableColumnResizeBoundaryDoubleClickEvent>());
 	private readonly onDidCommitCellEditEmitter = this.disposables.add(new Emitter<Table.ITableCellEditCommitEvent>());
-	private readonly onDidSelectHeaderEmitter = this.disposables.add(new Emitter<Table.ITableHeaderSelectionEvent>());
-	private readonly onDidNavigateKeyboardEmitter = this.disposables.add(new Emitter<Table.ITableKeyboardNavigationEvent>());
+	private readonly onDidRequestSelectionEmitter = this.disposables.add(new Emitter<Table.ITableSelectionRequestEvent>());
 	private readonly bodyCellTraits = new Map<TBodyTemplateData, TableBodyCellTraits>();
 	private readonly bodyCellTraitsByElement = new WeakMap<HTMLTableCellElement, TableBodyCellTraits>();
 	private readonly columnHeaderTraits = new Map<TColumnHeaderTemplateData, TableColumnHeaderTraits>();
@@ -310,18 +306,15 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.onDidDoubleClickColumnResizeBoundary = this.onDidDoubleClickColumnResizeBoundaryEmitter.event;
 		this.onDidCommitCellEdit = this.onDidCommitCellEditEmitter.event;
 		this.onDidClickBody = this.createBodyClickEvent();
-		this.onDidClickHeader = this.createColumnHeaderClickEvent();
-		this.onDidClickRowHeader = this.createRowHeaderClickEvent();
-		this.onDidSelectHeader = this.onDidSelectHeaderEmitter.event;
-		this.onDidNavigateKeyboard = this.onDidNavigateKeyboardEmitter.event;
+		this.onDidRequestSelection = this.onDidRequestSelectionEmitter.event;
 		this.onDidPointerDownBody = this.createBodyPointerDownEvent();
 		this.columnResizeEnabled = options.columnResize?.enabled === true;
 		this.columnHeaderSelection = options.columnHeaderSelection ?? "single";
-		this.disposables.add(this.onDidClickHeader(event => {
-			this.onColumnHeaderClick(event);
+		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.CLICK, event => {
+			this.onColumnHeaderClick(event as MouseEvent);
 		}));
-		this.disposables.add(this.onDidClickRowHeader(event => {
-			this.onRowHeaderClick(event);
+		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.CLICK, event => {
+			this.onRowHeaderClick(event as MouseEvent);
 		}));
 		this.disposables.add(this.virtualTable.onDidChangeVisibleRange(() => {
 			this.clearHoveredTraits();
@@ -419,17 +412,10 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.columnHeaderSelection = selection;
 	}
 
-	public selectCell(cell: Table.ITableCellPosition | null): Table.ITableCellSelectionTarget | null {
+	public selectCell(cell: Table.ITableCellPosition | null, reveal = false): Table.ITableCellSelectionTarget | null {
 		if (!cell) {
 			this.selectionAnchorCell = null;
 			this.selectionFocusCell = null;
-			this.cellState = {
-			...this.cellState,
-			activeCell: null,
-			selectedColumns: [],
-			selectedRanges: [],
-			};
-			this.syncCellState();
 			return { kind: "cell", cell: null };
 		}
 
@@ -440,17 +426,12 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 
 		this.selectionAnchorCell = normalizedCell;
 		this.selectionFocusCell = normalizedCell;
-		this.cellState = {
-			...this.cellState,
-			activeCell: normalizedCell,
-			selectedColumns: [],
-			selectedRanges: [],
-		};
-		this.syncCellState();
-		return { kind: "cell", cell: normalizedCell };
+		const selection = { kind: "cell", cell: normalizedCell } as const;
+		this.requestSelection(selection, reveal);
+		return selection;
 	}
 
-	public selectRangeToCell(cell: Table.ITableCellPosition): Table.ITableCellSelectionTarget | null {
+	public selectRangeToCell(cell: Table.ITableCellPosition, reveal = false): Table.ITableCellSelectionTarget | null {
 		const focusCell = normalizeCellPosition(cell, this.size);
 		if (!focusCell) {
 			return null;
@@ -462,19 +443,14 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		const range = VirtualTableGridModel.resolveCellRange(anchorCell, focusCell);
 		this.selectionAnchorCell = anchorCell;
 		this.selectionFocusCell = focusCell;
-		this.cellState = {
-			...this.cellState,
-			activeCell: focusCell,
-			selectedColumns: [],
-			selectedRanges: [range],
-		};
-		this.syncCellState();
-		return {
+		const selection = {
 			kind: "range",
 			anchorCell,
 			focusCell,
 			range,
-		};
+		} as const;
+		this.requestSelection(selection, reveal);
+		return selection;
 	}
 
 	public selectRow(rowIndex: number): Table.ITableCellSelectionTarget | null {
@@ -493,30 +469,20 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		const range = VirtualTableGridModel.resolveCellRange(anchorCell, focusCell);
 		this.selectionAnchorCell = anchorCell;
 		this.selectionFocusCell = focusCell;
-		this.cellState = {
-			...this.cellState,
-			activeCell: focusCell,
-			selectedColumns: [],
-			selectedRanges: [range],
-		};
-		this.syncCellState();
-		return { kind: "range", anchorCell, focusCell, range };
+		const selection = { kind: "range", anchorCell, focusCell, range } as const;
+		this.requestSelection(selection, false);
+		return selection;
 	}
 
-	public selectColumns(columns: readonly number[]): Table.ITableHeaderSelectionTarget {
+	public selectColumns(columns: readonly number[]): Table.ITableSelectionTarget {
 		const selectedColumns = [...new Set(columns.map(column => Math.floor(Number(column))))]
 			.filter(column => column >= 0 && column < this.size.columnCount)
 			.sort((first, second) => first - second);
 		this.selectionAnchorCell = null;
 		this.selectionFocusCell = null;
-		this.cellState = {
-			...this.cellState,
-			activeCell: null,
-			selectedColumns,
-			selectedRanges: [],
-		};
-		this.syncCellState();
-		return { kind: "columns", columns: selectedColumns };
+		const selection = { kind: "columns", columns: selectedColumns } as const;
+		this.requestSelection(selection, false);
+		return selection;
 	}
 
 	public setBodyCellTraits(templateData: TBodyTemplateData, state: Table.ITableBodyCellTraitState): void {
@@ -1092,48 +1058,33 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		return EventUtil.map(emitter.event, event => this.toBodyMouseEvent(event));
 	}
 
-	private createColumnHeaderClickEvent(): Event<Table.ITableColumnHeaderMouseEvent> {
-		const emitter = this.disposables.add(new DomEmitter(this.virtualTable.headerContent, "click"));
-		return EventUtil.map(
-			EventUtil.filter(emitter.event, event => !this.isColumnResizeHandleTarget(event.target)),
-			event => this.toColumnHeaderMouseEvent(event),
-		);
-	}
+	private onColumnHeaderClick(event: MouseEvent): void {
+		if (this.isColumnResizeHandleTarget(event.target)) {
+			return;
+		}
 
-	private createRowHeaderClickEvent(): Event<Table.ITableRowHeaderMouseEvent> {
-		const emitter = this.disposables.add(new DomEmitter(this.virtualTable.bodyRows, "click"));
-		return EventUtil.map(
-			EventUtil.filter(emitter.event, event => this.getRowHeaderPositionFromTarget(event.target) !== null),
-			event => this.toRowHeaderMouseEvent(event),
-		);
-	}
-
-	private onColumnHeaderClick(event: Table.ITableColumnHeaderMouseEvent): void {
-		const colIndex = event.column?.colIndex;
+		const colIndex = this.getColumnHeaderPositionFromTarget(event.target)?.colIndex;
 		if (typeof colIndex !== "number" || this.columnHeaderSelection === "disabled") {
 			return;
 		}
 
-		event.mouseEvent.preventDefault();
-		event.mouseEvent.stopPropagation();
+		event.preventDefault();
+		event.stopPropagation();
 		const selectedColumns = this.columnHeaderSelection === "multi"
 			? toggleSelectedColumn(this.cellState.selectedColumns, colIndex)
 			: resolveSingleSelectedColumn(this.cellState.selectedColumns, colIndex);
-		this.onDidSelectHeaderEmitter.fire({ selection: this.selectColumns(selectedColumns) });
+		this.selectColumns(selectedColumns);
 	}
 
-	private onRowHeaderClick(event: Table.ITableRowHeaderMouseEvent): void {
-		const rowIndex = event.row?.rowIndex;
+	private onRowHeaderClick(event: MouseEvent): void {
+		const rowIndex = this.getRowHeaderPositionFromTarget(event.target)?.rowIndex;
 		if (typeof rowIndex !== "number") {
 			return;
 		}
 
-		event.mouseEvent.preventDefault();
-		event.mouseEvent.stopPropagation();
-		const selection = this.selectRow(rowIndex);
-		if (selection) {
-			this.onDidSelectHeaderEmitter.fire({ selection });
-		}
+		event.preventDefault();
+		event.stopPropagation();
+		this.selectRow(rowIndex);
 	}
 
 	private onBodyPointerMove(event: PointerEvent): void {
@@ -1144,27 +1095,16 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		this.setHoveredColumnHeaderTraits(this.getColumnHeaderTraitsFromTarget(event.target));
 	}
 
+
+	private requestSelection(selection: Table.ITableSelectionTarget, reveal: boolean): void {
+		this.onDidRequestSelectionEmitter.fire({ reveal, selection });
+	}
+
 	private toBodyMouseEvent<T extends MouseEvent>(browserEvent: T): Table.ITableBodyMouseEvent<T> {
 		return {
 			browserEvent,
 			cell: this.getBodyCellPositionFromMouseEvent(browserEvent),
 			mouseEvent: new StandardMouseEvent(getWindow(this.element), browserEvent),
-		};
-	}
-
-	private toColumnHeaderMouseEvent<T extends MouseEvent>(browserEvent: T): Table.ITableColumnHeaderMouseEvent<T> {
-		return {
-			browserEvent,
-			column: this.getColumnHeaderPositionFromTarget(browserEvent.target),
-			mouseEvent: new StandardMouseEvent(getWindow(this.element), browserEvent),
-		};
-	}
-
-	private toRowHeaderMouseEvent<T extends MouseEvent>(browserEvent: T): Table.ITableRowHeaderMouseEvent<T> {
-		return {
-			browserEvent,
-			mouseEvent: new StandardMouseEvent(getWindow(this.element), browserEvent),
-			row: this.getRowHeaderPositionFromTarget(browserEvent.target),
 		};
 	}
 
@@ -1305,21 +1245,14 @@ export class TableWidget<TBodyTemplateData = unknown, TColumnHeaderTemplateData 
 		}
 
 		const selection = keyboardEvent.shiftKey
-			? this.selectRangeToCell(target)
-			: this.selectCell(target);
+			? this.selectRangeToCell(target, true)
+			: this.selectCell(target, true);
 		if (!selection) {
 			return;
 		}
 
 		keyboardEvent.preventDefault();
 		keyboardEvent.stopPropagation();
-		this.onDidNavigateKeyboardEmitter.fire({
-			browserEvent: event,
-			cell: target,
-			extendSelection: keyboardEvent.shiftKey,
-			keyboardEvent,
-			selection,
-		});
 	}
 
 	private onWheel(event: WheelEvent): void {

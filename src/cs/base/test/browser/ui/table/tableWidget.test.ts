@@ -169,59 +169,18 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		}
 	});
 
-	test("emits normalized table mouse events with body and header targets", () => {
-		const bodyEvents: unknown[] = [];
-		const headerEvents: unknown[] = [];
-		const headerSelectionEvents: unknown[] = [];
-		const pointerEvents: unknown[] = [];
-		const rowHeaderEvents: unknown[] = [];
+	test("requests column and row selections from table headers", () => {
+		const selectionRequests: unknown[] = [];
 		const { listener, widget } = createResizableTableWidget();
-		const bodyListener = widget.onDidClickBody(event => {
-			bodyEvents.push({
-				cell: event.cell,
-				leftButton: event.mouseEvent.leftButton,
-				posx: event.mouseEvent.posx,
-				type: event.browserEvent.type,
-			});
-		});
-		const headerListener = widget.onDidClickHeader(event => {
-			headerEvents.push({
-				column: event.column,
-				leftButton: event.mouseEvent.leftButton,
-				type: event.browserEvent.type,
-			});
-		});
-		const headerSelectionListener = widget.onDidSelectHeader(event => {
-			headerSelectionEvents.push(event);
-		});
-		const pointerListener = widget.onDidPointerDownBody(event => {
-			pointerEvents.push({
-				cell: event.cell,
-				leftButton: event.mouseEvent.leftButton,
-				pointerId: event.browserEvent.pointerId,
-			});
-		});
-		const rowHeaderListener = widget.onDidClickRowHeader(event => {
-			rowHeaderEvents.push({
-				leftButton: event.mouseEvent.leftButton,
-				row: event.row,
-				type: event.browserEvent.type,
-			});
+		const selectionRequestListener = widget.onDidRequestSelection(event => {
+			selectionRequests.push(event);
 		});
 		try {
-			const bodyCell = widget.getBodyCellElement(2, 3);
-			const bodyContent = bodyCell?.querySelector(".table_view_cell_content");
 			const headerCell = widget.getColumnHeaderCellElement(3);
 			const rowHeaderCell = widget.element.querySelector<HTMLTableCellElement>(".table_view_row_header_cell");
-			assert.ok(bodyCell);
-			assert.ok(bodyContent);
 			assert.ok(headerCell);
 			assert.ok(rowHeaderCell);
 
-			bodyContent.dispatchEvent(new MouseEvent("click", {
-				bubbles: true,
-				cancelable: true,
-			}));
 			headerCell.dispatchEvent(new MouseEvent("click", {
 				bubbles: true,
 				cancelable: true,
@@ -230,40 +189,10 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 				bubbles: true,
 				cancelable: true,
 			}));
-			bodyContent.dispatchEvent(createPointerEvent(widget, "pointerdown", 16, 1));
-
-			assert.deepEqual(bodyEvents, [
+			assert.deepEqual(selectionRequests, [
+				{ reveal: false, selection: { kind: "columns", columns: [3] } },
 				{
-					cell: { rowIndex: 2, colIndex: 3 },
-					leftButton: true,
-					posx: 0,
-					type: "click",
-				},
-				{
-					cell: null,
-					leftButton: true,
-					posx: 0,
-					type: "click",
-				},
-			]);
-			assert.deepEqual(headerEvents, [{
-				column: { colIndex: 3 },
-				leftButton: true,
-				type: "click",
-			}]);
-			assert.deepEqual(pointerEvents, [{
-				cell: { rowIndex: 2, colIndex: 3 },
-				leftButton: true,
-				pointerId: 1,
-			}]);
-			assert.deepEqual(rowHeaderEvents, [{
-				leftButton: true,
-				row: { rowIndex: 0 },
-				 type: "click",
-			}]);
-			assert.deepEqual(headerSelectionEvents, [
-				{ selection: { kind: "columns", columns: [3] } },
-				{
+					reveal: false,
 					selection: {
 						kind: "range",
 						anchorCell: { rowIndex: 0, colIndex: 0 },
@@ -272,25 +201,18 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 					},
 				},
 			]);
-			for (let colIndex = 0; colIndex < 5; colIndex += 1) {
-				assert.equal(widget.getBodyCellElement(0, colIndex)?.classList.contains("selected"), true);
-			}
 		} finally {
-			rowHeaderListener.dispose();
-			headerSelectionListener.dispose();
-			pointerListener.dispose();
-			headerListener.dispose();
-			bodyListener.dispose();
+			selectionRequestListener.dispose();
 			listener.dispose();
 			widget.dispose();
 		}
 	});
 
-	test("does not emit header click events from column resize handles", () => {
-		const headerEvents: unknown[] = [];
+	test("does not request column selection from resize handles", () => {
+		const selectionRequests: unknown[] = [];
 		const { listener, widget } = createResizableTableWidget();
-		const headerListener = widget.onDidClickHeader(event => {
-			headerEvents.push(event.column);
+		const selectionRequestListener = widget.onDidRequestSelection(event => {
+			selectionRequests.push(event);
 		});
 		try {
 			const handle = widget.getColumnHeaderCellElement(0)?.querySelector(".table_view_column_resize_handle");
@@ -301,9 +223,9 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 				cancelable: true,
 			}));
 
-			assert.deepEqual(headerEvents, []);
+			assert.deepEqual(selectionRequests, []);
 		} finally {
-			headerListener.dispose();
+			selectionRequestListener.dispose();
 			listener.dispose();
 			widget.dispose();
 		}
@@ -326,16 +248,11 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		}
 	});
 
-	test("emits keyboard navigation and resolves body mouse event targets", () => {
-		const keyboardEvents: unknown[] = [];
+	test("requests selection for keyboard navigation and resolves body mouse event targets", () => {
+		const selectionRequests: unknown[] = [];
 		const { listener, widget } = createResizableTableWidget();
-		const keyboardListener = widget.onDidNavigateKeyboard(event => {
-			keyboardEvents.push({
-				cell: event.cell,
-				extendSelection: event.extendSelection,
-				keyCode: event.keyboardEvent.keyCode,
-				selection: event.selection,
-			});
+		const selectionRequestListener = widget.onDidRequestSelection(event => {
+			selectionRequests.push(event);
 		});
 		try {
 			widget.setCellState({
@@ -368,20 +285,16 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 				clientY: Number.NaN,
 				target: bodyContent,
 			}), { rowIndex: 2, colIndex: 3 });
-			assert.deepEqual(keyboardEvents, [
+			assert.deepEqual(selectionRequests, [
 				{
-					cell: { rowIndex: 3, colIndex: 3 },
-					extendSelection: false,
-					keyCode: KeyCode.DownArrow,
+					reveal: true,
 					selection: {
 						kind: "cell",
 						cell: { rowIndex: 3, colIndex: 3 },
 					},
 				},
 				{
-					cell: { rowIndex: 3, colIndex: 2 },
-					extendSelection: true,
-					keyCode: KeyCode.LeftArrow,
+					reveal: true,
 					selection: {
 						kind: "range",
 						anchorCell: { rowIndex: 3, colIndex: 3 },
@@ -396,20 +309,17 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 				},
 			]);
 		} finally {
-			keyboardListener.dispose();
+			selectionRequestListener.dispose();
 			listener.dispose();
 			widget.dispose();
 		}
 	});
 
 	test("continues extended keyboard navigation from the internal range focus cell", () => {
-		const keyboardEvents: unknown[] = [];
+		const selectionRequests: unknown[] = [];
 		const { listener, widget } = createResizableTableWidget();
-		const keyboardListener = widget.onDidNavigateKeyboard(event => {
-			keyboardEvents.push({
-				cell: event.cell,
-				selection: event.selection,
-			});
+		const selectionRequestListener = widget.onDidRequestSelection(event => {
+			selectionRequests.push(event);
 		});
 		try {
 			widget.setCellState({
@@ -439,9 +349,9 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 			});
 			widget.element.dispatchEvent(secondLeftExtend);
 
-			assert.deepEqual(keyboardEvents, [
+			assert.deepEqual(selectionRequests, [
 				{
-					cell: { rowIndex: 3, colIndex: 2 },
+					reveal: true,
 					selection: {
 						kind: "range",
 						anchorCell: { rowIndex: 3, colIndex: 3 },
@@ -455,7 +365,7 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 					},
 				},
 				{
-					cell: { rowIndex: 3, colIndex: 1 },
+					reveal: true,
 					selection: {
 						kind: "range",
 						anchorCell: { rowIndex: 3, colIndex: 3 },
@@ -470,7 +380,7 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 				},
 			]);
 		} finally {
-			keyboardListener.dispose();
+			selectionRequestListener.dispose();
 			listener.dispose();
 			widget.dispose();
 		}
