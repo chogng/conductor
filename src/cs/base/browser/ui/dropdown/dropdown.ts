@@ -394,10 +394,6 @@ export class DropdownButton extends Disposable {
     }
 }
 
-export function createDropdownButton(options: DropdownButtonOptions): DropdownButton {
-    return new DropdownButton(options);
-}
-
 export class Dropdown implements IDisposable {
     private readonly disposables = new DisposableStore();
     private readonly closeDisposables = new DisposableStore();

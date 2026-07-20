@@ -3,9 +3,8 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 import {
     createCheckedMenuItemLabel,
-    createMenu,
     createMenuActionFromAction,
-    type Menu,
+    Menu,
 } from "src/cs/base/browser/ui/menu/menu";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
@@ -77,7 +76,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
     private renderMenu(delegate: IContextMenuDelegate, actions: readonly IAction[]): Menu {
         this.menuDisposables.clear();
 
-        const menu = createMenu({
+        const menu = new Menu({
             className: delegate.getMenuClassName?.(),
         });
         menu.actionRunner = delegate.actionRunner ?? menu.actionRunner;

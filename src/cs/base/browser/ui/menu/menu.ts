@@ -126,13 +126,9 @@ export class Menu extends ActionBar {
     }
 }
 
-export function createMenu(options?: MenuOptions): Menu {
-    return new Menu(options);
-}
-
 export function renderMenuItems(container: HTMLElement, options: RenderMenuOptions): IDisposable {
     const disposables = new DisposableStore();
-    const menu = createMenu({
+    const menu = new Menu({
         className: options.className,
         withScrollArea: options.withScrollArea,
     });
@@ -534,7 +530,7 @@ class SubmenuMenuActionViewItem extends MenuActionViewItem {
         container.style.zIndex = `${getMenuZIndex(this.element) + 1}`;
         document.body.append(container);
 
-        const menu = createMenu({
+        const menu = new Menu({
             className: this.menuOptions.className,
             withScrollArea: this.menuOptions.withScrollArea,
         });

@@ -5,7 +5,7 @@
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import { CountBadge } from "src/cs/base/browser/ui/countbadge/countBadge";
 import { InlineEditableTextWidget } from "src/cs/base/browser/ui/InlineEditableText/inlineEditableTextWidget";
-import { createDropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
+import { DropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
 import {
   createMenuAction,
   createMenuItemLabel,
@@ -1910,7 +1910,7 @@ export class ExplorerViewer implements IDisposable {
       name,
     };
 
-    const actionButton = createDropdownButton({
+    const actionButton = new DropdownButton({
       ariaLabel: localize("files.folderMoreActions", "More Actions"),
       className: "file-list-folder-more",
       closeOnContentEvent: "menuitemactionrun",
