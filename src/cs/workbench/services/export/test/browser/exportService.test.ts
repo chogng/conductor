@@ -186,6 +186,51 @@ suite("workbench/services/export/browser/exportService", () => {
 		service.dispose();
 	});
 
+	test("drops selected files that are no longer available before reentering selection mode", () => {
+		const first = createCalculationResult("file-a");
+		const second = createCalculationResult("file-b");
+		const service = createExportService([first, second]);
+		service.updateViewState({
+			activeResource: first.resource,
+			resources: [{ resource: first.resource }],
+		});
+		service.setCanvasScope("selected");
+		service.setCanvasScope("current");
+
+		service.updateViewState({
+			activeResource: second.resource,
+			resources: [{ resource: second.resource }],
+		});
+
+		assert.deepEqual(service.getState().selectedResources, []);
+
+		service.setCanvasScope("selected");
+		assert.deepEqual(service.getState().selectedResources, [
+			{ resource: second.resource },
+		]);
+		service.dispose();
+	});
+
+	test("reconciles selected files by resource and sheet identity", () => {
+		const resource = URI.parse("test:/workbook.xlsx");
+		const service = createExportService();
+		service.updateViewState({
+			activeResource: resource,
+			activeSheetId: "sheet-a",
+			resources: [{ resource, sheetId: "sheet-a" }],
+		});
+		service.setCanvasScope("selected");
+
+		service.updateViewState({
+			activeResource: resource,
+			activeSheetId: "sheet-b",
+			resources: [{ resource, sheetId: "sheet-b" }],
+		});
+
+		assert.deepEqual(service.getState().selectedResources, []);
+		service.dispose();
+	});
+
 	test("normalizes and syncs selected export curve keys", () => {
 		const service = createExportService();
 

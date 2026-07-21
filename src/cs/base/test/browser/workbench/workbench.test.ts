@@ -31,7 +31,12 @@ import { TableViewContainerId } from "src/cs/workbench/contrib/table/common/tabl
 import { TemplateViewContainerId } from "src/cs/workbench/contrib/template/common/template";
 import { ThumbnailViewContainerId } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import { ChartViewContainerId } from "src/cs/workbench/services/chart/common/chart";
-import { ExportViewContainerId } from "src/cs/workbench/services/export/common/export";
+import {
+  ExportViewContainerId,
+  type ExportState,
+  type ExportViewStateInput,
+  type IExportService,
+} from "src/cs/workbench/services/export/common/export";
 import { OriginExportSettingsViewContainerId } from "src/cs/workbench/services/origin/common/origin";
 import { ParametersViewContainerId } from "src/cs/workbench/services/parameters/common/parameters";
 import { SearchViewContainerId } from "src/cs/workbench/services/search/common/search";
@@ -615,11 +620,114 @@ suite("workbench/browser/workbench layout integration", () => {
     }
   });
 
+  test("refreshes export input when Explorer files or export selections change", async () => {
+    const parent = document.createElement("div");
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    const viewsService = new RecordingViewsService(layoutService);
+    const contextKeyService = new ContextKeyService();
+    const explorerService = new ExplorerService();
+    const exportStateEmitter = new Emitter<ExportState>();
+    const viewInputs: ExportViewStateInput[] = [];
+    let exportState: ExportState = {
+      canvasScope: "selected",
+      curveMode: "all",
+      filteredKind: "output",
+      originMode: "merged",
+      selectedContentKeys: ["iv"],
+      selectedCurveKeys: [],
+      selectedResources: [],
+    };
+    const exportService: IExportService = {
+      _serviceBrand: undefined,
+      buildOriginExportPlan: () => {
+        throw new Error("Not used by this test.");
+      },
+      exportOriginZip: async () => undefined,
+      getState: () => exportState,
+      getViewState: () => ({
+        curveOptions: [],
+        hasMixedExportYScales: false,
+        showFilteredCanvasKindSelect: false,
+      }),
+      onDidChangeExportState: exportStateEmitter.event,
+      onDidChangeExportViewState: Event.None as IExportService["onDidChangeExportViewState"],
+      openInOrigin: async () => undefined,
+      setCanvasScope: () => undefined,
+      setContentKeys: () => undefined,
+      setCurveMode: () => undefined,
+      setFilteredKind: () => undefined,
+      setOriginMode: () => undefined,
+      setSelectedCurveKeys: () => undefined,
+      syncSelectedCurveKeys: () => undefined,
+      toggleCanvasSelection: () => undefined,
+      updateCanvasSelection: () => undefined,
+      updateViewState: input => {
+        viewInputs.push(input);
+        return {
+          curveOptions: [],
+          hasMixedExportYScales: false,
+          showFilteredCanvasKindSelect: false,
+        };
+      },
+    };
+    document.body.append(parent);
+
+    const workbench = new Workbench(parent, createWorkbenchOptions({
+      contextKeyService,
+      explorerService,
+      exportService,
+      layoutService,
+      storage,
+      viewsService,
+    }));
+
+    try {
+      await viewsService.openViewContainer(ChartViewContainerId);
+      viewInputs.length = 0;
+
+      const resource = URI.file("/data/file-a.csv");
+      explorerService.replaceFiles([{
+        fileId: "file-a",
+        fileName: "file-a.csv",
+        resource,
+      }]);
+      await waitForAnimationFrame();
+
+      assert.deepEqual(viewInputs.map(input => input.resources), [[{ resource, sheetId: null }]]);
+
+      viewInputs.length = 0;
+      exportState = {
+        ...exportState,
+        selectedResources: [{ resource }],
+      };
+      exportStateEmitter.fire(exportState);
+      await waitForAnimationFrame();
+
+      assert.deepEqual(viewInputs.map(input => input.resources), [[{ resource, sheetId: null }]]);
+    } finally {
+      workbench.dispose();
+      exportStateEmitter.dispose();
+      explorerService.dispose();
+      contextKeyService.dispose();
+      layoutService.dispose();
+      storage.dispose();
+      parent.remove();
+    }
+  });
+
 });
+
+const waitForAnimationFrame = async (): Promise<void> => {
+  await new Promise<void>(resolve => {
+    globalThis.requestAnimationFrame(() => resolve());
+  });
+};
 
 const createWorkbenchOptions = ({
   contextKeyService,
   explorerService,
+  exportService,
   layoutService,
   onDidRenderInitialWorkbench,
   storage,
@@ -627,6 +735,7 @@ const createWorkbenchOptions = ({
 }: {
   readonly contextKeyService: ContextKeyService;
   readonly explorerService?: WorkbenchService<"explorerService">;
+  readonly exportService?: WorkbenchService<"exportService">;
   readonly layoutService: BrowserWorkbenchLayoutService;
   readonly onDidRenderInitialWorkbench?: () => void;
   readonly storage: TestStorageService;
@@ -680,7 +789,7 @@ const createWorkbenchOptions = ({
       updatePaneInput: () => undefined,
       viewLayout: "tree",
     } as unknown as WorkbenchService<"explorerService">,
-    exportService: {
+    exportService: exportService ?? {
       getState: () => ({
         canvasScope: "current",
         curveMode: "all",
@@ -688,8 +797,12 @@ const createWorkbenchOptions = ({
         originMode: "merged",
         selectedContentKeys: [],
         selectedCurveKeys: [],
+        selectedResources: [],
       }),
       onDidChangeExportState: Event.None,
+      onDidChangeExportViewState: Event.None,
+      toggleCanvasSelection: () => undefined,
+      updateCanvasSelection: () => undefined,
       updateViewState: () => undefined,
     } as unknown as WorkbenchService<"exportService">,
     filesService: {} as WorkbenchService<"filesService">,

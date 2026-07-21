@@ -137,6 +137,7 @@ export class BrowserExportService extends Disposable implements IExportService {
 
   public updateViewState(input: ExportViewStateInput): ExportViewState {
     this.currentOriginExportPlanInput = input;
+    this.reconcileSelectedResources(input.resources);
     const planInput = this.resolveOriginExportPlanInput(this.currentOriginExportPlanInput);
     const activeResult = this.resolveActiveOriginResult(planInput);
     const curveOptions = activeResult
@@ -161,6 +162,17 @@ export class BrowserExportService extends Disposable implements IExportService {
     this.viewState = viewState;
     this.onDidChangeExportViewStateEmitter.fire(viewState);
     return viewState;
+  }
+
+  private reconcileSelectedResources(
+    availableResources: readonly ExportResourceIdentity[],
+  ): void {
+    const selectedResources = this.state.selectedResources.filter(selectedResource =>
+      availableResources.some(availableResource =>
+        isSameExportResource(availableResource, selectedResource)
+      )
+    );
+    this.updateState({ selectedResources });
   }
 
   private hasMixedOriginExportYScales(

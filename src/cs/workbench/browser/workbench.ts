@@ -119,6 +119,7 @@ type WorkbenchFullRefreshReason =
 type WorkbenchAuxiliaryRefreshReason =
   | "chartState"
   | "chartViewInput"
+  | "explorerFiles"
   | "explorerSelection"
   | "settings"
   | "plotState"
@@ -656,6 +657,12 @@ export class Workbench extends Layout {
           }
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("explorerSelection", false);
         }));
+        this._register(this.explorerService.onDidChangeFiles(() => {
+          if (!this.shouldRefreshActiveAuxiliaryViewFromWorkbenchState()) {
+            return;
+          }
+          this.scheduleWorkbenchAuxiliarySurfacesRefresh("explorerFiles", false);
+        }));
         this._register(this.explorerService.onDidChangeViewLayout(() => {
           this.refreshWorkbench("explorerViewLayout");
         }));
@@ -863,7 +870,8 @@ export class Workbench extends Layout {
     }
 
     return previous.canvasScope !== state.canvasScope ||
-      previous.filteredKind !== state.filteredKind;
+      previous.filteredKind !== state.filteredKind ||
+      previous.selectedResources !== state.selectedResources;
   }
 
   private shouldRefreshActiveAuxiliaryViewFromWorkbenchState(): boolean {
