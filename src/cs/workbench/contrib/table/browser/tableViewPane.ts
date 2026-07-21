@@ -4,6 +4,7 @@
 
 import { addDisposableListener, EventType, scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
+import { ScrollableElement } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import type { Stepper } from "src/cs/base/browser/ui/stepper/stepper";
 import {
   Action,
@@ -60,6 +61,7 @@ export class TableViewPane extends ViewPane {
   private readonly content = document.createElement("div");
   private readonly headerTitle = document.createElement("div");
   private readonly sheetTabList = document.createElement("div");
+  private readonly sheetTabScroller: ScrollableElement;
   private readonly headerRight = document.createElement("div");
   private readonly dimensions = document.createElement("span");
   private readonly actionBar: ActionBar;
@@ -76,6 +78,7 @@ export class TableViewPane extends ViewPane {
   private controller: TableController | null = null;
   private pendingControllerRender: IDisposable | null = null;
   private props: TableViewPaneProps | null = null;
+  private activeHeaderSource: TableSource | null = null;
   private headerSheets: readonly TableSheetTab[] = [];
   private disposed = false;
 
@@ -146,6 +149,13 @@ export class TableViewPane extends ViewPane {
     this.content.className = "table_view_pane_content";
     this.renderHeaderActions();
     this.headerTitle.append(this.sheetTabList);
+    this.sheetTabScroller = this.store.add(new ScrollableElement({
+      axis: "x",
+      handleMouseWheel: true,
+      root: this.headerTitle,
+      verticalScrollbarVisibility: "hidden",
+      viewport: this.sheetTabList,
+    }));
     this.headerRight.append(this.dimensions);
     this.actionBar.domNode.hidden = true;
     this.store.add(addDisposableListener(this.sheetTabList, EventType.CLICK, event => {
@@ -256,19 +266,26 @@ export class TableViewPane extends ViewPane {
 
   protected override layoutBody(_height: number, _width: number): void {
     this.controller?.layout();
+    this.sheetTabScroller.update();
+    this.revealActiveSheetTab();
   }
 
   private updateSheetTabs(
     sheets: readonly TableSheetTab[],
     activeSource: TableSource | null,
   ): void {
+    const shouldRevealActive = this.headerSheets.length === 0 ||
+      !areTableSourcesEqual(this.activeHeaderSource, activeSource);
+    this.activeHeaderSource = activeSource;
     this.headerSheets = sheets;
     setHidden(this.sheetTabList, sheets.length === 0);
     if (!sheets.length) {
       this.sheetTabList.replaceChildren();
+      this.sheetTabScroller.setScrollPosition({ scrollLeft: 0 });
       return;
     }
 
+    const previousScrollLeft = this.sheetTabList.scrollLeft;
     const fragment = document.createDocumentFragment();
     for (let index = 0; index < sheets.length; index += 1) {
       const sheet = sheets[index]!;
@@ -285,6 +302,11 @@ export class TableViewPane extends ViewPane {
       fragment.append(tab);
     }
     this.sheetTabList.replaceChildren(fragment);
+    this.sheetTabScroller.setScrollPosition({ scrollLeft: previousScrollLeft });
+    this.sheetTabScroller.update();
+    if (shouldRevealActive) {
+      this.revealActiveSheetTab();
+    }
   }
 
   private onSheetTabListClick(event: MouseEvent): void {
@@ -341,6 +363,28 @@ export class TableViewPane extends ViewPane {
 
   private focusSheetTab(index: number): void {
     this.getSheetTabButtons()[index]?.focus();
+  }
+
+  private revealActiveSheetTab(): void {
+    const activeTab = this.sheetTabList.querySelector<HTMLElement>(
+      '.table_view_sheet_tab[aria-selected="true"]',
+    );
+    if (!activeTab) {
+      return;
+    }
+
+    const viewportBounds = this.sheetTabList.getBoundingClientRect();
+    const activeTabBounds = activeTab.getBoundingClientRect();
+    let scrollLeft = this.sheetTabList.scrollLeft;
+    if (activeTabBounds.right > viewportBounds.right) {
+      scrollLeft += activeTabBounds.right - viewportBounds.right;
+    } else if (activeTabBounds.left < viewportBounds.left) {
+      scrollLeft -= viewportBounds.left - activeTabBounds.left;
+    } else {
+      return;
+    }
+
+    this.sheetTabScroller.setScrollPosition({ scrollLeft });
   }
 
   private getSheetTabButtons(): HTMLButtonElement[] {

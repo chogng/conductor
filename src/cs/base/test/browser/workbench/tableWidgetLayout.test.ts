@@ -55,6 +55,18 @@ suite("base/browser/workbench tableWidget layout", () => {
     assert.equal(getCanAdjustColumnScale("editor"), false);
   });
 
+  test("keeps sheet tabs at their content width so the tablist can scroll", () => {
+    const tab = document.createElement("button");
+    tab.className = "table_view_sheet_tab";
+    document.body.append(tab);
+
+    try {
+      assert.equal(getComputedStyle(tab).flexShrink, "0");
+    } finally {
+      tab.remove();
+    }
+  });
+
   test("shows the first column scale as unavailable when it has no numeric display profile", async () => {
     const widget = new TableWidget({
       columnSizingMode: "fixed",

@@ -63,7 +63,7 @@
 
 .table_view_sheet_tab {
   box-sizing: border-box;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   max-width: 12rem;
   height: 1.75rem;
