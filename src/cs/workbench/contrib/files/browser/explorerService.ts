@@ -513,6 +513,7 @@ const areExplorerFilesEqual = (
     const nextFile = next[index];
     return file.chartMessage === nextFile?.chartMessage &&
       file.chartState === nextFile.chartState &&
+      file.contentHash === nextFile.contentHash &&
       file.fileId === nextFile.fileId &&
       file.fileName === nextFile.fileName &&
       file.hasChartData === nextFile.hasChartData &&

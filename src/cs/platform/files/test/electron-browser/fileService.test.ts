@@ -76,6 +76,7 @@ suite("platform/files/test/electron-browser/fileService", () => {
       const event = await change;
       assert.equal(event.resource.fsPath, filePath);
       assert.equal(event.type, FileChangeType.ADDED);
+      assert.equal(await service.getWriteLockState(URI.file(filePath)), "unlocked");
     } finally {
       fs.rmSync(root, { force: true, recursive: true });
     }

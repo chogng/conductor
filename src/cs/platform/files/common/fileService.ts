@@ -5,6 +5,7 @@ import {
   IFileService,
   FileSystemProviderCapabilities,
   type FileType,
+  type FileWriteLockState,
   type IFileChange,
   type IFileContent,
   type IFileSystemProviderCapabilitiesChangeEvent,
@@ -106,6 +107,10 @@ export class FileService extends Disposable implements IFileService {
 
   public exists(resource: URI): Promise<boolean> {
     return this.withProvider(resource).exists(resource);
+  }
+
+  public getWriteLockState(resource: URI): Promise<FileWriteLockState> {
+    return this.withProvider(resource).getWriteLockState?.(resource) ?? Promise.resolve("unknown");
   }
 
   public readDir(resource: URI): Promise<readonly [string, FileType][]> {

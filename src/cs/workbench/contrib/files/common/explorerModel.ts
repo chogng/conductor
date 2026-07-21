@@ -15,6 +15,7 @@ import {
 export type ExplorerFileEntry = {
 	readonly chartMessage?: string | null;
 	readonly chartState?: "none" | "queued" | "processing" | "ready" | "failed" | "skipped";
+	readonly contentHash?: string | null;
 	readonly file?: unknown;
 	readonly fileId?: string;
 	readonly fileName?: string;

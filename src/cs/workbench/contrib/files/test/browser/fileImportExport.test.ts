@@ -218,6 +218,42 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     );
   });
 
+  test("collectFolderImportFiles excludes transient office files", async () => {
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("transfer.xlsx", "workbook"),
+        createFileHandle("~$transfer.xlsx", "office lock"),
+        createFileHandle(".~lock.transfer.xlsx#", "libreoffice lock"),
+      ],
+      name: "selected-folder",
+    });
+
+    const result = await collectBrowserFolderFiles(root);
+
+    assert.deepEqual(
+      result.files.map(file => file.relativePath),
+      ["selected-folder/transfer.xlsx"],
+    );
+    assert.match(result.files[0].contentHash ?? "", /^sha256:[0-9a-f]{64}$/);
+  });
+
+  test("collectFolderImportFiles records locked workbook bytes and lock state", async () => {
+    const root = createDirectoryHandle({
+      children: [createFileHandle("open.xls", "transient workbook bytes")],
+      name: "selected-folder",
+    });
+    const provider = store.add(new HTMLFileSystemProvider());
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", provider));
+    const folder = await provider.registerDirectoryHandle(root);
+    filesService.getWriteLockState = async () => "locked";
+
+    const result = await collectFolderImportFiles(folder, filesService);
+
+    assert.match(result.files[0].contentHash ?? "", /^sha256:[0-9a-f]{64}$/);
+    assert.equal(result.files[0].writeLockState, "locked");
+  });
+
   test("collectFolderImportFiles keeps raw percent signs in browser file names", async () => {
     const root = createDirectoryHandle({
       children: [
@@ -959,6 +995,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   test("path prepare preserves table resource metadata", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
     const filesService = store.add(new FileService());
+    const contentHashes: Array<string | null | undefined> = [];
     const resourcePaths: string[] = [];
 
     const acceptedCount = await prepareRemainingPendingImportFiles({
@@ -966,18 +1003,20 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       failedFiles,
       filesService,
       onExplorerFiles: entries => {
+        contentHashes.push(...entries.map(file => file.contentHash));
         resourcePaths.push(...entries.map(file =>
           file.resource.fsPath.replace(/\\/g, "/")
         ));
       },
       pendingImportFiles: [
-        createPathPendingFile("A.csv", "folder/A.csv"),
-        createPathPendingFile("B.csv", "folder/B.csv"),
+        createPathPendingFile("A.csv", "folder/A.csv", "sha256:a"),
+        createPathPendingFile("B.csv", "folder/B.csv", "sha256:b"),
       ],
       skippedIndexes: new Set<number>(),
     });
 
     assert.equal(acceptedCount, 2);
+    assert.deepEqual(contentHashes, ["sha256:a", "sha256:b"]);
     assert.deepEqual(resourcePaths, ["C:/data/A.csv", "C:/data/B.csv"]);
     assert.equal(failedFiles.length, 0);
   });
@@ -1565,9 +1604,11 @@ function createPathFileSource(fileName: string, relativePath: string): FileSourc
 function createPathPendingFile(
   fileName: string,
   relativePath: string,
+  contentHash?: string,
 ): PendingImportFile {
   return createPendingFile({
     canUseNativePath: true,
+    contentHash,
     kind: "path",
     relativePath,
     resource: URIClass.file(`C:/data/${fileName}`),
@@ -1578,6 +1619,7 @@ function createPathPendingFile(
 
 function createPendingFile({
   canUseNativePath = false,
+  contentHash,
   kind,
   relativePath,
   resource,
@@ -1586,6 +1628,7 @@ function createPendingFile({
   sourceSize,
 }: {
   readonly canUseNativePath?: boolean;
+  readonly contentHash?: string;
   readonly kind: "data" | "path";
   readonly relativePath: string;
   readonly resource: URI | null;
@@ -1595,6 +1638,7 @@ function createPendingFile({
 }): PendingImportFile {
   return {
     canUseNativePath,
+    contentHash,
     finishFilePerf: () => undefined,
     kind,
     lastModified: 123,

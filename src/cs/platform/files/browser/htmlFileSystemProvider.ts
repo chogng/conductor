@@ -7,6 +7,7 @@ import { extname } from "src/cs/base/common/resources";
 import {
   FileSystemProviderCapabilities,
   FileType,
+  type FileWriteLockState,
   type IFileContent,
   type IFileChange,
   type IFileStat,
@@ -284,6 +285,10 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     } catch {
       return false;
     }
+  }
+
+  public getWriteLockState(_resource: URI): Promise<FileWriteLockState> {
+    return Promise.resolve("unknown");
   }
 
   public async readDir(resource: URI): Promise<readonly [string, FileType][]> {

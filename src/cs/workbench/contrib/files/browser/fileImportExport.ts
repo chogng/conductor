@@ -26,6 +26,7 @@ import {
 import {
   FileType,
   type IFileContent,
+  type FileWriteLockState,
   type IFileStat,
   type IFileService,
 } from "src/cs/platform/files/common/files";
@@ -60,7 +61,11 @@ import {
 } from "src/cs/platform/progress/common/progress";
 import type { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
 import { WORKSPACE_STORAGE_FOLDER_NAME } from "src/cs/platform/storage/common/storage";
-import { resolveWorkspaceExternalChanges } from "src/cs/workbench/services/workspaces/common/externalChanges";
+import {
+  isWorkspaceTransientSourcePath,
+  resolveWorkspaceExternalChanges,
+  WorkspaceLockedWorkbookChangeTracker,
+} from "src/cs/workbench/services/workspaces/common/externalChanges";
 import {
   ADD_WORKSPACE_FOLDER_COMMAND_ID,
   createWorkspaceSourcePathKey,
@@ -86,6 +91,7 @@ export type DataFileSource = {
 
 export type PathFileSource = {
   readonly canUseNativePath?: boolean;
+  readonly contentHash?: string | null;
   readonly file?: ImportFileData;
   readonly fileName: string;
   readonly kind: "path";
@@ -94,6 +100,7 @@ export type PathFileSource = {
   readonly relativePath?: string | null;
   readonly resource: URI;
   readonly size: number;
+  readonly writeLockState?: FileWriteLockState;
 };
 
 export type FileSource = DataFileSource | PathFileSource;
@@ -154,6 +161,7 @@ const NATIVE_DROP_FOLDER_SCAN_CONCURRENCY = 20;
 
 export type PendingImportFile = {
   canUseNativePath?: boolean;
+  contentHash?: string | null;
   finishFilePerf: (meta?: Record<string, unknown>) => void;
   kind: FileSource["kind"];
   lastModified: number;
@@ -338,6 +346,7 @@ export class FileSourceWorkflow implements IDisposable {
   private importErrorNotification: INotificationHandle | null = null;
   private readonly importErrorNotificationListeners = new DisposableStore();
   private readonly excludedSourcePaths = new Set<string>();
+  private readonly lockedWorkbookChangeTracker = new WorkspaceLockedWorkbookChangeTracker();
 
   constructor(
     private readonly options: FileSourceWorkflowOptions,
@@ -471,6 +480,7 @@ export class FileSourceWorkflow implements IDisposable {
       }
 
       this.excludedSourcePaths.clear();
+      this.lockedWorkbookChangeTracker.clear();
       await this.importFolderIncrementally(selectedFolder);
     } catch (error) {
       if (this.options.isDisposed()) {
@@ -734,6 +744,7 @@ export class FileSourceWorkflow implements IDisposable {
 
   private clearImportedFolderWatch(): void {
     this.folderWatcher.clear();
+    this.lockedWorkbookChangeTracker.clear();
     this.clearExternalChanges();
   }
 
@@ -750,7 +761,9 @@ export class FileSourceWorkflow implements IDisposable {
         return;
       }
 
+      this.lockedWorkbookChangeTracker.observe(this.options.getFiles(), result.files);
       const changes = resolveWorkspaceExternalChanges({
+        confirmedLockedWorkbookPaths: this.lockedWorkbookChangeTracker.confirmedPaths,
         excludedSourcePaths: this.excludedSourcePaths,
         files: this.options.getFiles(),
         scannedFiles: result.files,
@@ -851,6 +864,7 @@ export class FileSourceWorkflow implements IDisposable {
       }
 
       const nextChanges = resolveWorkspaceExternalChanges({
+        confirmedLockedWorkbookPaths: this.lockedWorkbookChangeTracker.confirmedPaths,
         excludedSourcePaths: this.excludedSourcePaths,
         files: this.options.getFiles(),
         scannedFiles: result.files,
@@ -865,6 +879,9 @@ export class FileSourceWorkflow implements IDisposable {
         !this.options.isDisposed() &&
         runId === this.folderRefreshRunId &&
         this.folderWatcher.isWatching(folder)
+      );
+      this.lockedWorkbookChangeTracker.clear(
+        nextChanges.modified.map(change => change.relativePath),
       );
       this.clearExternalChanges();
     } catch {
@@ -1134,6 +1151,7 @@ export const collectPendingImportFiles = (
 
     pendingImportFiles.push({
       canUseNativePath: source.kind === "path" ? source.canUseNativePath !== false : false,
+      contentHash: source.kind === "path" ? source.contentHash ?? null : null,
       finishFilePerf,
       kind: source.kind,
       lastModified,
@@ -1249,6 +1267,7 @@ function createExplorerFileEntryFromPendingImportFile(
     relativePath,
   } = pendingImportFile;
   const entry = {
+    contentHash: pendingImportFile.contentHash ?? null,
     file,
     fileName: pendingImportFile.sourceName,
     itemKey,
@@ -2814,7 +2833,11 @@ async function collectFolderFilesAt(
       continue;
     }
 
-    if ((type & FileType.File) !== FileType.File || !formatService.canHandle(child)) {
+    if (
+      (type & FileType.File) !== FileType.File ||
+      isWorkspaceTransientSourcePath(relativePath) ||
+      !formatService.canHandle(child)
+    ) {
       continue;
     }
 
@@ -2848,6 +2871,7 @@ async function collectFolderFilesAt(
       const batch = await statFolderFileTasks(
         sortedFileTasks.slice(startIndex, startIndex + FOLDER_IMPORT_BATCH_SIZE),
         filesService,
+        formatService,
         canUseNativePath,
       );
       files.push(...batch.files);
@@ -2924,12 +2948,14 @@ function compareFolderFileStatTasks(
 
 type FolderFileStatResult =
   | {
+    readonly contentHash: string | null;
     readonly ok: true;
     readonly lastModified: number;
     readonly name: string;
     readonly relativePath: string;
     readonly resource: URI;
     readonly size: number;
+    readonly writeLockState: FileWriteLockState;
   }
   | {
     readonly ok: false;
@@ -2941,6 +2967,7 @@ type FolderFileStatResult =
 async function statFolderFileTasks(
   tasks: readonly FolderFileStatTask[],
   filesService: IFileService,
+  formatService: TableFormatService,
   canUseNativePath: boolean,
 ): Promise<FolderFileCollection> {
   const files: FolderImportFileSource[] = [];
@@ -2953,21 +2980,32 @@ async function statFolderFileTasks(
     workerCount,
     async task => {
       const result = await tryStatFileSource(task.resource, filesService);
-      return result.ok
-        ? {
-          lastModified: getFileLastModified(result.stat),
-          name: task.name,
-          ok: true,
-          relativePath: task.relativePath,
-          resource: task.resource,
-          size: Number(result.stat.size) || 0,
-        }
-        : {
+      if (!result.ok) {
+        return {
           fileName: task.name,
           message: result.message,
           ok: false,
           relativePath: task.relativePath,
         };
+      }
+
+      const isWorkbook = formatService.isWorkbook(task.name);
+      const contentHash = isWorkbook
+        ? await tryCreateFileContentHash(task.resource, filesService)
+        : null;
+      const writeLockState = isWorkbook
+        ? await filesService.getWriteLockState?.(task.resource) ?? "unknown"
+        : "unknown";
+      return {
+        contentHash,
+        lastModified: getFileLastModified(result.stat),
+        name: task.name,
+        ok: true,
+        relativePath: task.relativePath,
+        resource: task.resource,
+        size: Number(result.stat.size) || 0,
+        writeLockState,
+      };
     },
   );
 
@@ -2975,6 +3013,7 @@ async function statFolderFileTasks(
     if (result.ok) {
       files.push({
         canUseNativePath,
+        contentHash: result.contentHash,
         fileName: result.name,
         kind: "path",
         lastModified: result.lastModified,
@@ -2982,6 +3021,7 @@ async function statFolderFileTasks(
         relativePath: result.relativePath,
         resource: result.resource,
         size: result.size,
+        writeLockState: result.writeLockState,
       });
     } else {
       readFailures.push({
@@ -3003,6 +3043,20 @@ async function statFolderFileTasks(
   });
 
   return { files, readFailures };
+}
+
+async function tryCreateFileContentHash(
+  resource: URI,
+  filesService: IFileService,
+): Promise<string | null> {
+  try {
+    const content = await readFileContent(resource, resource.path, filesService);
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", toFilePart(content));
+    return `sha256:${Array.from(new Uint8Array(digest), value =>
+      value.toString(16).padStart(2, "0")).join("")}`;
+  } catch {
+    return null;
+  }
 }
 
 async function tryStatFileSource(

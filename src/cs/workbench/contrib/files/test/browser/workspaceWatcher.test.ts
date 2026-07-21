@@ -90,6 +90,31 @@ suite("workbench/contrib/files/browser/workspaceWatcher", () => {
 
     assert.equal(changeCount, 0);
   });
+
+  test("ignores a transient office file change", async () => {
+    const filesService = new TestFileService();
+    let changeCount = 0;
+    const uriIdentityFileService = store.add(new FileService());
+    const watcher = store.add(new WorkspaceWatcher(
+      filesService,
+      store.add(new UriIdentityService(uriIdentityFileService)),
+      () => changeCount += 1,
+      { changeReactDelay: 0 },
+    ));
+    const folder = URI.file("C:/workspace/data");
+
+    watcher.watch(folder);
+    filesService.fire([{
+      resource: URI.file("C:/workspace/data/~$A.xlsx"),
+      type: FileChangeType.ADDED,
+    }, {
+      resource: URI.file("C:/workspace/data/.~lock.B.xlsx#"),
+      type: FileChangeType.UPDATED,
+    }]);
+    await timeout(0);
+
+    assert.equal(changeCount, 0);
+  });
 });
 
 class TestFileService implements Pick<IFileService, "onDidFilesChange" | "watch"> {

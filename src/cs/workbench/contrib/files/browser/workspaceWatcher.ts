@@ -4,11 +4,12 @@
 
 import { RunOnceScheduler } from "src/cs/base/common/async";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { joinPath } from "src/cs/base/common/resources";
 import { URI } from "src/cs/base/common/uri";
 import type { IFileChange, IFileService } from "src/cs/platform/files/common/files";
-import type { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
-import { joinPath } from "src/cs/base/common/resources";
 import { WORKSPACE_STORAGE_FOLDER_NAME } from "src/cs/platform/storage/common/storage";
+import type { IUriIdentityService } from "src/cs/platform/uriIdentity/common/uriIdentity";
+import { isWorkspaceTransientSourcePath } from "src/cs/workbench/services/workspaces/common/externalChanges";
 
 const FOLDER_CHANGE_REACT_DELAY = 500;
 
@@ -69,6 +70,7 @@ export class WorkspaceWatcher implements IDisposable {
     const storageFolder = joinPath(folder, WORKSPACE_STORAGE_FOLDER_NAME);
     return changes.some(change =>
       this.uriIdentityService.extUri.isEqualOrParent(change.resource, folder) &&
+      !isWorkspaceTransientSourcePath(change.resource.path) &&
       !this.uriIdentityService.extUri.isEqualOrParent(
         change.resource,
         storageFolder,

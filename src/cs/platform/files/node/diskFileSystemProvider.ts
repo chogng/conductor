@@ -11,6 +11,7 @@ import {
   type IFileContent,
   type IFileChange,
   type IFileStat,
+  type FileWriteLockState,
   type IReadFileOptions,
   type IWatchOptions,
   type IWriteFileOptions,
@@ -73,6 +74,28 @@ export class DiskFileSystemProvider {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  public async getWriteLockState(resource: URI): Promise<FileWriteLockState> {
+    const target = this.toFilePath(resource);
+    try {
+      await fs.promises.access(target, fs.constants.W_OK);
+    } catch {
+      return "unknown";
+    }
+
+    let handle: fs.promises.FileHandle | null = null;
+    try {
+      handle = await fs.promises.open(target, "r+");
+      return "unlocked";
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      return code === "EACCES" || code === "EBUSY" || code === "EPERM"
+        ? "locked"
+        : "unknown";
+    } finally {
+      await handle?.close().catch(() => undefined);
     }
   }
 

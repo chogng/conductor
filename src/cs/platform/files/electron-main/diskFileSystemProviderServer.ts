@@ -46,6 +46,8 @@ export class DiskFileSystemProviderChannel implements IServerChannel<string> {
         return this.provider.stat(URI.revive(args[0])) as Promise<T>;
       case "exists":
         return this.provider.exists(URI.revive(args[0])) as Promise<T>;
+      case "getWriteLockState":
+        return this.provider.getWriteLockState(URI.revive(args[0])) as Promise<T>;
       case "readDir":
         return this.provider.readDir(URI.revive(args[0])) as Promise<T>;
       case "readFile":

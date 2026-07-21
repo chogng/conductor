@@ -17,6 +17,7 @@ import {
   type IWatchOptions,
   type IWriteFileOptions,
   type FileType,
+  type FileWriteLockState,
 } from "src/cs/platform/files/common/files";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { IMainProcessService } from "src/cs/platform/ipc/common/mainProcessService";
@@ -47,6 +48,10 @@ export class ElectronBrowserFileService extends Disposable implements IFileServi
 
   public exists(resource: URI): Promise<boolean> {
     return this.channel.call("exists", [resource]);
+  }
+
+  public getWriteLockState(resource: URI): Promise<FileWriteLockState> {
+    return this.channel.call("getWriteLockState", [resource]);
   }
 
   public registerProvider(_scheme: string, _provider: IFileSystemProvider): IDisposable {

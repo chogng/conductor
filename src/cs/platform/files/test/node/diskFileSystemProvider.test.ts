@@ -62,6 +62,19 @@ suite("platform/files/test/node/diskFileSystemProvider", () => {
     }
   });
 
+  test("DiskFileSystemProvider reports an available file as write-unlocked", async () => {
+    const root = createTempDir();
+    try {
+      const filePath = path.join(root, "workbook.xls");
+      fs.writeFileSync(filePath, "workbook", "utf8");
+      const provider = new DiskFileSystemProvider();
+
+      assert.equal(await provider.getWriteLockState(URI.file(filePath)), "unlocked");
+    } finally {
+      fs.rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("DiskFileSystemProvider writes files and creates parent folders", async () => {
     const root = createTempDir();
     try {

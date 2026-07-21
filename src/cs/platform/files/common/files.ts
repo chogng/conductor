@@ -48,6 +48,8 @@ export type IFileContent = {
   readonly value: Uint8Array;
 };
 
+export type FileWriteLockState = "locked" | "unlocked" | "unknown";
+
 export type IWatchOptions = {
   readonly recursive?: boolean;
 };
@@ -90,6 +92,7 @@ export interface IFileService {
   hasProvider(resource: URI): boolean;
   listCapabilities(): Iterable<{ readonly capabilities: FileSystemProviderCapabilities; readonly scheme: string }>;
   exists(resource: URI): Promise<boolean>;
+  getWriteLockState?(resource: URI): Promise<FileWriteLockState>;
   readDir(resource: URI): Promise<readonly [string, FileType][]>;
   readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
   writeFile(resource: URI, content: string, options?: IWriteFileOptions): Promise<void>;
@@ -106,6 +109,7 @@ export interface IFileSystemProvider {
   readonly onDidFilesChange: Event<readonly IFileChange[]>;
 
   exists(resource: URI): Promise<boolean>;
+  getWriteLockState?(resource: URI): Promise<FileWriteLockState>;
   readDir(resource: URI): Promise<readonly [string, FileType][]>;
   readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
   writeFile(resource: URI, content: string, options?: IWriteFileOptions): Promise<void>;
