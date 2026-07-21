@@ -4,6 +4,7 @@
 
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import { CountBadge } from "src/cs/base/browser/ui/countbadge/countBadge";
+import { createCheckbox, updateCheckbox } from "src/cs/base/browser/ui/checkbox/checkbox";
 import { InlineEditableTextWidget } from "src/cs/base/browser/ui/InlineEditableText/inlineEditableTextWidget";
 import { DropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
 import {
@@ -149,6 +150,13 @@ export type ExplorerViewerProps = {
   readonly onCancelRenameFile?: () => void;
   readonly onRenameFile?: (file: ExplorerFileEntry, nextName: string) => void;
   readonly onSelectFile: (file: ExplorerFileEntry | null) => void;
+  readonly isExportFileSelectionMode?: boolean;
+  readonly selectedExportResources?: readonly ExplorerResourceIdentity[];
+  readonly onSetExportFolderSelection?: (
+    files: readonly ExplorerFileEntry[],
+    selected: boolean,
+  ) => void;
+  readonly onToggleExportFileSelection?: (file: ExplorerFileEntry) => void;
   readonly templateSelections?: readonly TemplateResourceSelection[];
 };
 
@@ -178,6 +186,9 @@ type FileItemTemplate = {
   readonly content: HTMLDivElement;
   readonly editorStore: DisposableStore;
   decorationResource: URI | null;
+  readonly exportCheckbox: HTMLButtonElement;
+  readonly exportCheckboxIndicator: HTMLElement;
+  fileEntry: ExplorerFileEntry | null;
   fileId: string | null;
   filePresentationSignature: string;
   fileRenderKey: string | null;
@@ -188,12 +199,17 @@ type FileItemTemplate = {
 };
 
 type FolderItemTemplate = {
-  actionButton: IDisposable;
+  readonly actionButton: IDisposable;
+  readonly actionsHost: HTMLDivElement;
   readonly content: HTMLDivElement;
   currentNode: FileTreeNode | null;
   readonly controls: HTMLDivElement;
   readonly countBadge: CountBadge;
+  readonly exportCheckbox: HTMLButtonElement;
+  readonly exportCheckboxIndicator: HTMLElement;
   readonly host: HTMLElement;
+  readonly moreActionsButton: HTMLButtonElement;
+  readonly moreActionsDropdown: DropdownButton;
   readonly name: HTMLSpanElement;
 };
 
@@ -207,6 +223,8 @@ type TreeModelCache = {
   readonly items: FileTreeNode[];
   readonly structureSignature: string;
 };
+
+type ExportFolderSelectionState = "all" | "none" | "partial";
 
 type HoverContent =
   | {
@@ -281,6 +299,61 @@ const isExplorerFileEntrySelected = (
 
   return selectedKey === getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(fileEntry));
 };
+
+const isExplorerFileSelectedForExport = (
+  fileEntry: ExplorerFileEntry,
+  props: Pick<ExplorerViewerProps, "selectedExportResources">,
+): boolean => {
+  const resourceKey = getExplorerResourceIdentityKey(getExplorerFileResourceIdentity(fileEntry));
+  return Boolean(resourceKey && props.selectedExportResources?.some(resource =>
+    getExplorerResourceIdentityKey(resource) === resourceKey));
+};
+
+const getSelectableExplorerFolderFiles = (node: FileTreeNode | null): ExplorerFileEntry[] => {
+  if (!node) {
+    return [];
+  }
+
+  const files: ExplorerFileEntry[] = [];
+  const visit = (currentNode: FileTreeNode): void => {
+    if (
+      currentNode.kind === "file" &&
+      currentNode.entry?.fileId &&
+      getExplorerFileResourceIdentity(currentNode.entry)
+    ) {
+      files.push(currentNode.entry);
+    }
+    for (const child of currentNode.children ?? []) {
+      visit(child);
+    }
+  };
+  visit(node);
+  return files;
+};
+
+const getExportFolderSelectionState = (
+  files: readonly ExplorerFileEntry[],
+  props: Pick<ExplorerViewerProps, "selectedExportResources">,
+): ExportFolderSelectionState => {
+  if (files.length === 0) {
+    return "none";
+  }
+
+  const selectedCount = files.reduce((count, file) =>
+    count + (isExplorerFileSelectedForExport(file, props) ? 1 : 0), 0);
+  if (selectedCount === files.length) {
+    return "all";
+  }
+  return selectedCount > 0 ? "partial" : "none";
+};
+
+const createExportFolderSelectionSignature = (
+  props: Pick<ExplorerViewerProps, "isExportFileSelectionMode" | "selectedExportResources">,
+): string => [
+  props.isExportFileSelectionMode ? "export-selection" : "",
+  ...(props.selectedExportResources ?? []).map(resource =>
+    getExplorerResourceIdentityKey(resource) ?? ""),
+].join("\u001f");
 
 const areExplorerFileResourceIdentitiesEqual = (
   first:
@@ -837,9 +910,15 @@ export class ExplorerViewer implements IDisposable {
       nextProps,
     );
     const nextFileEntriesByTreeKey = this.createFileEntriesByTreeKey(nextProps.files);
+    const shouldRerenderExportFolderControls =
+      createExportFolderSelectionSignature(this.props) !==
+      createExportFolderSelectionSignature(nextProps);
     const changedPresentationKeys = shouldUpdateTree
       ? []
-      : this.getChangedPresentationKeys(nextFilePresentationSignatures);
+      : [
+          ...this.getChangedPresentationKeys(nextFilePresentationSignatures),
+          ...(shouldRerenderExportFolderControls ? this.treeModel.folderKeys : []),
+        ];
     const shouldUpdateOptions =
       previousSelectedResourceKey !== nextSelectedResourceKey;
     const shouldUpdateFolderExpansion = !areStringArraysEqual(
@@ -1144,6 +1223,10 @@ export class ExplorerViewer implements IDisposable {
         ),
       }),
       createFileHoverContextSignature(entry),
+      props.isExportFileSelectionMode ? "export-selection" : "",
+      props.isExportFileSelectionMode && isExplorerFileSelectedForExport(entry, props)
+        ? "export-selected"
+        : "",
       props.mode ?? "",
     ].join("\u001f");
   }
@@ -1496,6 +1579,7 @@ export class ExplorerViewer implements IDisposable {
       this.hideFileItemHover(template.file.host);
     }
     template.file.fileId = null;
+    template.file.fileEntry = null;
     template.file.decorationResource = null;
     template.file.fileResourceIdentity = null;
     template.file.editorStore.clear();
@@ -1585,6 +1669,7 @@ export class ExplorerViewer implements IDisposable {
       template.content.parentElement === host &&
       template.actions.parentElement === host;
     template.fileId = fileId;
+    template.fileEntry = fileEntry;
     template.fileResourceIdentity = fileResourceIdentity;
     template.decorationResource = decorationResource;
     if (canReuseRenderedPresentation) {
@@ -1665,11 +1750,43 @@ export class ExplorerViewer implements IDisposable {
       template.content.append(editor.element);
     }
     this.updateFileItemBadge(fileEntry, template);
+    const isExportFileSelectionMode = Boolean(this.props.isExportFileSelectionMode);
+    const isSelectedForExport = isExportFileSelectionMode &&
+      isExplorerFileSelectedForExport(fileEntry, this.props);
+    updateCheckbox(template.exportCheckboxIndicator, {
+      checked: isSelectedForExport,
+      className: "file-list-item-export-checkbox-indicator",
+      decorative: true,
+      size: "md",
+    });
+    template.exportCheckbox.setAttribute("role", "checkbox");
+    template.exportCheckbox.setAttribute("aria-checked", String(isSelectedForExport));
+    template.exportCheckbox.setAttribute(
+      "aria-label",
+      isSelectedForExport
+        ? localize("files.export.deselectFileButtonLabel", "Deselect {fileName} for export", { fileName })
+        : localize("files.export.selectFileButtonLabel", "Select {fileName} for export", { fileName }),
+    );
     template.removeButton.setAttribute(
       "aria-label",
       localize("files.import.closeFileButtonLabel", "Close {fileName}", { fileName }),
     );
-    template.removeButton.hidden = !fileEntry.fileId;
+    const currentAction = isExportFileSelectionMode
+      ? template.exportCheckbox
+      : template.removeButton;
+    const replacedAction = isExportFileSelectionMode
+      ? template.removeButton
+      : template.exportCheckbox;
+    if (fileEntry.fileId) {
+      if (replacedAction.parentElement === template.actions) {
+        replacedAction.replaceWith(currentAction);
+      } else if (currentAction.parentElement !== template.actions) {
+        template.actions.append(currentAction);
+      }
+    } else {
+      template.removeButton.remove();
+      template.exportCheckbox.remove();
+    }
     template.actions.hidden = isEditing;
     if (
       template.content.parentElement !== host ||
@@ -1854,12 +1971,25 @@ export class ExplorerViewer implements IDisposable {
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "file-list-item-remove";
+    const exportCheckbox = document.createElement("button");
+    exportCheckbox.type = "button";
+    exportCheckbox.className = "file-list-item-export-checkbox";
+    const exportCheckboxIndicator = createCheckbox("span", {
+      checked: false,
+      className: "file-list-item-export-checkbox-indicator",
+      decorative: true,
+      size: "md",
+    });
+    exportCheckbox.append(exportCheckboxIndicator);
     const template: FileItemTemplate = {
       actions,
       badge,
       content,
       decorationResource: null,
       editorStore: new DisposableStore(),
+      exportCheckbox,
+      exportCheckboxIndicator,
+      fileEntry: null,
       fileId: null,
       filePresentationSignature: "",
       fileRenderKey: null,
@@ -1875,6 +2005,12 @@ export class ExplorerViewer implements IDisposable {
         CLOSE_FILE_ITEM_COMMAND_ID,
         template.fileResourceIdentity,
       );
+    });
+    exportCheckbox.addEventListener("click", event => {
+      event.stopPropagation();
+      if (template.fileEntry) {
+        this.props.onToggleExportFileSelection?.(template.fileEntry);
+      }
     });
     appendIcon(removeButton, LxIcon.close);
 
@@ -1900,16 +2036,18 @@ export class ExplorerViewer implements IDisposable {
 
     const actionsHost = document.createElement("div");
     actionsHost.className = "file-list-folder-actionbar";
-    const template: FolderItemTemplate = {
-      actionButton: { dispose: () => undefined },
-      content,
-      controls,
-      countBadge,
-      currentNode: null,
-      host,
-      name,
-    };
+    const exportCheckbox = document.createElement("button");
+    exportCheckbox.type = "button";
+    exportCheckbox.className = "file-list-item-export-checkbox";
+    const exportCheckboxIndicator = createCheckbox("span", {
+      checked: false,
+      className: "file-list-item-export-checkbox-indicator",
+      decorative: true,
+      size: "md",
+    });
+    exportCheckbox.append(exportCheckboxIndicator);
 
+    let template: FolderItemTemplate;
     const actionButton = new DropdownButton({
       ariaLabel: localize("files.folderMoreActions", "More Actions"),
       className: "file-list-folder-more",
@@ -1929,6 +2067,14 @@ export class ExplorerViewer implements IDisposable {
     const actionButtonDisposables = new DisposableStore();
     actionButtonDisposables.add(actionButton);
     actionButtonDisposables.add(countBadge);
+    actionButtonDisposables.add(
+      addDisposableListener(exportCheckbox, "click", event => {
+        event.stopPropagation();
+        const files = getSelectableExplorerFolderFiles(template.currentNode);
+        const selectionState = getExportFolderSelectionState(files, this.props);
+        this.props.onSetExportFolderSelection?.(files, selectionState !== "all");
+      }),
+    );
     actionButtonDisposables.add(
       addDisposableListener(actionButton.domNode, "mouseover", () => {
         this.hideFileItemHover();
@@ -1951,9 +2097,22 @@ export class ExplorerViewer implements IDisposable {
         }
       },
     });
+    template = {
+      actionButton: actionButtonDisposables,
+      actionsHost,
+      content,
+      controls,
+      countBadge,
+      currentNode: null,
+      exportCheckbox,
+      exportCheckboxIndicator,
+      host,
+      moreActionsButton: actionButton.domNode,
+      moreActionsDropdown: actionButton,
+      name,
+    };
     actionsHost.appendChild(actionButton.domNode);
     controls.appendChild(actionsHost);
-    template.actionButton = actionButtonDisposables;
     return template;
   }
 
@@ -1979,6 +2138,51 @@ export class ExplorerViewer implements IDisposable {
     host.dataset.expanded = isExpanded ? "true" : "false";
     template.name.textContent = node.name;
     template.countBadge.setCount(node.children?.length ?? 0);
+    const isExportFileSelectionMode = Boolean(this.props.isExportFileSelectionMode);
+    const folderFiles = getSelectableExplorerFolderFiles(node);
+    const selectionState = getExportFolderSelectionState(folderFiles, this.props);
+    const isSelectedForExport = selectionState === "all";
+    updateCheckbox(template.exportCheckboxIndicator, {
+      checked: isSelectedForExport,
+      className: "file-list-item-export-checkbox-indicator",
+      decorative: true,
+      indeterminate: selectionState === "partial",
+      size: "md",
+    });
+    template.exportCheckbox.disabled = folderFiles.length === 0;
+    template.exportCheckbox.setAttribute("role", "checkbox");
+    template.exportCheckbox.setAttribute(
+      "aria-checked",
+      selectionState === "partial" ? "mixed" : String(isSelectedForExport),
+    );
+    template.exportCheckbox.setAttribute(
+      "aria-label",
+      isSelectedForExport
+        ? localize(
+            "files.export.deselectFolderButtonLabel",
+            "Deselect all files in {folderName} for export",
+            { folderName: node.name },
+          )
+        : localize(
+            "files.export.selectFolderButtonLabel",
+            "Select all files in {folderName} for export",
+            { folderName: node.name },
+          ),
+    );
+    const currentAction = isExportFileSelectionMode
+      ? template.exportCheckbox
+      : template.moreActionsButton;
+    const replacedAction = isExportFileSelectionMode
+      ? template.moreActionsButton
+      : template.exportCheckbox;
+    if (isExportFileSelectionMode) {
+      template.moreActionsDropdown.hide();
+    }
+    if (replacedAction.parentElement === template.actionsHost) {
+      replacedAction.replaceWith(currentAction);
+    } else if (currentAction.parentElement !== template.actionsHost) {
+      template.actionsHost.append(currentAction);
+    }
     if (
       template.content.parentElement !== host ||
       template.controls.parentElement !== host

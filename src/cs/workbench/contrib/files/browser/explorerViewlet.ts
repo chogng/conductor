@@ -81,6 +81,11 @@ import {
   type IReviewService as IReviewServiceType,
 } from "src/cs/workbench/services/review/common/review";
 import {
+  ExportViewContainerId,
+  IExportService,
+  type IExportService as IExportServiceType,
+} from "src/cs/workbench/services/export/common/export";
+import {
   ISliceService,
   type SliceFileState,
 } from "src/cs/workbench/services/slice/common/slice";
@@ -117,6 +122,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
   private disposed = false;
   private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
   private reviewedExplorerResourceSignature = "";
+  private exportFileSelectionSignature = "";
 
   protected constructor(
     options: ExplorerViewPaneSurfaceOptions,
@@ -137,6 +143,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @IUserTemplateService private readonly userTemplateService: IUserTemplateServiceType,
     @IReviewService private readonly reviewService: IReviewServiceType,
+    @IExportService private readonly exportService: IExportServiceType,
     @IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
     @IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
   ) {
@@ -186,6 +193,7 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       },
       syncView: () => this.syncView(),
     });
+    this.exportFileSelectionSignature = this.getExportFileSelectionSignature();
     this._register(this.explorerService.onDidChangeContext(() => {
       this.syncView();
     }));
@@ -222,8 +230,20 @@ export abstract class BaseExplorerViewPane extends ViewPane {
     this._register(this.sliceService.onDidChangeSliceState(() => {
       this.syncView();
     }));
+    this._register(this.exportService.onDidChangeExportState(() => {
+      const signature = this.getExportFileSelectionSignature();
+      if (signature === this.exportFileSelectionSignature) {
+        return;
+      }
+
+      this.exportFileSelectionSignature = signature;
+      this.syncView();
+    }));
     this._register(this.viewsService.onDidChangeViewContainerNavigation(event => {
-      if (event.location === ViewContainerLocation.Panel) {
+      if (
+        event.location === ViewContainerLocation.Panel ||
+        event.location === ViewContainerLocation.AuxiliaryBar
+      ) {
         this.syncView();
       }
     }));
@@ -408,6 +428,8 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       thumbnailPreviewService: this.thumbnailPreviewService,
       thumbnailService: this.thumbnailService,
       templateSelections: this.sliceService.getState().templateSelections,
+      isExportFileSelectionMode: this.isExportFileSelectionMode,
+      selectedExportResources: this.exportService.getState().selectedResources,
       editable: this.explorerService.getContext().editable,
       templateRecords: this.createTemplateRecords(),
       files,
@@ -427,7 +449,26 @@ export abstract class BaseExplorerViewPane extends ViewPane {
       onOpenFolderDialog: this.handleOpenFolderDialog,
       onRenameFile: this.handleRenameFile,
       onSelectFile: this.handleSelectFile,
+      onSetExportFolderSelection: this.handleSetExportFolderSelection,
+      onToggleExportFileSelection: this.handleToggleExportFileSelection,
     };
+  }
+
+  private getExportFileSelectionSignature(): string {
+    const exportState = this.exportService.getState();
+    return [
+      exportState.canvasScope,
+      ...exportState.selectedResources.map(resource =>
+        getExplorerResourceIdentityKey(resource) ?? ""),
+    ].join("\u001f");
+  }
+
+  private get isExportFileSelectionMode(): boolean {
+    const activeAuxiliaryBarViewContainerId = this.viewsService.getViewContainerNavigationState(
+      ViewContainerLocation.AuxiliaryBar,
+    ).activeViewContainerId;
+    return activeAuxiliaryBarViewContainerId === ExportViewContainerId &&
+      this.exportService.getState().canvasScope === "selected";
   }
 
   private readonly handleCancelRenameFile = (): void => {
@@ -436,6 +477,23 @@ export abstract class BaseExplorerViewPane extends ViewPane {
 
   private readonly handleHoverFileChange = (resource: ExplorerResourceIdentity | null): void => {
     this.explorerService.setHoveredResource(resource);
+  };
+
+  private readonly handleSetExportFolderSelection = (
+    files: readonly ExplorerFileEntry[],
+    selected: boolean,
+  ): void => {
+    const targets = files
+      .map(file => getExplorerFileResourceIdentity(file))
+      .filter((target): target is ExplorerResourceIdentity => Boolean(target));
+    this.exportService.updateCanvasSelection(targets, selected);
+  };
+
+  private readonly handleToggleExportFileSelection = (file: ExplorerFileEntry): void => {
+    const target = getExplorerFileResourceIdentity(file);
+    if (target) {
+      this.exportService.toggleCanvasSelection(target);
+    }
   };
 
   private readonly handleRenameFile = (file: ExplorerFileEntry, nextName: string): void => {
@@ -955,6 +1013,7 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
     @IThumbnailService thumbnailService: IThumbnailService,
     @IUserTemplateService userTemplateService: IUserTemplateServiceType,
     @IReviewService reviewService: IReviewServiceType,
+    @IExportService exportService: IExportServiceType,
     @IUriIdentityService uriIdentityService: IUriIdentityService,
     @IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
   ) {
@@ -977,6 +1036,7 @@ export class ExplorerViewPane extends BaseExplorerViewPane {
       thumbnailService,
       userTemplateService,
       reviewService,
+      exportService,
       uriIdentityService,
       workspaceContextService,
     );

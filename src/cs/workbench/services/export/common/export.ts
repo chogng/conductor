@@ -35,6 +35,7 @@ export type ExportState = {
   readonly canvasScope: OriginCanvasExportScope;
   readonly filteredKind: OriginFilteredCanvasKind;
   readonly curveMode: OriginCurveExportMode;
+  readonly selectedResources: readonly ExportResourceIdentity[];
   readonly selectedCurveKeys: readonly string[];
   readonly selectedContentKeys: readonly OriginExportContentKey[];
 };
@@ -73,6 +74,8 @@ export interface IExportService {
   setCanvasScope: ExportStateSetter<OriginCanvasExportScope>;
   setFilteredKind: ExportStateSetter<OriginFilteredCanvasKind>;
   setCurveMode(mode: OriginCurveExportMode): void;
+  toggleCanvasSelection(target: ExportResourceIdentity): void;
+  updateCanvasSelection(targets: readonly ExportResourceIdentity[], selected: boolean): void;
   setSelectedCurveKeys(curveKeys: readonly string[]): void;
   syncSelectedCurveKeys(availableCurveKeys: readonly string[]): void;
   setContentKeys: ExportStateSetter<readonly OriginExportContentKey[]>;

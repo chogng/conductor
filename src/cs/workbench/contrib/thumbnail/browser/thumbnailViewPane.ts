@@ -18,6 +18,10 @@ import {
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import { ThumbnailViewId } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import { IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
+import {
+  IExportService,
+  type IExportService as IExportServiceType,
+} from "src/cs/workbench/services/export/common/export";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   IReviewService,
@@ -68,6 +72,7 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
     @IThumbnailService thumbnailService: IThumbnailService,
     @IUserTemplateService userTemplateService: IUserTemplateServiceType,
     @IReviewService reviewService: IReviewServiceType,
+    @IExportService exportService: IExportServiceType,
     @IUriIdentityService uriIdentityService: IUriIdentityService,
     @IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
   ) {
@@ -90,6 +95,7 @@ export class ThumbnailViewPane extends BaseExplorerViewPane {
       thumbnailService,
       userTemplateService,
       reviewService,
+      exportService,
       uriIdentityService,
       workspaceContextService,
     );

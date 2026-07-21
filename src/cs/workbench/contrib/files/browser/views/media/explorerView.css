@@ -274,7 +274,8 @@
   color: rgb(8 145 178 / 1);
 }
 
-.file-list-item-remove {
+.file-list-item-remove,
+.file-list-item-export-checkbox {
   display: inline-flex;
   min-height: var(--files-explorer-action-size, 22px);
   min-width: var(--files-explorer-action-size, 22px);
@@ -288,11 +289,14 @@
   padding: 0;
   font: inherit;
   line-height: 1;
-  color: rgb(var(--text-secondary) / 1);
-  opacity: 0;
   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
+}
+
+.file-list-item-remove {
+  color: rgb(var(--text-secondary) / 1);
+  opacity: 0;
 }
 
 .file-list-item-remove svg {
@@ -303,6 +307,36 @@
 .file-list-item-remove:hover {
   background-color: rgb(var(--bg-page) / 1);
   color: rgb(239 68 68 / 1);
+}
+
+.file-list-item-export-checkbox {
+  cursor: pointer;
+}
+
+.file-list-item-export-checkbox:hover,
+.file-list-item-export-checkbox:focus-visible {
+  background-color: rgb(var(--bg-page) / 1);
+}
+
+.file-list-item-export-checkbox-indicator {
+  --checkbox-bg: transparent;
+  --checkbox-border: rgb(var(--text-secondary) / 0.55);
+  --checkbox-border-hover: rgb(var(--text-primary) / 0.8);
+  --checkbox-checked-bg: rgb(var(--text-secondary) / 1);
+  --checkbox-checked-border: rgb(var(--text-secondary) / 1);
+}
+
+.file-list-item-export-checkbox:hover .file-list-item-export-checkbox-indicator,
+.file-list-item-export-checkbox:focus-visible .file-list-item-export-checkbox-indicator {
+  border-color: rgb(var(--text-primary) / 0.8);
+}
+
+.file-list-item-export-checkbox:hover .file-list-item-export-checkbox-indicator.checked,
+.file-list-item-export-checkbox:focus-visible .file-list-item-export-checkbox-indicator.checked,
+.file-list-item-export-checkbox:hover .file-list-item-export-checkbox-indicator.indeterminate,
+.file-list-item-export-checkbox:focus-visible .file-list-item-export-checkbox-indicator.indeterminate {
+  background-color: rgb(var(--text-primary) / 1);
+  border-color: rgb(var(--text-primary) / 1);
 }
 
 .file-list-tree .ui-list__row:hover .file-list-item-remove {

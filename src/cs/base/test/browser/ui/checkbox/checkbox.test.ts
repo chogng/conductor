@@ -16,6 +16,10 @@ suite("base/test/browser/ui/checkbox/checkbox", () => {
       getCheckboxClassName({ checked: true, className: "extra", size: "lg" }),
       "ui-checkbox ui-checkbox--lg checked extra",
     );
+    assert.equal(
+      getCheckboxClassName({ checked: true, indeterminate: true }),
+      "ui-checkbox ui-checkbox--sm indeterminate",
+    );
   });
 
   test("getCheckboxAriaAttributes distinguishes decorative and interactive usage", () => {
@@ -25,6 +29,10 @@ suite("base/test/browser/ui/checkbox/checkbox", () => {
     assert.deepEqual(getCheckboxAriaAttributes({ checked: true, decorative: false }), {
       role: "checkbox",
       "aria-checked": true,
+    });
+    assert.deepEqual(getCheckboxAriaAttributes({ decorative: false, indeterminate: true }), {
+      role: "checkbox",
+      "aria-checked": "mixed",
     });
   });
 
@@ -58,6 +66,21 @@ suite("base/test/browser/ui/checkbox/checkbox", () => {
         svgName: "svg",
       },
       uncheckedChildCount: 0,
+    });
+  });
+
+  test("createCheckbox renders the indeterminate state", () => {
+    const checkbox = createCheckbox("span", { indeterminate: true });
+    const svg = checkbox.firstElementChild?.firstElementChild;
+
+    assert.deepEqual({
+      className: checkbox.className,
+      pathCount: svg?.querySelectorAll("path").length,
+      svgName: svg?.localName,
+    }, {
+      className: "ui-checkbox ui-checkbox--sm indeterminate",
+      pathCount: 1,
+      svgName: "svg",
     });
   });
 });

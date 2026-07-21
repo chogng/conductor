@@ -43,6 +43,7 @@ suite("workbench/services/export/browser/exportService", () => {
 			canvasScope: "current",
 			filteredKind: "output",
 			curveMode: "all",
+			selectedResources: [],
 			selectedCurveKeys: [],
 			selectedContentKeys: ["iv"],
 		});
@@ -59,6 +60,7 @@ suite("workbench/services/export/browser/exportService", () => {
 			canvasScope: "filtered",
 			filteredKind: "transfer",
 			curveMode: "select",
+			selectedResources: [],
 			selectedCurveKeys: ["curve-a"],
 			selectedContentKeys: ["gm", "ss"],
 		});
@@ -68,6 +70,7 @@ suite("workbench/services/export/browser/exportService", () => {
 				canvasScope: "current",
 				filteredKind: "output",
 				curveMode: "all",
+				selectedResources: [],
 				selectedCurveKeys: [],
 				selectedContentKeys: ["iv"],
 			},
@@ -76,6 +79,7 @@ suite("workbench/services/export/browser/exportService", () => {
 				canvasScope: "filtered",
 				filteredKind: "output",
 				curveMode: "all",
+				selectedResources: [],
 				selectedCurveKeys: [],
 				selectedContentKeys: ["iv"],
 			},
@@ -84,6 +88,7 @@ suite("workbench/services/export/browser/exportService", () => {
 				canvasScope: "filtered",
 				filteredKind: "transfer",
 				curveMode: "all",
+				selectedResources: [],
 				selectedCurveKeys: [],
 				selectedContentKeys: ["iv"],
 			},
@@ -92,6 +97,7 @@ suite("workbench/services/export/browser/exportService", () => {
 				canvasScope: "filtered",
 				filteredKind: "transfer",
 				curveMode: "select",
+				selectedResources: [],
 				selectedCurveKeys: [],
 				selectedContentKeys: ["iv"],
 			},
@@ -100,6 +106,7 @@ suite("workbench/services/export/browser/exportService", () => {
 				canvasScope: "filtered",
 				filteredKind: "transfer",
 				curveMode: "select",
+				selectedResources: [],
 				selectedCurveKeys: ["curve-a"],
 				selectedContentKeys: ["iv"],
 			},
@@ -108,6 +115,7 @@ suite("workbench/services/export/browser/exportService", () => {
 				canvasScope: "filtered",
 				filteredKind: "transfer",
 				curveMode: "select",
+				selectedResources: [],
 				selectedCurveKeys: ["curve-a"],
 				selectedContentKeys: ["gm", "ss"],
 			},
@@ -134,6 +142,47 @@ suite("workbench/services/export/browser/exportService", () => {
 		assert.equal(changeCount, 0);
 
 		disposable.dispose();
+		service.dispose();
+	});
+
+	test("enters file selection mode with the current file and toggles additional files", () => {
+		const first = createCalculationResult("file-a");
+		const second = createCalculationResult("file-b");
+		const service = createExportService([first, second]);
+		service.updateViewState({
+			activeResource: first.resource,
+			resources: [
+				{ resource: first.resource },
+				{ resource: second.resource },
+			],
+		});
+
+		service.setCanvasScope("selected");
+		service.toggleCanvasSelection({ resource: second.resource });
+
+		assert.deepEqual(service.getState().selectedResources, [
+			{ resource: first.resource },
+			{ resource: second.resource },
+		]);
+
+		service.toggleCanvasSelection({ resource: first.resource });
+		assert.deepEqual(service.getState().selectedResources, [
+			{ resource: second.resource },
+		]);
+
+		service.updateCanvasSelection([
+			{ resource: first.resource },
+			{ resource: second.resource },
+		], true);
+		assert.deepEqual(service.getState().selectedResources, [
+			{ resource: second.resource },
+			{ resource: first.resource },
+		]);
+
+		service.updateCanvasSelection([{ resource: second.resource }], false);
+		assert.deepEqual(service.getState().selectedResources, [
+			{ resource: first.resource },
+		]);
 		service.dispose();
 	});
 

@@ -123,6 +123,10 @@ export class ExplorerView implements IDisposable {
       onCancelRenameFile: this.props.onCancelRenameFile,
       onRenameFile: this.props.onRenameFile,
       onSelectFile: this.props.onSelectFile,
+      isExportFileSelectionMode: this.props.isExportFileSelectionMode,
+      selectedExportResources: this.props.selectedExportResources,
+      onSetExportFolderSelection: this.props.onSetExportFolderSelection,
+      onToggleExportFileSelection: this.props.onToggleExportFileSelection,
     };
   }
 

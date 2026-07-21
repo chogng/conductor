@@ -63,6 +63,7 @@ const createExportService = (): IExportService => {
     curveMode: "all",
     filteredKind: "output",
     originMode: "merged",
+    selectedResources: [],
     selectedContentKeys: ["iv"],
     selectedCurveKeys: [],
   };
@@ -83,6 +84,8 @@ const createExportService = (): IExportService => {
     setCurveMode: () => undefined,
     setFilteredKind: () => undefined,
     setOriginMode: () => undefined,
+    toggleCanvasSelection: () => undefined,
+    updateCanvasSelection: () => undefined,
     setSelectedCurveKeys: () => undefined,
   } as unknown as IExportService;
 };

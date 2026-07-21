@@ -107,6 +107,7 @@ export class BrowserExportService extends Disposable implements IExportService {
     canvasScope: "current",
     filteredKind: "output",
     curveMode: "all",
+    selectedResources: [],
     selectedCurveKeys: [],
     selectedContentKeys: ["iv"],
   };
@@ -215,8 +216,15 @@ export class BrowserExportService extends Disposable implements IExportService {
   readonly setCanvasScope = (
     value: OriginCanvasExportScope | ((previous: OriginCanvasExportScope) => OriginCanvasExportScope),
   ): void => {
+    const canvasScope = normalizeCanvasScope(resolveNext(value, this.state.canvasScope));
+    const selectedResources = canvasScope === "selected" &&
+      this.state.canvasScope !== "selected" &&
+      this.state.selectedResources.length === 0
+      ? this.getCurrentExportResource()
+      : this.state.selectedResources;
     this.updateState({
-      canvasScope: normalizeCanvasScope(resolveNext(value, this.state.canvasScope)),
+      canvasScope,
+      selectedResources,
     });
   };
 
@@ -232,6 +240,50 @@ export class BrowserExportService extends Disposable implements IExportService {
     this.updateState({
       curveMode: mode === "select" ? "select" : "all",
     });
+  }
+
+  public toggleCanvasSelection(target: ExportResourceIdentity): void {
+    const selectedTarget = normalizeExportResourceIdentity(target);
+    if (!selectedTarget) {
+      return;
+    }
+
+    const selectedResources = this.state.selectedResources.some(resource =>
+      isSameExportResource(resource, selectedTarget))
+      ? this.state.selectedResources.filter(resource =>
+        !isSameExportResource(resource, selectedTarget))
+      : [...this.state.selectedResources, selectedTarget];
+    this.updateState({ selectedResources });
+  }
+
+  public updateCanvasSelection(
+    targets: readonly ExportResourceIdentity[],
+    selected: boolean,
+  ): void {
+    const normalizedTargets = targets.reduce<ExportResourceIdentity[]>((result, target) => {
+      const normalizedTarget = normalizeExportResourceIdentity(target);
+      if (
+        normalizedTarget &&
+        !result.some(existingTarget => isSameExportResource(existingTarget, normalizedTarget))
+      ) {
+        result.push(normalizedTarget);
+      }
+      return result;
+    }, []);
+    if (normalizedTargets.length === 0) {
+      return;
+    }
+
+    const selectedResources = selected
+      ? normalizedTargets.reduce<ExportResourceIdentity[]>((result, target) => {
+        if (!result.some(existingTarget => isSameExportResource(existingTarget, target))) {
+          result.push(target);
+        }
+        return result;
+      }, [...this.state.selectedResources])
+      : this.state.selectedResources.filter(resource =>
+        !normalizedTargets.some(target => isSameExportResource(resource, target)));
+    this.updateState({ selectedResources });
   }
 
   public setSelectedCurveKeys(curveKeys: readonly string[]): void {
@@ -302,7 +354,11 @@ export class BrowserExportService extends Disposable implements IExportService {
   private resolveScopedOriginTargets(
     input: OriginExportPlanInput,
   ): readonly ExportResourceIdentity[] {
-    if (this.state.canvasScope !== "current" && this.state.canvasScope !== "selected") {
+    if (this.state.canvasScope === "selected") {
+      return input.resources.filter(resource => this.state.selectedResources.some(selectedResource =>
+        isSameExportResource(resource, selectedResource)));
+    }
+    if (this.state.canvasScope !== "current") {
       return input.resources;
     }
     if (!input.activeResource) {
@@ -316,6 +372,21 @@ export class BrowserExportService extends Disposable implements IExportService {
     const matchedTarget = input.resources.find(target =>
       isSameExportResource(target, activeTarget)
     );
+    return matchedTarget ? [matchedTarget] : [];
+  }
+
+  private getCurrentExportResource(): readonly ExportResourceIdentity[] {
+    const input = this.currentOriginExportPlanInput;
+    if (!input?.activeResource) {
+      return [];
+    }
+
+    const activeTarget: ExportResourceIdentity = {
+      resource: input.activeResource,
+      sheetId: input.activeSheetId,
+    };
+    const matchedTarget = input.resources.find(resource =>
+      isSameExportResource(resource, activeTarget));
     return matchedTarget ? [matchedTarget] : [];
   }
 
@@ -513,6 +584,20 @@ const normalizeExportSheetId = (
   sheetId: string | null | undefined,
 ): string => String(sheetId ?? "").trim();
 
+const normalizeExportResourceIdentity = (
+  target: ExportResourceIdentity | null | undefined,
+): ExportResourceIdentity | null => {
+  if (!target?.resource) {
+    return null;
+  }
+
+  const sheetId = normalizeExportSheetId(target.sheetId);
+  return {
+    resource: target.resource,
+    ...(sheetId ? { sheetId } : {}),
+  };
+};
+
 const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>
   typeof value === "function"
     ? (value as (previous: T) => T)(previous)
@@ -557,8 +642,16 @@ const isSameExportState = (current: ExportState, next: ExportState): boolean =>
     current.canvasScope === next.canvasScope &&
     current.filteredKind === next.filteredKind &&
     current.curveMode === next.curveMode &&
+    areExportResourceIdentityArraysEqual(current.selectedResources, next.selectedResources) &&
     areStringArraysEqual(current.selectedCurveKeys, next.selectedCurveKeys) &&
     areStringArraysEqual(current.selectedContentKeys, next.selectedContentKeys);
+
+const areExportResourceIdentityArraysEqual = (
+  first: readonly ExportResourceIdentity[],
+  second: readonly ExportResourceIdentity[],
+): boolean =>
+  first.length === second.length &&
+  first.every((resource, index) => isSameExportResource(resource, second[index]!));
 
 const normalizeCurveKeys = (
   curveKeys: readonly string[],

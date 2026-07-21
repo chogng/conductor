@@ -41,16 +41,17 @@
   --checkbox-size: 18px;
 }
 
-.ui-checkbox.checked {
+.ui-checkbox.checked,
+.ui-checkbox.indeterminate {
   background-color: var(--checkbox-checked-bg);
   border-color: var(--checkbox-checked-border);
 }
 
-.ui-checkbox:not(.checked) {
+.ui-checkbox:not(.checked):not(.indeterminate) {
   background-color: var(--checkbox-bg);
   border-color: var(--checkbox-border);
 }
 
-.group:hover .ui-checkbox:not(.checked) {
+.group:hover .ui-checkbox:not(.checked):not(.indeterminate) {
   border-color: var(--checkbox-border-hover);
 }

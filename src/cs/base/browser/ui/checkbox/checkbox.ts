@@ -12,17 +12,21 @@ export type CheckboxOptions = {
   readonly decorative?: boolean;
   readonly iconClassName?: string;
   readonly iconSize?: number;
+  readonly indeterminate?: boolean;
   readonly size?: CheckboxSize;
 };
 
 export const getCheckboxClassName = ({
   checked = false,
   className = "",
+  indeterminate = false,
   size = "sm",
-}: Pick<CheckboxOptions, "checked" | "className" | "size"> = {}): string => {
+}: Pick<CheckboxOptions, "checked" | "className" | "indeterminate" | "size"> = {}): string => {
   const classNames = ["ui-checkbox", `ui-checkbox--${size}`];
 
-  if (checked) {
+  if (indeterminate) {
+    classNames.push("indeterminate");
+  } else if (checked) {
     classNames.push("checked");
   }
 
@@ -36,28 +40,30 @@ export const getCheckboxClassName = ({
 export const getCheckboxAriaAttributes = ({
   checked = false,
   decorative = true,
-}: Pick<CheckboxOptions, "checked" | "decorative"> = {}): Record<string, string | boolean> =>
+  indeterminate = false,
+}: Pick<CheckboxOptions, "checked" | "decorative" | "indeterminate"> = {}): Record<string, string | boolean> =>
   decorative
     ? { "aria-hidden": true }
     : {
         role: "checkbox",
-        "aria-checked": checked,
+        "aria-checked": indeterminate ? "mixed" : checked,
       };
 
 const createCheckboxIcon = ({
   checked = false,
   iconClassName = "",
   iconSize,
+  indeterminate = false,
   size = "sm",
-}: Pick<CheckboxOptions, "checked" | "iconClassName" | "iconSize" | "size"> = {}): HTMLSpanElement | undefined => {
-  if (!checked) {
+}: Pick<CheckboxOptions, "checked" | "iconClassName" | "iconSize" | "indeterminate" | "size"> = {}): HTMLSpanElement | undefined => {
+  if (!checked && !indeterminate) {
     return undefined;
   }
 
   const resolvedIconSize = iconSize ?? (size === "lg" ? 11 : 10);
   const icon = createLxIcon({
     className: iconClassName || undefined,
-    icon: LxIcon.check,
+    icon: indeterminate ? LxIcon.remove : LxIcon.check,
     size: resolvedIconSize,
   });
   icon.setAttribute("aria-hidden", "true");

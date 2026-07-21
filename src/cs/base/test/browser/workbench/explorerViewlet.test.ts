@@ -37,6 +37,7 @@ import type { IDecorationsService } from "src/cs/workbench/services/decorations/
 import type { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
+import type { IExportService } from "src/cs/workbench/services/export/common/export";
 import type {
   IReviewService,
 } from "src/cs/workbench/services/review/common/review";
@@ -219,6 +220,7 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
     } as unknown as IThumbnailService,
     createUserTemplateService(),
     reviewService,
+    createExportService(),
     uriIdentityService,
     {
       closeFolder: async () => undefined,
@@ -314,6 +316,19 @@ const createViewsService = (): IViewsService => ({
   }),
   openViewContainer: async () => null,
 } as unknown as IViewsService);
+
+const createExportService = (): IExportService => ({
+  getState: () => ({
+    canvasScope: "current",
+    curveMode: "all",
+    filteredKind: "output",
+    originMode: "merged",
+    selectedContentKeys: ["iv"],
+    selectedCurveKeys: [],
+    selectedResources: [],
+  }),
+  onDidChangeExportState: Event.None,
+} as unknown as IExportService);
 
 const createExplorerService = (
   initialFiles: readonly ExplorerFileEntry[] = [],
