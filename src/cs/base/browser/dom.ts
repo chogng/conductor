@@ -553,43 +553,48 @@ type AnimationFrameQueueItem = {
     cancelled: boolean;
 };
 
-let animationFrameHandle: number | null = null;
-let animationFrameRunning = false;
-let animationFrameQueue: AnimationFrameQueueItem[] = [];
+const animationFrameQueues = new Map<number, AnimationFrameQueueItem[]>();
+const currentAnimationFrameQueues = new Map<number, AnimationFrameQueueItem[]>();
+const animationFrameRequested = new Map<number, boolean>();
+const animationFrameRunning = new Map<number, boolean>();
 
-function flushAnimationFrameQueue(targetWindow: Window): void {
-    animationFrameRunning = true;
-    animationFrameHandle = null;
+function flushAnimationFrameQueue(targetWindowId: number): void {
+    animationFrameRequested.set(targetWindowId, false);
 
-    const queue = animationFrameQueue
-        .filter(item => !item.cancelled)
-        .sort((a, b) => b.priority - a.priority);
-    animationFrameQueue = [];
+    const queue = animationFrameQueues.get(targetWindowId) ?? [];
+    currentAnimationFrameQueues.set(targetWindowId, queue);
+    animationFrameQueues.set(targetWindowId, []);
+    animationFrameRunning.set(targetWindowId, true);
 
-    for (const item of queue) {
+    while (queue.length > 0) {
+        queue.sort((a, b) => b.priority - a.priority);
+        const item = queue.shift()!;
         if (!item.cancelled) {
             item.runner();
         }
     }
 
-    animationFrameRunning = false;
-
-    if (animationFrameQueue.length > 0) {
-        animationFrameHandle = targetWindow.requestAnimationFrame(() => flushAnimationFrameQueue(targetWindow));
-    }
+    animationFrameRunning.set(targetWindowId, false);
 }
 
 export function scheduleAtNextAnimationFrame(targetWindow: Window, runner: () => void, priority = 0): IDisposable {
+    const targetWindowId = getWindowId(targetWindow);
     const item: AnimationFrameQueueItem = {
         priority,
         runner,
         cancelled: false,
     };
 
-    animationFrameQueue.push(item);
+    let queue = animationFrameQueues.get(targetWindowId);
+    if (!queue) {
+        queue = [];
+        animationFrameQueues.set(targetWindowId, queue);
+    }
+    queue.push(item);
 
-    if (animationFrameHandle == null) {
-        animationFrameHandle = targetWindow.requestAnimationFrame(() => flushAnimationFrameQueue(targetWindow));
+    if (!animationFrameRequested.get(targetWindowId)) {
+        animationFrameRequested.set(targetWindowId, true);
+        targetWindow.requestAnimationFrame(() => flushAnimationFrameQueue(targetWindowId));
     }
 
     return toDisposable(() => {
@@ -598,9 +603,22 @@ export function scheduleAtNextAnimationFrame(targetWindow: Window, runner: () =>
 }
 
 export function runAtThisOrScheduleAtNextAnimationFrame(targetWindow: Window, runner: () => void, priority = 0): IDisposable {
-    if (animationFrameRunning) {
-        runner();
-        return toDisposable(() => {});
+    const targetWindowId = getWindowId(targetWindow);
+    if (animationFrameRunning.get(targetWindowId)) {
+        const item: AnimationFrameQueueItem = {
+            priority,
+            runner,
+            cancelled: false,
+        };
+        let queue = currentAnimationFrameQueues.get(targetWindowId);
+        if (!queue) {
+            queue = [];
+            currentAnimationFrameQueues.set(targetWindowId, queue);
+        }
+        queue.push(item);
+        return toDisposable(() => {
+            item.cancelled = true;
+        });
     }
 
     return scheduleAtNextAnimationFrame(targetWindow, runner, priority);

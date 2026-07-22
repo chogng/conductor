@@ -90,7 +90,6 @@
 
 .table_view_sheet_tab[aria-selected="true"] {
   background: rgb(var(--accent) / 0.12);
-  box-shadow: inset 0 -2px 0 rgb(var(--accent) / 1);
   color: rgb(var(--text-primary) / 1);
 }
 

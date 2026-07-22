@@ -6,6 +6,7 @@ import {
   EventType,
   registerWindow,
   replaceChildrenIfChanged,
+  scheduleAtNextAnimationFrame,
 } from "../../browser/dom.ts";
 import { asCssValueWithDefault } from "../../browser/cssValue.ts";
 import { createStyleSheet } from "../../browser/domStylesheets.ts";
@@ -111,6 +112,43 @@ suite("base/test/browser/dom", () => {
     } finally {
       registration.dispose();
       styleStore.dispose();
+      iframe.remove();
+    }
+  });
+
+  test("scheduling during an animation frame requests only one following frame", () => {
+    const iframe = document.createElement("iframe");
+    document.body.append(iframe);
+    const targetWindow = iframe.contentWindow;
+    assert.ok(targetWindow);
+
+    const callbacks: FrameRequestCallback[] = [];
+    const originalRequestAnimationFrame = targetWindow.requestAnimationFrame;
+    targetWindow.requestAnimationFrame = callback => {
+      callbacks.push(callback);
+      return callbacks.length;
+    };
+
+    const calls: string[] = [];
+    let nextFrame = { dispose() {} };
+    const firstFrame = scheduleAtNextAnimationFrame(targetWindow, () => {
+      calls.push("first");
+      nextFrame = scheduleAtNextAnimationFrame(targetWindow, () => calls.push("second"));
+    });
+
+    try {
+      assert.equal(callbacks.length, 1);
+      callbacks.shift()!(performance.now());
+      assert.deepEqual(calls, ["first"]);
+      assert.equal(callbacks.length, 1);
+
+      callbacks.shift()!(performance.now());
+      assert.deepEqual(calls, ["first", "second"]);
+      assert.equal(callbacks.length, 0);
+    } finally {
+      firstFrame.dispose();
+      nextFrame.dispose();
+      targetWindow.requestAnimationFrame = originalRequestAnimationFrame;
       iframe.remove();
     }
   });

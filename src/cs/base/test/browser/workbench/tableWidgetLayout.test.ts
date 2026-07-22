@@ -55,13 +55,16 @@ suite("base/browser/workbench tableWidget layout", () => {
     assert.equal(getCanAdjustColumnScale("editor"), false);
   });
 
-  test("keeps sheet tabs at their content width so the tablist can scroll", () => {
+  test("keeps sheet tabs scrollable without an active underline", () => {
     const tab = document.createElement("button");
     tab.className = "table_view_sheet_tab";
+    tab.setAttribute("aria-selected", "true");
     document.body.append(tab);
 
     try {
-      assert.equal(getComputedStyle(tab).flexShrink, "0");
+      const style = getComputedStyle(tab);
+      assert.equal(style.flexShrink, "0");
+      assert.equal(style.boxShadow, "none");
     } finally {
       tab.remove();
     }
